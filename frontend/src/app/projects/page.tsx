@@ -38,7 +38,11 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/projects`);
+      const url = new URL(`${API_BASE_URL}/projects`);
+      if (role === 'Employee' && user?.id) {
+        url.searchParams.append('member_id', String(user.id));
+      }
+      const res = await fetch(url.toString());
       const data = await res.json();
       setProjects(data.projects || []);
     } catch (error) {

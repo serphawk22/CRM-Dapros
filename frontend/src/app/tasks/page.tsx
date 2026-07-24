@@ -70,9 +70,12 @@ export default function TasksPage() {
 
   async function fetchAll() {
     setLoading(true);
-    const taskUrl = isClient && clientId
+    let taskUrl = isClient && clientId
       ? `${API_BASE_URL}/tasks?client_id=${clientId}`
       : `${API_BASE_URL}/tasks`;
+    if (!isClient && role === 'Employee' && userId) {
+      taskUrl += (taskUrl.includes('?') ? '&' : '?') + `assigned_to=${userId}`;
+    }
     const [t, e, c] = await Promise.all([
       fetch(taskUrl).then(r => r.json()),
       isClient ? Promise.resolve({ employees: [] }) : fetch(`${API_BASE_URL}/employees`).then(r => r.json()),
