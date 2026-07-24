@@ -4765,6 +4765,33 @@ def _milestone_dict(m: Milestone) -> dict:
         "created_at": m.created_at.isoformat(),
     }
 
+@app.get("/projects/all-tickets")
+def get_all_assigned_tickets(member_id: int, session: Session = Depends(get_session)):
+    projects = session.exec(select(Project)).all()
+    assigned_project_ids = []
+    project_names = {}
+    for p in projects:
+        if (p.employeeIds and member_id in p.employeeIds) or \
+           (p.projectMemberIds and member_id in p.projectMemberIds) or \
+           (p.clientIds and member_id in p.clientIds) or \
+           (p.internIds and member_id in p.internIds):
+            assigned_project_ids.append(p.id)
+            project_names[p.id] = p.name
+
+    if not assigned_project_ids:
+        return {"tickets": []}
+
+    tickets = session.exec(
+        select(ProjectTicket).where(ProjectTicket.project_id.in_(assigned_project_ids))
+    ).all()
+    
+    ticket_list = []
+    for t in tickets:
+        t_dict = t.model_dump()
+        t_dict["project_name"] = project_names.get(t.project_id, "Unknown Project")
+        ticket_list.append(t_dict)
+        
+    return {"tickets": ticket_list}
 
 
 @app.get("/projects/{project_id}/tickets")

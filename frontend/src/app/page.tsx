@@ -16,6 +16,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { cn } from "@/lib/utils";
 import PageGuide from '@/components/PageGuide';
 import { AdminDashboard } from "@/components/AdminDashboard";
+import { DeveloperDashboard } from "@/components/DeveloperDashboard";
 import Link from "next/link";
 
 const containerVariants = {
@@ -226,10 +227,11 @@ function Dashboard() {
   const visibleNavCards = NAV_CARDS.filter(c => c.roles.includes(role));
 
   return (
-    <motion.div initial="hidden" animate="show" variants={containerVariants} className={cn(isAdmin ? "space-y-6" : "")}>
+    <motion.div initial="hidden" animate="show" variants={containerVariants} className={cn(isAdmin || role === 'ProjectMember' ? "space-y-6" : "")}>
+      {role === "ProjectMember" && <DeveloperDashboard />}
       {isAdmin && adminStats && <AdminDashboard adminStats={adminStats} NAV_CARDS={NAV_CARDS} language={language} />}
       {/* ── CLIENT VIEW — EDITORIAL CHAPTERS ────────────────────────── */}
-      {!isAdmin && (
+      {!isAdmin && role !== "ProjectMember" && (
         <div className="client-editorial">
 
           <div className="mb-6 px-4">
