@@ -14,6 +14,7 @@ import { ClientSidebar } from "@/components/ClientSidebar";
 import { GlobalLoader } from "@/components/GlobalLoader";
 import { usePathname } from "next/navigation";
 import { CallNotificationBar } from "@/components/CallNotificationBar";
+import { DeveloperHeader } from "@/components/DeveloperHeader";
 import SpaceAtmosphere from "@/components/SpaceAtmosphere";
 import Script from "next/script";
 
@@ -40,7 +41,6 @@ function ClientLayout({ children }: { children: React.ReactNode }) {
       <main className={`min-h-screen transition-all duration-300 pt-6 px-4 md:px-6 ${collapsed ? "ml-[72px]" : "ml-[220px]"}`}>
         {children}
       </main>
-      <Chatbot />
     </div>
   );
 }
@@ -51,7 +51,9 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const { role, loading } = useRole();
   const pathname = usePathname();
   const isClient = role === "Client";
-  const isAdminOrEmployee = role === "Admin" || role === "Employee" || role === "Intern" || role === "SalesManager" || role === "ProjectMember";
+  const isDeveloper = role === "ProjectMember";
+  const isAdminOrEmployee = role === "Admin" || role === "Employee" || role === "Intern" || role === "SalesManager";
+  const showChatbot = role === "SalesManager" || role === "Employee" || role === "ProjectMember";
 
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -88,9 +90,22 @@ function AppContent({ children }: { children: React.ReactNode }) {
         <div className="admin-shell min-h-screen" style={{ background: "var(--background)" }}>
           <Sidebar role={role} />
           <AdminMainContent>{children}</AdminMainContent>
-          <Chatbot />
+          {showChatbot && <Chatbot />}
         </div>
       </SidebarProvider>
+    );
+  }
+
+  // ── Developer layout ──
+  if (isDeveloper) {
+    return (
+      <div className="developer-shell min-h-screen bg-slate-50 dark:bg-zinc-950 flex flex-col">
+        <DeveloperHeader />
+        <main className="flex-1 p-6 md:p-8 max-w-[1600px] mx-auto w-full h-full">
+          {children}
+        </main>
+        {showChatbot && <Chatbot />}
+      </div>
     );
   }
 

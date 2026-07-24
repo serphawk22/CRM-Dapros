@@ -173,17 +173,22 @@ export function DeveloperDashboard() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-xl font-black text-slate-900 dark:text-zinc-50 tracking-tight">My Workspace Board</h3>
+      <div className="flex justify-between items-center mb-8 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-6 rounded-3xl border border-indigo-500/10">
+        <div>
+          <h3 className="text-2xl font-black text-slate-900 dark:text-zinc-50 tracking-tight flex items-center gap-2">
+            <span className="text-indigo-600 dark:text-indigo-400">✨</span> Active Sprint
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-1 font-medium">Manage and track your assigned tickets across all projects.</p>
+        </div>
         <button 
           onClick={() => {
             setSelectedTicket(null);
             setForm({ task: "", current_state: "Planning" });
             setShowModal(true);
           }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold text-sm hover:from-indigo-700 hover:to-purple-700 hover:scale-105 transition-all shadow-lg shadow-indigo-500/30"
         >
-          <Plus size={16} /> New Ticket
+          <Plus size={18} strokeWidth={3} /> New Ticket
         </button>
       </div>
 
@@ -195,11 +200,11 @@ export function DeveloperDashboard() {
                 <div 
                   ref={provided.innerRef} 
                   {...provided.droppableProps}
-                  className="bg-slate-100 dark:bg-zinc-900/50 p-4 rounded-3xl min-h-[500px] min-w-[300px]"
+                  className="bg-slate-100/50 dark:bg-zinc-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-zinc-800/50 p-4 rounded-3xl min-h-[500px] min-w-[300px] shadow-inner"
                 >
-                  <h4 className="text-sm font-black text-slate-500 dark:text-zinc-400 mb-4 px-2 uppercase tracking-widest flex items-center justify-between">
+                  <h4 className="text-xs font-black text-slate-600 dark:text-zinc-400 mb-5 px-2 uppercase tracking-widest flex items-center justify-between">
                     {col}
-                    <span className="bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-2 py-0.5 rounded-full text-[10px]">
+                    <span className="bg-white/60 dark:bg-zinc-800/60 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-full text-[10px] shadow-sm border border-slate-200 dark:border-zinc-700">
                       {tickets.filter(t => t.current_state === col).length}
                     </span>
                   </h4>
@@ -208,13 +213,13 @@ export function DeveloperDashboard() {
                     {tickets.filter(t => t.current_state === col).map((ticket, index) => (
                       <Draggable key={ticket.id} draggableId={String(ticket.id)} index={index}>
                         {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            onClick={() => openTicket(ticket)}
-                            className="bg-white dark:bg-zinc-900 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-zinc-800 cursor-pointer hover:shadow-md transition-all group"
-                          >
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              onClick={() => openTicket(ticket)}
+                              className="bg-white dark:bg-zinc-950 p-5 rounded-2xl shadow-sm border border-slate-200/60 dark:border-zinc-800/60 cursor-pointer hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-500/30 transition-all duration-300 group"
+                            >
                             {ticket.category && (
                               <span className="inline-block px-2 py-0.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-md mb-2">
                                 {ticket.category}
