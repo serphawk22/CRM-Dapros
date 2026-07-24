@@ -520,7 +520,7 @@ export default function AdminClientDetailPage() {
     try {
       const [clientRes, empRes, actRes, emailRes, svcRes, tlRes, notesRes, convRes, taskRes, filesRes, researchRes] = await Promise.allSettled([
         fetch(`${API_BASE_URL}/clients/${id}`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/users?role=Admin,Employee,SalesManager`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/employees`).then(r => r.json()),
         fetch(`${API_BASE_URL}/clients/${id}/activities`).then(r => r.json()),
         fetch(`${API_BASE_URL}/clients/${id}/emails`).then(r => r.json()),
         fetch(`${API_BASE_URL}/services/requests`).then(r => r.json()),
@@ -533,7 +533,7 @@ export default function AdminClientDetailPage() {
       ]);
 
       if (clientRes.status === 'fulfilled') setClient(clientRes.value.client || clientRes.value);
-      if (empRes.status === 'fulfilled') setEmployees(empRes.value.users || []);
+      if (empRes.status === 'fulfilled') setEmployees(empRes.value.employees || []);
       if (actRes.status === 'fulfilled') setActivities(actRes.value.activities || []);
       if (emailRes.status === 'fulfilled') setEmails(emailRes.value.emails || []);
       if (svcRes.status === 'fulfilled') setServiceRequests((svcRes.value.requests || []).filter((r: any) => String(r.client_id) === String(id)));
