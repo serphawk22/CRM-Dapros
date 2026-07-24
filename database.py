@@ -268,6 +268,19 @@ class ProjectTicketHistory(SQLModel, table=True):
     moved_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class ProjectTicketNote(SQLModel, table=True):
+    """
+    Notes attached to project tickets.
+    """
+    __tablename__ = "project_ticket_notes"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ticket_id: int = Field(foreign_key="project_tickets.id")
+    user_name: Optional[str] = None
+    note: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 class ClientProfile(SQLModel, table=True):
     """
     Detailed profile for clients

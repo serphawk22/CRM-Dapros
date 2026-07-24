@@ -4843,6 +4843,15 @@ def update_project_ticket(ticket_id: int, body: ProjectTicketRequest, session: S
             user_name=body.user_name
         )
         session.add(history)
+        
+        # Log to activity feed if QA reverted back to Dev
+        if old_state == "Given to QA" and new_state == "In Dev":
+            activity = ActivityLog(
+                action="Ticket Reverted",
+                content=f"Ticket '{t.task}' was reverted back to Dev by {body.user_name or 'QA'}",
+                details=f"Project ID: {t.project_id}"
+            )
+            session.add(activity)
 
     session.add(t)
     session.commit()
@@ -4854,15 +4863,36 @@ def get_project_ticket_history(ticket_id: int, session: Session = Depends(get_se
     history = session.exec(select(ProjectTicketHistory).where(ProjectTicketHistory.ticket_id == ticket_id).order_by(ProjectTicketHistory.moved_at.desc())).all()
     return {"history": history}
 
+class NoteRequest(BaseModel):
+    user_name: str
+    note: str
+
+@app.get("/projects/tickets/{ticket_id}/notes")
+def get_project_ticket_notes(ticket_id: int, session: Session = Depends(get_session)):
+    notes = session.exec(select(ProjectTicketNote).where(ProjectTicketNote.ticket_id == ticket_id).order_by(ProjectTicketNote.created_at.desc())).all()
+    return {"notes": notes}
+
+@app.post("/projects/tickets/{ticket_id}/notes")
+def create_project_ticket_note(ticket_id: int, body: NoteRequest, session: Session = Depends(get_session)):
+    n = ProjectTicketNote(ticket_id=ticket_id, user_name=body.user_name, note=body.note)
+    session.add(n)
+    session.commit()
+    session.refresh(n)
+    return n
+
 @app.delete("/projects/tickets/{ticket_id}")
 def delete_project_ticket(ticket_id: int, session: Session = Depends(get_session)):
     t = session.get(ProjectTicket, ticket_id)
     if not t: raise HTTPException(404, "Ticket not found")
     
-    # Manually delete related history to avoid foreign key constraints
+    # Manually delete related history and notes to avoid foreign key constraints
     history_records = session.exec(select(ProjectTicketHistory).where(ProjectTicketHistory.ticket_id == ticket_id)).all()
     for h in history_records:
         session.delete(h)
+        
+    notes_records = session.exec(select(ProjectTicketNote).where(ProjectTicketNote.ticket_id == ticket_id)).all()
+    for n in notes_records:
+        session.delete(n)
         
     session.delete(t)
     session.commit()
