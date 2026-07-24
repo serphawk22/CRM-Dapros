@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, X, AlignLeft, Calendar, User, GitBranch, Link as LinkIcon, History, Clock } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Plus, X, AlignLeft, Calendar, User, GitBranch, Link as LinkIcon, History, Clock, FileText, ArrowDownAZ } from "lucide-react";
 import { API_BASE_URL } from "@/config";
 import { useRole } from "@/context/RoleContext";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
@@ -37,8 +37,13 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
   const [tickets, setTickets] = useState<ProjectTicket[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [historyLogs, setHistoryLogs] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'details'|'history'>('details');
+  const [ticketNotes, setTicketNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [activeTab, setActiveTab] = useState<'details'|'history'|'notes'>('details');
   const [selectedTicket, setSelectedTicket] = useState<ProjectTicket | null>(null);
+  const [sortOption, setSortOption] = useState<'newest'|'oldest'|'fastest'|'longest'>('newest');
+  
+  const [revertPrompt, setRevertPrompt] = useState<{isOpen: boolean; ticketId?: number; task?: string; newStatus?: string; reason: string}>({isOpen: false, reason: ""});
 
   // Form state
   const [form, setForm] = useState<ProjectTicket>({
@@ -73,6 +78,19 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
     fetchTickets();
   }, [projectId]);
 
+  const sortedTickets = useMemo(() => {
+    return [...tickets].sort((a, b) => {
+      if (sortOption === 'newest') return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      if (sortOption === 'oldest') return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      
+      const ageA = computeDays(a.requested_date, a.date_release_prod);
+      const ageB = computeDays(b.requested_date, b.date_release_prod);
+      if (sortOption === 'fastest') return ageA - ageB;
+      if (sortOption === 'longest') return ageB - ageA;
+      return 0;
+    });
+  }, [tickets, sortOption]);
+
   const onDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
     const { source, destination, draggableId } = result;
@@ -85,6 +103,16 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
 
+    // Intercept QA reverting to Dev
+    if (ticket.current_state === 'Given to QA' && newStatus === 'In Dev') {
+      setRevertPrompt({ isOpen: true, ticketId, task: ticket.task, newStatus, reason: "" });
+      return; // Stop optimistic update, wait for prompt
+    }
+
+    executeStatusUpdate(ticketId, newStatus, ticket);
+  };
+
+  const executeStatusUpdate = async (ticketId: number, newStatus: string, ticket: any, noteStr?: string) => {
     // Optimistic UI update
     setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, current_state: newStatus } : t));
 
@@ -92,11 +120,16 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
       const res = await fetch(`${API_BASE_URL}/projects/tickets/${ticketId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...ticket, current_state: newStatus, user_name: user?.name })
+        body: JSON.stringify({ ...ticket, current_state: newStatus, user_name: user?.name, note: noteStr })
       });
       if (!res.ok) throw new Error("Failed to update status");
       const data = await res.json();
       if (data.ticket) {
+        if (noteStr) {
+          await fetch(`${API_BASE_URL}/projects/tickets/${ticketId}/notes`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_name: user?.name || "QA", note: noteStr })
+          });
+        }
         setTickets(prev => prev.map(t => t.id === ticketId ? data.ticket : t));
       }
     } catch (e) {
@@ -136,29 +169,66 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
     }
   };
 
+  const fetchNotes = async (ticketId: number) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/projects/tickets/${ticketId}/notes`);
+      if (res.ok) {
+        const data = await res.json();
+        setTicketNotes(data.notes || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const openTicket = (t: ProjectTicket) => {
     setSelectedTicket(t);
     setForm(t);
     setActiveTab('details');
     setHistoryLogs([]);
-    if (t.id) fetchHistory(t.id);
+    setTicketNotes([]);
+    if (t.id) {
+      fetchHistory(t.id);
+      fetchNotes(t.id);
+    }
     setShowModal(true);
+  };
+
+  const submitNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTicket?.id || !newNote.trim()) return;
+    await fetch(`${API_BASE_URL}/projects/tickets/${selectedTicket.id}/notes`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_name: user?.name || "Member", note: newNote })
+    });
+    setNewNote("");
+    fetchNotes(selectedTicket.id);
   };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-xl font-black text-slate-900 dark:text-zinc-50 tracking-tight">Project Board</h3>
-        <button 
-          onClick={() => {
-            setSelectedTicket(null);
-            setForm({ task: "", current_state: "Planning" });
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
-        >
-          <Plus size={16} /> New Ticket
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl px-3 py-2 shadow-sm">
+            <ArrowDownAZ size={16} className="text-slate-400" />
+            <select className="bg-transparent text-sm font-bold text-slate-700 dark:text-zinc-300 outline-none" value={sortOption} onChange={(e) => setSortOption(e.target.value as any)}>
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="fastest">Fastest (Age)</option>
+              <option value="longest">Longest (Age)</option>
+            </select>
+          </div>
+          <button 
+            onClick={() => {
+              setSelectedTicket(null);
+              setForm({ task: "", current_state: "Planning" });
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
+          >
+            <Plus size={16} /> New Ticket
+          </button>
+        </div>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -174,12 +244,12 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
                   <h4 className="text-sm font-black text-slate-500 dark:text-zinc-400 mb-4 px-2 uppercase tracking-widest flex items-center justify-between">
                     {col}
                     <span className="bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 px-2 py-0.5 rounded-full text-[10px]">
-                      {tickets.filter(t => t.current_state === col).length}
+                      {sortedTickets.filter(t => t.current_state === col).length}
                     </span>
                   </h4>
                   
                   <div className="space-y-3">
-                    {tickets.filter(t => t.current_state === col).map((ticket, index) => (
+                    {sortedTickets.filter(t => t.current_state === col).map((ticket, index) => (
                       <Draggable key={ticket.id} draggableId={String(ticket.id)} index={index}>
                         {(provided) => (
                           <div
@@ -406,7 +476,11 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
                           <History size={12} className="text-indigo-500" />
                         </div>
                         <p className="text-sm text-slate-800 dark:text-zinc-200">
-                          <span className="font-bold">{log.user_name || 'Someone'}</span> moved this ticket from <span className="font-bold text-slate-500 dark:text-zinc-400">{log.old_state}</span> to <span className="font-bold text-slate-900 dark:text-white">{log.new_state}</span>
+                          {log.old_state === 'Given to QA' && log.new_state === 'In Dev' ? (
+                            <><span className="font-bold">{log.user_name || 'QA'}</span> <span className="text-red-500 font-bold">reverted back to Dev</span></>
+                          ) : (
+                            <><span className="font-bold">{log.user_name || 'Someone'}</span> moved this ticket from <span className="font-bold text-slate-500 dark:text-zinc-400">{log.old_state}</span> to <span className="font-bold text-slate-900 dark:text-white">{log.new_state}</span></>
+                          )}
                         </p>
                         <p className="text-xs text-slate-400 mt-1">
                           {new Date(log.moved_at).toLocaleString()}
@@ -416,6 +490,33 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
                     {historyLogs.length === 0 && (
                       <p className="text-sm text-slate-500 italic">No history available for this ticket yet.</p>
                     )}
+                  </div>
+                </div>
+              )}
+              
+              {activeTab === 'notes' && (
+                <div className="space-y-6">
+                  <div className="space-y-4 mb-6">
+                    {ticketNotes.map(n => (
+                      <div key={n.id} className="bg-slate-50 dark:bg-zinc-900/50 p-4 rounded-xl border border-slate-100 dark:border-zinc-800">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-bold text-sm text-slate-900 dark:text-zinc-100 flex items-center gap-2"><User size={14}/> {n.user_name}</span>
+                          <span className="text-xs text-slate-400">{new Date(n.created_at).toLocaleString()}</span>
+                        </div>
+                        <p className="text-sm text-slate-700 dark:text-zinc-300 whitespace-pre-wrap">{n.note}</p>
+                      </div>
+                    ))}
+                    {ticketNotes.length === 0 && <p className="text-sm text-slate-500 italic">No notes added yet.</p>}
+                  </div>
+                  <div className="flex gap-3">
+                    <input 
+                      type="text" 
+                      value={newNote} 
+                      onChange={e => setNewNote(e.target.value)} 
+                      placeholder="Add a new note or requirements..." 
+                      className="flex-1 bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                    <button type="button" onClick={submitNote} disabled={!newNote.trim()} className="px-5 py-2.5 bg-indigo-600 disabled:opacity-50 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors">Post Note</button>
                   </div>
                 </div>
               )}
@@ -444,6 +545,33 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Revert Prompt Modal */}
+      {revertPrompt.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-lg p-6 rounded-3xl shadow-2xl">
+            <h3 className="text-lg font-black text-slate-900 dark:text-white mb-2 text-red-500">Revert to Developer</h3>
+            <p className="text-sm text-slate-500 dark:text-zinc-400 mb-4">You are reverting <strong>"{revertPrompt.task}"</strong> back to Dev. Please provide the requirements or reason for revert.</p>
+            <textarea 
+              autoFocus
+              className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl p-4 text-sm focus:ring-2 focus:ring-red-500 outline-none min-h-[100px] mb-4"
+              placeholder="Why is this being reverted? What needs to be fixed?"
+              value={revertPrompt.reason}
+              onChange={e => setRevertPrompt({...revertPrompt, reason: e.target.value})}
+            />
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setRevertPrompt({isOpen: false, reason: ""})} className="px-4 py-2 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
+              <button 
+                disabled={!revertPrompt.reason.trim()}
+                onClick={() => {
+                  executeStatusUpdate(revertPrompt.ticketId!, revertPrompt.newStatus!, tickets.find(t=>t.id===revertPrompt.ticketId), revertPrompt.reason);
+                  setRevertPrompt({isOpen: false, reason: ""});
+                }}
+                className="px-4 py-2 font-bold bg-red-600 text-white hover:bg-red-700 rounded-xl disabled:opacity-50 transition-colors">Submit Revert & Note</button>
+            </div>
           </div>
         </div>
       )}
