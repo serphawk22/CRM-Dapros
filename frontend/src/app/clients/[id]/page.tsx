@@ -192,9 +192,9 @@ export default function ClientDetailPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/users?role=Admin,Employee,SalesManager`);
+      const res = await fetch(`${API_BASE_URL}/employees`);
       const data = await res.json();
-      setEmployees(data.users || []);
+      setEmployees(data.employees || []);
     } catch (err) {
       console.error(err);
     }

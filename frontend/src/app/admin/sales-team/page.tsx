@@ -60,9 +60,9 @@ export default function SalesTeamPage() {
   const fetchSalesTeam = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/users?role=Admin,SalesManager,Employee`);
+      const res = await fetch(`${API_BASE_URL}/employees`);
       const data = await res.json();
-      setSalesTeam(data.users || []);
+      setSalesTeam(data.employees || []);
     } catch (err) {
       console.error('Sales team load failed', err);
     } finally {
