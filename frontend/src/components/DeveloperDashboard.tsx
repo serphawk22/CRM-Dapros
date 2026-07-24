@@ -172,8 +172,7 @@ export function DeveloperDashboard() {
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="w-full">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-xl font-black text-slate-900 dark:text-zinc-50 tracking-tight">My Workspace Board</h3>
         <button 
