@@ -309,7 +309,7 @@ export default function ClientsPage() {
       if (search.trim()) url.searchParams.append('query', search.trim());
       url.searchParams.append('page', String(page));
       url.searchParams.append('per_page', String(perPage));
-      if (role === 'SalesManager' && user?.id) {
+      if ((role === 'SalesManager' || role === 'Employee') && user?.id) {
         url.searchParams.append('assigned_employee_id', String(user.id));
       }
 

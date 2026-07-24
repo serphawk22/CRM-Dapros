@@ -89,7 +89,11 @@ export default function LeadsPage() {
   const fetchLeads = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/leads`);
+      const url = new URL(`${API_BASE_URL}/leads`);
+      if ((role === 'SalesManager' || role === 'Employee') && user?.id) {
+        url.searchParams.append('owner_id', String(user.id));
+      }
+      const res = await fetch(url.toString());
       if (res.ok) setLeads((await res.json()).leads || []);
     } catch (e) {
       console.error("Failed to fetch leads", e);

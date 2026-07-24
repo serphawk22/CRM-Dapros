@@ -2693,8 +2693,17 @@ def admin_client_xray(client_id: int, session: Session = Depends(get_session)):
 # Projects
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/projects")
-def list_projects(session: Session = Depends(get_session)):
+def list_projects(member_id: Optional[int] = None, session: Session = Depends(get_session)):
     projects = session.exec(select(Project).order_by(Project.id.desc())).all()
+    if member_id is not None:
+        filtered = []
+        for p in projects:
+            if (p.employeeIds and member_id in p.employeeIds) or \
+               (p.projectMemberIds and member_id in p.projectMemberIds) or \
+               (p.clientIds and member_id in p.clientIds) or \
+               (p.internIds and member_id in p.internIds):
+                filtered.append(p)
+        projects = filtered
     return {"projects": [_project_dict(p) for p in projects]}
 
 
@@ -6946,8 +6955,11 @@ class ContactCreateRequest(BaseModel):
 
 # ---- LEADS API ----
 @app.get("/leads")
-def get_leads(session: Session = Depends(get_session)):
-    leads = session.exec(select(Lead).order_by(Lead.created_at.desc())).all()
+def get_leads(owner_id: Optional[int] = None, session: Session = Depends(get_session)):
+    query = select(Lead)
+    if owner_id is not None:
+        query = query.where(Lead.owner_id == owner_id)
+    leads = session.exec(query.order_by(Lead.created_at.desc())).all()
     return {"leads": leads}
 
 @app.post("/leads")
