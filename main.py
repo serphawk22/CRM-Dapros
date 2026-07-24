@@ -3642,6 +3642,8 @@ def dashboard_stats(
         if not user:
             return {"isClient": True}
         cp = session.exec(select(ClientProfile).where(ClientProfile.userId == user.id)).first()
+        if not cp:
+            return {"isClient": True, "error": "No ClientProfile found"}
 
         service_reqs = session.exec(
             select(ServiceRequest).where(ServiceRequest.client_id == cp.id)
@@ -4765,7 +4767,7 @@ def _milestone_dict(m: Milestone) -> dict:
         "created_at": m.created_at.isoformat(),
     }
 
-@app.get("/projects/all-tickets")
+@app.get("/developer/tickets")
 def get_all_assigned_tickets(member_id: int, session: Session = Depends(get_session)):
     projects = session.exec(select(Project)).all()
     assigned_project_ids = []

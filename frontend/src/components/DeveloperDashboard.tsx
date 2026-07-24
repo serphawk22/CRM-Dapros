@@ -65,7 +65,7 @@ export function DeveloperDashboard() {
     if (!user?.id) return;
     try {
       const [ticketsRes, projectsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/projects/all-tickets?member_id=${user.id}`),
+        fetch(`${API_BASE_URL}/developer/tickets?member_id=${user.id}`),
         fetch(`${API_BASE_URL}/projects?member_id=${user.id}`)
       ]);
       const ticketsData = await ticketsRes.json();
