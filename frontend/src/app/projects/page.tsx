@@ -9,6 +9,7 @@ import { useRole } from "@/context/RoleContext";
 import PageGuide from '@/components/PageGuide';
 
 export default function ProjectsPage() {
+  const { role, user } = useRole();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
