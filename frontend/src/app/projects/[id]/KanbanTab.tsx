@@ -489,8 +489,8 @@ export default function KanbanTab({ projectId }: { projectId: string }) {
                     ))}
                     {historyLogs.length === 0 && (
                       <p className="text-sm text-slate-500 italic">No history available for this ticket yet.</p>
-                    )}
                   </div>
+                </div>
               )}
               
               {activeTab === 'notes' && (
