@@ -1634,16 +1634,21 @@ def export_clients_pdf(session: Session = Depends(get_session)):
     style_normal = styles["Normal"]
     style_normal.wordWrap = 'CJK'
     
+    def truncate(text, max_len=40):
+        if not text: return ""
+        text = str(text).strip()
+        return text if len(text) <= max_len else text[:max_len-3] + "..."
+
     for i, c in enumerate(clients_list, 1):
         user = session.get(User, c.userId) if c.userId else None
         emp = session.get(User, c.assignedEmployeeId) if c.assignedEmployeeId else None
         
-        name = Paragraph(c.companyName or "", style_normal)
-        website = Paragraph(c.websiteUrl or "", style_normal)
-        email = Paragraph(user.email if user else "", style_normal)
-        phone = Paragraph(c.phone or "", style_normal)
-        status = Paragraph(c.status or "Active", style_normal)
-        assigned = Paragraph(emp.name if emp else "Unassigned", style_normal)
+        name = Paragraph(truncate(c.companyName, 50), style_normal)
+        website = Paragraph(truncate(c.websiteUrl, 40), style_normal)
+        email = Paragraph(truncate(user.email if user else "", 40), style_normal)
+        phone = Paragraph(truncate(c.phone, 30), style_normal)
+        status = Paragraph(truncate(c.status or "Active", 20), style_normal)
+        assigned = Paragraph(truncate(emp.name if emp else "Unassigned", 20), style_normal)
         
         data.append([str(i), name, website, email, phone, status, assigned])
         
