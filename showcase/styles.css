@@ -64,8 +64,8 @@ a, button, .nav-link, .group {
   overflow: hidden;
 }
 
-/* ---- Mobile Fallbacks ---- */
-@media (max-width: 1024px) {
+/* ---- Mobile/Touch Fallbacks ---- */
+@media (hover: none) and (pointer: coarse) {
   html, body, a, button, .nav-link, .group {
     cursor: auto !important;
   }
