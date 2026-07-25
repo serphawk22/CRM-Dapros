@@ -135,19 +135,19 @@ export default function ProductsPage() {
             <Package className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Products</h1>
-            <p className="text-slate-500 text-sm">Manage your product & service catalog</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Catalog</h1>
+            <p className="text-slate-500 text-sm">Manage your catalog items</p>
           </div>
         </div>
         <button onClick={() => openModal()} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium shadow-sm transition-colors">
-          <Plus className="w-4 h-4" /> Add Product
+          <Plus className="w-4 h-4" /> Add Item
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: 'Total Products', value: stats.total, color: 'text-emerald-500' },
+          { label: 'Total Items', value: stats.total, color: 'text-emerald-500' },
           { label: 'Active', value: stats.active, color: 'text-blue-500' },
           { label: 'Categories', value: stats.categories, color: 'text-violet-500' },
           { label: 'Avg Price', value: `$${stats.avgPrice}`, color: 'text-slate-900 dark:text-white' }
@@ -165,7 +165,7 @@ export default function ProductsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input 
             type="text" 
-            placeholder="Search products, SKU..." 
+            placeholder="Search items, SKU..." 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
@@ -190,7 +190,7 @@ export default function ProductsPage() {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Item</th>
                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Price</th>
                 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tax</th>
@@ -202,7 +202,7 @@ export default function ProductsPage() {
               {loading ? (
                 <tr><td colSpan={6} className="p-8 text-center text-slate-500"><RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" /> Loading...</td></tr>
               ) : filteredProducts.length === 0 ? (
-                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No products found</td></tr>
+                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No items found</td></tr>
               ) : (
                 filteredProducts.map(p => (
                   <tr key={p.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -255,7 +255,7 @@ export default function ProductsPage() {
             >
               <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                  {editingProduct ? 'Edit Product' : 'Add Product'}
+                  {editingProduct ? 'Edit Item' : 'Add Item'}
                 </h3>
                 <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                   <X className="w-5 h-5" />
@@ -263,7 +263,7 @@ export default function ProductsPage() {
               </div>
               <form onSubmit={handleSave} className="p-5 space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Product Name</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Item Name</label>
                   <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -299,12 +299,12 @@ export default function ProductsPage() {
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   <input type="checkbox" id="is_active" checked={formData.is_active} onChange={e => setFormData({...formData, is_active: e.target.checked})} className="rounded text-emerald-500 focus:ring-emerald-500" />
-                  <label htmlFor="is_active" className="text-sm font-bold text-slate-700 dark:text-slate-300">Product is active</label>
+                  <label htmlFor="is_active" className="text-sm font-bold text-slate-700 dark:text-slate-300">Item is active</label>
                 </div>
                 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700 mt-6">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">Cancel</button>
-                  <button type="submit" className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm">Save Product</button>
+                  <button type="submit" className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm">Save Item</button>
                 </div>
               </form>
             </motion.div>
