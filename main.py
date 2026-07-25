@@ -1608,6 +1608,77 @@ def export_clients_csv(session: Session = Depends(get_session)):
     )
 
 
+# ─── PDF Export ────────────────────────────────────────────────────────────────
+@app.get("/clients/export-pdf")
+def export_clients_pdf(session: Session = Depends(get_session)):
+    from fastapi.responses import StreamingResponse
+    import io
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    clients_list = session.exec(select(ClientProfile).order_by(ClientProfile.id.asc())).all()
+    
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title = Paragraph("<b>Clients & Leads List</b>", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+    
+    data = [["S.No", "Client Name", "Website URL", "Email", "Phone", "Status", "Assigned To"]]
+    
+    style_normal = styles["Normal"]
+    style_normal.wordWrap = 'CJK'
+    
+    for i, c in enumerate(clients_list, 1):
+        user = session.get(User, c.userId) if c.userId else None
+        emp = session.get(User, c.assignedEmployeeId) if c.assignedEmployeeId else None
+        
+        name = Paragraph(c.companyName or "", style_normal)
+        website = Paragraph(c.websiteUrl or "", style_normal)
+        email = Paragraph(user.email if user else "", style_normal)
+        phone = Paragraph(c.phone or "", style_normal)
+        status = Paragraph(c.status or "Active", style_normal)
+        assigned = Paragraph(emp.name if emp else "Unassigned", style_normal)
+        
+        data.append([str(i), name, website, email, phone, status, assigned])
+        
+    # Col widths (total A4 landscape width is ~842, minus margins (60) = 782)
+    col_widths = [40, 140, 140, 160, 100, 80, 100]
+    
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor("#334155")),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=serphawk_clients.pdf"}
+    )
+
+
 @app.get("/clients/{client_id}")
 def get_client(client_id: int, session: Session = Depends(get_session)):
     cp = session.get(ClientProfile, client_id)
