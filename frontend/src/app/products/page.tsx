@@ -1,172 +1,314 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Package, Plus, X, Search, Filter, Edit2, Trash2, Loader2, Tag, DollarSign, ToggleLeft, ToggleRight, Upload } from "lucide-react";
-import { API_BASE_URL } from "@/config";
 
-interface Product { id: number; name: string; sku?: string; description?: string; category?: string; unit_price: number; currency: string; tax_rate: number; stock_quantity?: number; is_active: boolean; }
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package, Plus, Search, CheckCircle2, XCircle, MoreVertical, Edit2, Trash2, X, RefreshCw } from 'lucide-react';
+import { API_BASE_URL } from '@/config';
+import { fetchWithCache } from '@/lib/cache';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const CATEGORIES = ["Software", "Service", "Hardware", "Consulting", "Marketing", "Support", "Other"];
+interface Product {
+  id: number;
+  name: string;
+  sku: string | null;
+  description: string | null;
+  category: string | null;
+  unit_price: number;
+  currency: string;
+  tax_rate: number;
+  stock_quantity: number | null;
+  is_active: boolean;
+}
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [catFilter, setCatFilter] = useState("All");
-  const [showModal, setShowModal] = useState(false);
-  const [editProduct, setEditProduct] = useState<Product | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", sku: "", description: "", category: "", unit_price: "", currency: "USD", tax_rate: "0", stock_quantity: "", is_active: true });
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // Form State
+  const [formData, setFormData] = useState({
+    name: '',
+    sku: '',
+    description: '',
+    category: 'Other',
+    unit_price: 0,
+    currency: 'USD',
+    tax_rate: 0,
+    is_active: true,
+  });
 
-  const load = () => { setLoading(true); fetch(`${API_BASE_URL}/products`).then(r => r.json()).then(d => setProducts(Array.isArray(d.products) ? d.products : [])).finally(() => setLoading(false)); };
-  useEffect(load, []);
-
-  const filtered = useMemo(() => products.filter(p => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q) || (p.category || "").toLowerCase().includes(q);
-    const matchCat = catFilter === "All" || p.category === catFilter;
-    return matchSearch && matchCat;
-  }), [products, search, catFilter]);
-
-  const openCreate = () => { setEditProduct(null); setForm({ name: "", sku: "", description: "", category: "", unit_price: "", currency: "USD", tax_rate: "0", stock_quantity: "", is_active: true }); setShowModal(true); };
-  const openEdit = (p: Product) => { setEditProduct(p); setForm({ name: p.name, sku: p.sku || "", description: p.description || "", category: p.category || "", unit_price: p.unit_price.toString(), currency: p.currency, tax_rate: p.tax_rate.toString(), stock_quantity: p.stock_quantity?.toString() || "", is_active: p.is_active }); setShowModal(true); };
-
-  const handleSave = async () => {
-    if (!form.name.trim()) return;
-    setSaving(true);
-    const payload = { ...form, unit_price: parseFloat(form.unit_price) || 0, tax_rate: parseFloat(form.tax_rate) || 0, stock_quantity: form.stock_quantity ? parseInt(form.stock_quantity) : null };
-    const url = editProduct ? `${API_BASE_URL}/products/${editProduct.id}` : `${API_BASE_URL}/products`;
-    await fetch(url, { method: editProduct ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    setSaving(false); setShowModal(false); load();
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/products`);
+      const data = await res.json();
+      setProducts(data.products || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = async (id: number) => { if (!confirm("Delete product?")) return; await fetch(`${API_BASE_URL}/products/${id}`, { method: "DELETE" }); load(); };
-  const handleToggle = async (p: Product) => { await fetch(`${API_BASE_URL}/products/${p.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ is_active: !p.is_active }) }); load(); };
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
-  const totalValue = products.filter(p => p.is_active).reduce((s, p) => s + p.unit_price, 0);
+  const categories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category).filter(Boolean));
+    return ['All', 'Software', 'Service', 'Hardware', 'Consulting', 'Marketing', 'Support', 'Other', ...Array.from(cats)].filter((v, i, a) => a.indexOf(v) === i);
+  }, [products]);
+
+  const filteredProducts = products.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || (p.sku && p.sku.toLowerCase().includes(search.toLowerCase()));
+    const matchesCat = selectedCategory === 'All' || p.category === selectedCategory;
+    return matchesSearch && matchesCat;
+  });
+
+  const stats = {
+    total: products.length,
+    active: products.filter(p => p.is_active).length,
+    categories: new Set(products.map(p => p.category).filter(Boolean)).size,
+    avgPrice: products.length ? (products.reduce((acc, p) => acc + p.unit_price, 0) / products.length).toFixed(2) : '0.00'
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingProduct ? `${API_BASE_URL}/products/${editingProduct.id}` : `${API_BASE_URL}/products`;
+    const method = editingProduct ? 'PUT' : 'POST';
+    
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        setIsModalOpen(false);
+        fetchProducts();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+    try {
+      await fetch(`${API_BASE_URL}/products/${id}`, { method: 'DELETE' });
+      fetchProducts();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const openModal = (product?: Product) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        name: product.name,
+        sku: product.sku || '',
+        description: product.description || '',
+        category: product.category || 'Other',
+        unit_price: product.unit_price,
+        currency: product.currency || 'USD',
+        tax_rate: product.tax_rate || 0,
+        is_active: product.is_active,
+      });
+    } else {
+      setEditingProduct(null);
+      setFormData({
+        name: '', sku: '', description: '', category: 'Other', unit_price: 0, currency: 'USD', tax_rate: 0, is_active: true
+      });
+    }
+    setIsModalOpen(true);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a] p-6 lg:p-8 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="p-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/20"><Package className="w-6 h-6 text-white" /></div>
-          <div><h1 className="text-2xl font-black text-slate-800 dark:text-zinc-100">Products</h1><p className="text-sm text-slate-500 dark:text-zinc-400">Manage your product & service catalog</p></div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <Package className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Products</h1>
+            <p className="text-slate-500 text-sm">Manage your product & service catalog</p>
+          </div>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-sm font-bold hover:opacity-90 shadow-md transition-all">
+        <button onClick={() => openModal()} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium shadow-sm transition-colors">
           <Plus className="w-4 h-4" /> Add Product
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Products", value: products.length, color: "text-emerald-500" },
-          { label: "Active", value: products.filter(p => p.is_active).length, color: "text-blue-500" },
-          { label: "Categories", value: new Set(products.map(p => p.category).filter(Boolean)).size, color: "text-violet-500" },
-          { label: "Avg Price", value: products.length ? `$${(products.reduce((s,p) => s+p.unit_price,0)/products.length).toFixed(0)}` : "$0", color: "text-amber-500" },
+          { label: 'Total Products', value: stats.total, color: 'text-emerald-500' },
+          { label: 'Active', value: stats.active, color: 'text-blue-500' },
+          { label: 'Categories', value: stats.categories, color: 'text-violet-500' },
+          { label: 'Avg Price', value: `$${stats.avgPrice}`, color: 'text-slate-900 dark:text-white' }
         ].map(s => (
-          <div key={s.label} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-sm">
-            <p className="text-2xl font-black text-slate-800 dark:text-zinc-100">{loading ? "—" : s.value}</p>
-            <p className={`text-xs font-medium mt-0.5 ${s.color}`}>{s.label}</p>
+          <div key={s.label} className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <p className={`text-3xl font-black mb-1 ${s.color}`}>{s.value}</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{s.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[200px]">
+      {/* Search & Filters */}
+      <div className="flex flex-col md:flex-row items-center gap-4 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products, SKU..."
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+          <input 
+            type="text" 
+            placeholder="Search products, SKU..." 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+          />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {["All", ...CATEGORIES].map(c => (
-            <button key={c} onClick={() => setCatFilter(c)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${catFilter === c ? "bg-emerald-600 text-white" : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"}`}>{c}</button>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 hide-scrollbar w-full md:w-auto">
+          {categories.map(cat => (
+            <button 
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-emerald-500 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+            >
+              {cat}
+            </button>
           ))}
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl shadow-sm overflow-hidden">
-        <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-3 border-b border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50">
-          {["Product", "Category", "Price", "Tax", "Status", ""].map(h => <p key={h} className="text-[10px] font-black uppercase tracking-widest text-slate-400">{h}</p>)}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex-1">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Product</th>
+                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
+                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Price</th>
+                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tax</th>
+                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="p-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-500"><RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" /> Loading...</td></tr>
+              ) : filteredProducts.length === 0 ? (
+                <tr><td colSpan={6} className="p-8 text-center text-slate-500">No products found</td></tr>
+              ) : (
+                filteredProducts.map(p => (
+                  <tr key={p.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="p-4">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm">{p.name}</p>
+                      {p.sku && <p className="text-xs font-mono text-slate-400 mt-0.5">SKU: {p.sku}</p>}
+                      {p.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{p.description}</p>}
+                    </td>
+                    <td className="p-4 text-sm font-medium text-slate-600 dark:text-slate-300">{p.category || '—'}</td>
+                    <td className="p-4 font-black text-slate-900 dark:text-white text-sm">{p.currency} {p.unit_price.toFixed(2)}</td>
+                    <td className="p-4 text-sm text-slate-500">{p.tax_rate}%</td>
+                    <td className="p-4">
+                      {p.is_active ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 text-xs font-bold border border-emerald-200 dark:border-emerald-500/20">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 dark:bg-slate-800 text-xs font-bold border border-slate-200 dark:border-slate-700">
+                          <XCircle className="w-3.5 h-3.5" /> Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => openModal(p)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-500/10">
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDelete(p.id)} className="p-2 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-        {loading ? <div className="flex justify-center py-20"><Loader2 className="animate-spin text-emerald-500 w-8 h-8" /></div>
-          : filtered.length === 0 ? <div className="flex flex-col items-center justify-center py-20"><Package className="w-10 h-10 text-slate-300 mb-3" /><p className="text-slate-500 font-bold">No products yet</p></div>
-          : filtered.map((p, i) => (
-          <motion.div key={p.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
-            className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3 md:gap-4 items-center px-6 py-4 border-b border-slate-100 dark:border-zinc-800 last:border-0 hover:bg-slate-50 dark:hover:bg-zinc-800/40 transition-colors group">
-            <div>
-              <p className="text-sm font-bold text-slate-800 dark:text-zinc-100">{p.name}</p>
-              {p.sku && <p className="text-xs text-slate-400 font-mono">SKU: {p.sku}</p>}
-              {p.description && <p className="text-xs text-slate-400 line-clamp-1 mt-0.5">{p.description}</p>}
-            </div>
-            <span className="text-xs text-slate-600 dark:text-zinc-300 font-medium">{p.category || "—"}</span>
-            <span className="text-sm font-black text-slate-800 dark:text-zinc-100">{p.currency} {p.unit_price.toFixed(2)}</span>
-            <span className="text-xs text-slate-500">{p.tax_rate}%</span>
-            <button onClick={() => handleToggle(p)} className={`flex items-center gap-1 text-xs font-bold ${p.is_active ? "text-emerald-600" : "text-slate-400"}`}>
-              {p.is_active ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />} {p.is_active ? "Active" : "Inactive"}
-            </button>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 hover:bg-slate-200 transition-all"><Edit2 className="w-3.5 h-3.5" /></button>
-              <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
-            </div>
-          </motion.div>
-        ))}
       </div>
 
+      {/* Modal */}
       <AnimatePresence>
-        {showModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-zinc-700">
-                <h2 className="text-lg font-black text-slate-800 dark:text-zinc-100">{editProduct ? "Edit Product" : "Add Product"}</h2>
-                <button onClick={() => setShowModal(false)}><X className="w-4 h-4" /></button>
-              </div>
-              <div className="p-6 space-y-4">
-                {[{ label: "Name *", key: "name", ph: "Product name" }, { label: "SKU", key: "sku", ph: "e.g. SRV-001" }].map(({ label, key, ph }) => (
-                  <div key={key}><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">{label}</label>
-                    <input value={(form as any)[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} placeholder={ph}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500" /></div>
-                ))}
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Description</label>
-                  <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="Brief description..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Category</label>
-                    <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                      <option value="">Select...</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Currency</label>
-                    <select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                      {["USD","EUR","GBP","INR","MXN"].map(c => <option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Unit Price</label>
-                    <input type="number" value={form.unit_price} onChange={e => setForm(f => ({ ...f, unit_price: e.target.value }))} placeholder="0.00"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-                  </div>
-                  <div><label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 block">Tax Rate (%)</label>
-                    <input type="number" value={form.tax_rate} onChange={e => setForm(f => ({ ...f, tax_rate: e.target.value }))} placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-sm text-slate-800 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-                  </div>
-                </div>
-              </div>
-              <div className="flex gap-3 p-6 pt-0">
-                <button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
-                <button onClick={handleSave} disabled={saving || !form.name.trim()} className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-sm hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}{editProduct ? "Update" : "Add Product"}
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-200 dark:border-slate-700"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white">
+                  {editingProduct ? 'Edit Product' : 'Add Product'}
+                </h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                  <X className="w-5 h-5" />
                 </button>
               </div>
+              <form onSubmit={handleSave} className="p-5 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Product Name</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category</label>
+                    <input type="text" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" list="cat-list" />
+                    <datalist id="cat-list">
+                      {categories.filter(c => c !== 'All').map(c => <option key={c} value={c} />)}
+                    </datalist>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">SKU / Code</label>
+                    <input type="text" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Currency</label>
+                    <input type="text" value={formData.currency} onChange={e => setFormData({...formData, currency: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Price</label>
+                    <input required type="number" step="0.01" value={formData.unit_price} onChange={e => setFormData({...formData, unit_price: parseFloat(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tax Rate (%)</label>
+                    <input type="number" step="0.1" value={formData.tax_rate} onChange={e => setFormData({...formData, tax_rate: parseFloat(e.target.value)})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Description</label>
+                  <textarea rows={3} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500"></textarea>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input type="checkbox" id="is_active" checked={formData.is_active} onChange={e => setFormData({...formData, is_active: e.target.checked})} className="rounded text-emerald-500 focus:ring-emerald-500" />
+                  <label htmlFor="is_active" className="text-sm font-bold text-slate-700 dark:text-slate-300">Product is active</label>
+                </div>
+                
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700 mt-6">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">Cancel</button>
+                  <button type="submit" className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm">Save Product</button>
+                </div>
+              </form>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
