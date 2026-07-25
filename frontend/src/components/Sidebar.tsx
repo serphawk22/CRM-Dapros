@@ -106,7 +106,7 @@ const defaultSidebarSections = [
     id: "section-inventory",
     heading: "INVENTORY",
     items: [
-      { id: "item-products", name: "Products", icon: "Package", href: "/products", roles: ["Admin", "SalesManager"] },
+      { id: "item-products", name: "Catalog", icon: "Package", href: "/products", roles: ["Admin", "SalesManager"] },
       { id: "item-orders", name: "Orders", icon: "ShoppingCart", href: "/orders", roles: ["Admin", "SalesManager"] },
       { id: "item-billing", name: "Billing", icon: "FileText", href: "/billing", roles: ["Admin", "SalesManager"] },
     ],
