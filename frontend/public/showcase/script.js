@@ -249,10 +249,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (productGrid) {
     const WHATSAPP_NUMBER = "+1234567890"; // Admin should update this
     
-    // We will assume the API runs on port 8000 on localhost, or relative path if deployed
-    const apiBase = window.location.hostname === 'localhost' ? 'http://127.0.0.1:8000' : '';
-    
-    fetch(`${apiBase}/products`)
+    // Use the Next.js proxy route so it automatically resolves the correct API_BASE_URL
+    fetch('/api/public-products')
       .then(res => res.json())
       .then(data => {
         const products = data.products || [];
