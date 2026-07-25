@@ -243,4 +243,42 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { threshold: 0.5 });
     observer.observe(statsSection);
   }
+
+  // ---- Fetch & Render Products ----
+  const productGrid = document.getElementById('product-grid');
+  if (productGrid) {
+    const WHATSAPP_NUMBER = "+1234567890"; // Admin should update this
+    
+    // Use the Next.js proxy route so it automatically resolves the correct API_BASE_URL
+    fetch('/api/public-products')
+      .then(res => res.json())
+      .then(data => {
+        const products = data.products || [];
+        const activeProducts = products.filter(p => p.is_active);
+        
+        if (activeProducts.length === 0) {
+          productGrid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-12">No products available at the moment.</div>';
+          return;
+        }
+
+        productGrid.innerHTML = activeProducts.map(p => `
+          <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-xl hover:border-gray-200 transition-all duration-300 group flex flex-col h-full">
+            <div class="flex items-center justify-between mb-4">
+              <span class="text-xs font-bold uppercase tracking-wider text-brand-accent bg-brand-light px-3 py-1 rounded-full">${p.category || 'Service'}</span>
+              <span class="text-2xl font-black text-brand-dark">${p.currency} ${p.unit_price}</span>
+            </div>
+            <h3 class="text-2xl font-bold mb-3 text-brand-dark">${p.name}</h3>
+            <p class="text-gray-500 mb-8 flex-grow">${p.description || 'Premium solution for your business growth.'}</p>
+            <a href="https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hi, I am interested in a demo for ' + p.name)}" target="_blank" class="block w-full text-center bg-black text-white py-3 rounded-xl font-bold hover:bg-gray-800 transition-colors mt-auto group-hover:scale-[1.02]">
+              Request for Demo
+            </a>
+          </div>
+        `).join('');
+      })
+      .catch(err => {
+        console.error('Error fetching products:', err);
+        productGrid.innerHTML = '<div class="col-span-full text-center text-red-500 py-12">Failed to load catalog. Please try again later.</div>';
+      });
+  }
+
 });
