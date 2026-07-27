@@ -54,6 +54,7 @@ export default function InvoicesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState("All");
   const [billCurrency, setBillCurrency] = useState<'MXN'|'INR'>('MXN');
+  const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     client_id: "", service_request_id: "", amount: "",
