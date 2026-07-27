@@ -1409,6 +1409,31 @@ class SheetImportRequest(_BM):
     csv_url: _Opt[str] = None
     csv_text: _Opt[str] = None
 
+@app.get("/dev/reset-clients")
+def dev_reset_clients(session: Session = Depends(get_session)):
+    from sqlalchemy import text
+    from sqlmodel import delete
+    
+    # 1. Delete Client Research
+    session.exec(delete(ClientResearch))
+    
+    # 2. Reset Client Profiles
+    is_postgres = engine.url.drivername.startswith("postgres")
+    if is_postgres:
+        session.exec(text("TRUNCATE TABLE client_profiles RESTART IDENTITY CASCADE"))
+    else:
+        session.exec(delete(ClientProfile))
+        try:
+            session.exec(text("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'client_profiles'"))
+        except Exception:
+            pass
+            
+    # 3. Clear Users with role 'Client'
+    session.exec(delete(User).where(User.role == 'Client'))
+    
+    session.commit()
+    return {"message": "Client database has been completely reset to 0."}
+
 @app.post("/clients/import-sheet")
 async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
     import httpx
@@ -1438,50 +1463,34 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
                         return v.strip() if v else None
             return None
 
-        company  = get_field(["Client Name","Company","Company Name","companyName","Name"])
-        website  = get_field(["Website URL","Website","websiteUrl","url","URL","company web site"])
+        # Strictly map only the 4 fields
+        company = get_field(["Client Name","Company","Company Name","companyName","Name"])
+        email   = get_field(["Email","email","Email Address"])
+        phone   = get_field(["Contact","Phone","phone","Contact Number"])
+        desc    = get_field(["Description","description","Notes","Brief"])
 
-        if not company and website:
-            # Extract domain name as company name if missing (e.g. https://www.mosco.mx -> Mosco)
-            import urllib.parse
-            try:
-                parsed = urllib.parse.urlparse(website if "://" in website else "http://" + website)
-                domain = parsed.netloc.replace("www.", "").split(".")[0]
-                if domain:
-                    company = domain.capitalize()
-            except Exception:
-                pass
-
-        email    = get_field(["Email","email","Email Address"])
-        phone    = get_field(["Contact","Phone","phone","Contact Number"])
-        country  = get_field(["Country","country","Region"])
-        services = get_field(["Services","Services providing","Services Offered","services_offered","Services providing"])
-        market   = get_field(["Market size","Market","Market Size"])
-        desc     = get_field(["Description","description","Notes"])
-
-        if not company and not website:
-            skipped.append({"reason": "empty row"})
+        if not company:
+            skipped.append({"reason": "empty name"})
             continue
 
-        dup = None
-        if website:
-            dup = session.exec(select(ClientProfile).where(ClientProfile.websiteUrl == website)).first()
-        if not dup and company:
-            dup = session.exec(select(ClientProfile).where(ClientProfile.companyName == company)).first()
+        dup = session.exec(select(ClientProfile).where(ClientProfile.companyName == company)).first()
         if dup:
-            skipped.append({"reason": "duplicate", "company": company or website, "existing_id": dup.id})
+            skipped.append({"reason": "duplicate", "company": company, "existing_id": dup.id})
             continue
 
-        raw_sheet_data = {k.strip(): (v.strip() if v else "") for k, v in row.items()}
+        # Strict data subset for CRM
+        raw_sheet_data = {
+            "name": company,
+            "email": email or "",
+            "phone": phone or "",
+            "description": desc or ""
+        }
 
         cp = ClientProfile(
             companyName=company,
-            websiteUrl=website,
             phone=phone,
-            address=country,
             status="Active",
-            services_offered=services,
-            customFields={"sheet_data": raw_sheet_data, "market_size": market, "description": desc, "country": country}
+            customFields={"sheet_data": raw_sheet_data, "description": desc}
         )
 
         if email:
@@ -1490,7 +1499,7 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
                 new_user = User(
                     email=email,
                     password=_hash_password("changeme"),
-                    name=company or "Client",
+                    name=company,
                     role="Client",
                 )
                 session.add(new_user)
@@ -1501,10 +1510,9 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
         session.add(cp)
         session.commit()
         session.refresh(cp)
-        added.append({"id": cp.id, "company": company, "website": website})
+        added.append({"id": cp.id, "company": company})
 
-        if website:
-            background_tasks.add_task(_auto_research_client_bg, cp.id, website)
+        # Notice: background_tasks.add_task(_auto_research_client_bg) was removed because we no longer extract website url.
 
     return {"ok": True, "added": len(added), "skipped": len(skipped), "added_clients": added, "skipped_clients": skipped}
 
