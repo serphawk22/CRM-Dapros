@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let outlineX = mouseX;
   let outlineY = mouseY;
   
-  if (cursorDot && cursorOutline && window.innerWidth > 1024) {
+  if (cursorDot && cursorOutline && !window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
     window.addEventListener('mousemove', (e) => {
       mouseX = e.clientX;
       mouseY = e.clientY;

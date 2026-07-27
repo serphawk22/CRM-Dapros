@@ -1683,6 +1683,116 @@ def export_clients_pdf(session: Session = Depends(get_session)):
         headers={"Content-Disposition": "attachment; filename=serphawk_clients.pdf"}
     )
 
+@app.get("/clients/export-custom-pdf")
+def export_custom_clients_pdf(cols: str = "name,email,phone,description", session: Session = Depends(get_session)):
+    from fastapi.responses import StreamingResponse
+    import io
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    selected_cols = [c.strip().lower() for c in cols.split(",") if c.strip()]
+    if not selected_cols:
+        selected_cols = ["name", "email", "phone", "description"]
+        
+    col_definitions = {
+        "sno": {"header": "S.No", "weight": 0.5},
+        "name": {"header": "Client Name", "weight": 2.0},
+        "website": {"header": "Website URL", "weight": 2.0},
+        "email": {"header": "Email", "weight": 2.0},
+        "phone": {"header": "Phone", "weight": 1.5},
+        "status": {"header": "Status", "weight": 1.0},
+        "assigned": {"header": "Assigned To", "weight": 1.5},
+        "description": {"header": "Brief / Description", "weight": 4.0},
+    }
+    
+    if "sno" not in selected_cols:
+        selected_cols.insert(0, "sno")
+        
+    valid_cols = [c for c in selected_cols if c in col_definitions]
+    
+    clients_list = session.exec(select(ClientProfile).order_by(ClientProfile.id.asc())).all()
+    
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(output, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title = Paragraph("<b>Custom Clients & Leads List</b>", styles['Title'])
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+    
+    headers = [col_definitions[c]["header"] for c in valid_cols]
+    data = [headers]
+    
+    style_normal = styles["Normal"]
+    style_normal.wordWrap = 'CJK'
+    
+    def truncate(text, max_len=200):
+        if not text: return ""
+        text = str(text).strip()
+        return text if len(text) <= max_len else text[:max_len-3] + "..."
+
+    for i, c in enumerate(clients_list, 1):
+        user = session.get(User, c.userId) if c.userId else None
+        emp = session.get(User, c.assignedEmployeeId) if c.assignedEmployeeId else None
+        
+        row = []
+        for col in valid_cols:
+            if col == "sno":
+                row.append(str(i))
+            elif col == "name":
+                row.append(Paragraph(truncate(c.companyName, 100), style_normal))
+            elif col == "website":
+                row.append(Paragraph(truncate(c.websiteUrl, 100), style_normal))
+            elif col == "email":
+                row.append(Paragraph(truncate(user.email if user else "", 100), style_normal))
+            elif col == "phone":
+                row.append(Paragraph(truncate(c.phone, 50), style_normal))
+            elif col == "status":
+                row.append(Paragraph(truncate(c.status or "Active", 50), style_normal))
+            elif col == "assigned":
+                row.append(Paragraph(truncate(emp.name if emp else "Unassigned", 50), style_normal))
+            elif col == "description":
+                cf = c.customFields or {}
+                cf_dict = cf if isinstance(cf, dict) else {}
+                desc = cf_dict.get("description", "")
+                row.append(Paragraph(truncate(desc, 300), style_normal))
+        data.append(row)
+        
+    total_weight = sum([col_definitions[c]["weight"] for c in valid_cols])
+    printable_width = 782
+    col_widths = [(col_definitions[c]["weight"] / total_weight) * printable_width for c in valid_cols]
+    
+    table = Table(data, colWidths=col_widths, repeatRows=1)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#f1f5f9")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor("#334155")),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e8f0")),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    elements.append(table)
+    doc.build(elements)
+    
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=serphawk_custom_clients.pdf"}
+    )
+
 
 @app.get("/clients/{client_id}")
 def get_client(client_id: int, session: Session = Depends(get_session)):
