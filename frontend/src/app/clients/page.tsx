@@ -140,6 +140,18 @@ export default function ClientsPage() {
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<Record<number, string>>({});
   
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportCols, setExportCols] = useState({
+    name: true,
+    email: true,
+    phone: true,
+    description: true,
+    website: false,
+    status: false,
+    assigned: false
+  });
+  
   // Pitch Modal State
   const [pitchModal, setPitchModal] = useState<{isOpen: boolean, pitch: string, clientName: string}>({ isOpen: false, pitch: "", clientName: "" });
 
@@ -485,8 +497,8 @@ export default function ClientsPage() {
             <button onClick={() => window.open(`${API_BASE_URL}/clients/export-csv`, '_blank')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
               <Download className="w-4 h-4" /> Export CSV
             </button>
-            <button onClick={() => window.open(`${API_BASE_URL}/clients/export-pdf`, '_blank')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
-              <FileText className="w-4 h-4" /> Export PDF
+            <button onClick={() => setIsExportModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
+              <FileText className="w-4 h-4" /> Export Options
             </button>
             <button onClick={() => { setIsSheetImportOpen(true); setSheetImportState('idle'); setSheetPreview([]); setSheetUrl(''); setSheetImportResult(null); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
               <FileSpreadsheet className="w-4 h-4" /> Import Sheet
@@ -1202,6 +1214,50 @@ export default function ClientsPage() {
                 </button>
                 <button onClick={() => setPitchModal({isOpen: false, pitch: "", clientName: ""})} className="px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white transition-colors">
                   Done
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+        {/* Custom Export Modal */}
+        {isExportModalOpen && (
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{scale:0.95, y:10}} animate={{scale:1, y:0}} exit={{scale:0.95, y:10}} className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-zinc-800">
+              <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-zinc-800">
+                <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-500" /> Export Options (PDF)
+                </h3>
+                <button onClick={() => setIsExportModalOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 transition-colors">&times;</button>
+              </div>
+              <div className="p-6 space-y-4">
+                <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Select the columns you want to include in the exported PDF.</p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.keys(exportCols).map((col) => (
+                    <label key={col} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors">
+                      <input 
+                        type="checkbox" 
+                        checked={exportCols[col as keyof typeof exportCols]} 
+                        onChange={(e) => setExportCols({...exportCols, [col as keyof typeof exportCols]: e.target.checked})}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-zinc-900"
+                      />
+                      <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">{col === 'description' ? 'Brief / Desc' : col}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="p-5 border-t border-slate-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 flex justify-end gap-3">
+                <button onClick={() => setIsExportModalOpen(false)} className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 dark:text-zinc-300 dark:hover:bg-zinc-800 transition-colors">Cancel</button>
+                <button 
+                  onClick={() => {
+                    const selected = Object.entries(exportCols).filter(([_, isSelected]) => isSelected).map(([col]) => col).join(',');
+                    if (!selected) return alert('Please select at least one column');
+                    window.open(`${API_BASE_URL}/clients/export-custom-pdf?cols=${selected}`, '_blank');
+                    setIsExportModalOpen(false);
+                  }}
+                  className="px-5 py-2.5 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors"
+                >
+                  Download PDF
                 </button>
               </div>
             </motion.div>
