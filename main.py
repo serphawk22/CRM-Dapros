@@ -5339,21 +5339,35 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
     els = []
     
     # Header Section
+    logo_path = os.path.join(os.path.dirname(__file__), "logo.jpg")
+    from reportlab.platypus import Image
+    if os.path.exists(logo_path):
+        from reportlab.lib.utils import ImageReader
+        img_reader = ImageReader(logo_path)
+        img_w, img_h = img_reader.getSize()
+        aspect = img_h / float(img_w)
+        logo = Image(logo_path, width=120, height=120 * aspect)
+    else:
+        logo = Paragraph("SERP HAWK", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=16))
+
     header_data = [
         [
             Paragraph("PROFORMA INVOICE", title_style),
-            Paragraph("ABCD & CO", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=16))
+            logo
         ],
         [
             [Paragraph(f"Invoice Number: {inv.invoice_number}", normal),
              Paragraph(f"Date: {inv.created_at.strftime('%B %d, %Y') if inv.created_at else '—'}", normal)],
-            [Paragraph("+123-456-7890", ParagraphStyle("Right", parent=normal, alignment=2)),
-             Paragraph("123 Anywhere St., Any City", ParagraphStyle("Right", parent=normal, alignment=2))]
+            [Paragraph("089213 81769 | info@serphawk.com", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("B, 2nd Floor, Bannerghatta Slip Rd, KEB Colony", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("New Gurappana Palya, 1st Stage, BTM 1st Stage", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Bengaluru, Karnataka 560029", ParagraphStyle("Right", parent=normal, alignment=2))]
         ]
     ]
     header_table = Table(header_data, colWidths=[260, 255])
     header_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
     ]))
     els.append(header_table)
@@ -5442,10 +5456,10 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
     footer_data = [
         [Paragraph("PAYMENT INFORMATION:", h3), Paragraph("SIGNATURE/STAMP", h3)],
         [
-            [Paragraph("<b>Bank:</b> Any Bank", normal), 
-             Paragraph("<b>Name:</b> SERPHAWK & DAPROS", normal), 
-             Paragraph("<b>Account:</b> 0123 4567 8901", normal)],
-            [Paragraph("Place:", normal), Paragraph("Date:", normal)]
+            [Paragraph("<b>Bank:</b> ___________________", normal), 
+             Paragraph("<b>Name:</b> SERP HAWK", normal), 
+             Paragraph("<b>Account:</b> ___________________", normal)],
+            [Paragraph("Place: Bengaluru", normal), Paragraph("Date: ____________", normal)]
         ]
     ]
     ft = Table(footer_data, colWidths=[257, 258])
