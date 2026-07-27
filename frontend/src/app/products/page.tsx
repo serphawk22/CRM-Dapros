@@ -140,6 +140,7 @@ export default function ProductsPage() {
             <p className="text-slate-500 text-sm">Manage your catalog items</p>
           </div>
         </div>
+        <div className="flex items-center gap-4">
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
             <button onClick={() => setDisplayCurrency('MXN')} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${displayCurrency === 'MXN' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>MXN</button>
             <button onClick={() => setDisplayCurrency('INR')} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${displayCurrency === 'INR' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>INR</button>
