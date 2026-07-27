@@ -1433,6 +1433,38 @@ def dev_reset_clients(session: Session = Depends(get_session)):
     
     session.commit()
     return {"message": "Client database has been completely reset to 0."}
+@app.get("/dev/seed-catalog")
+def dev_seed_catalog(session: Session = Depends(get_session)):
+    from sqlmodel import delete
+    # Delete existing products
+    session.exec(delete(Product))
+    
+    services = [
+        "Local and Organic SEO",
+        "PPC & Google Ads Management",
+        "Social Media Management",
+        "Digital Marketing Consulting",
+        "Web Development",
+        "App Development",
+        "AI & Automation Services",
+        "Custom Software Development",
+        "Ecommerce",
+        "Secure Hosting"
+    ]
+    
+    for s in services:
+        prod = Product(
+            name=s,
+            unit_price=100.0,
+            currency="MXN",
+            description="Includes equivalent to ~440 INR",
+            category="Service",
+            is_active=True
+        )
+        session.add(prod)
+        
+    session.commit()
+    return {"message": "Catalog successfully seeded with 10 unified services at 100 MXN."}
 
 @app.post("/clients/import-sheet")
 async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):

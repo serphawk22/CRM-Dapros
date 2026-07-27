@@ -44,6 +44,8 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [serviceRequests, setServiceRequests] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -70,14 +72,16 @@ export default function InvoicesPage() {
       ? `${API_BASE_URL}/invoices?client_id=${clientId}`
       : `${API_BASE_URL}/invoices`;
     try {
-      const [inv, cl, sr] = await Promise.all([
+      const [inv, cl, sr, pr] = await Promise.all([
         fetch(invoiceUrl).then(r => r.json()),
         isClient ? Promise.resolve({ clients: [] }) : fetch(`${API_BASE_URL}/clients?per_page=1000`).then(r => r.json()),
         isClient ? Promise.resolve({ requests: [] }) : fetch(`${API_BASE_URL}/services/requests`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/products?active_only=true`).then(r => r.json()),
       ]);
       setInvoices(inv.invoices || []);
       setClients(cl.clients || []);
       setServiceRequests(sr.requests || []);
+      setProducts(pr.products || []);
     } catch (e) {
       console.error(e);
       setError("Failed to load data. Please refresh.");
@@ -93,8 +97,15 @@ export default function InvoicesPage() {
   async function createInvoice(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const items = lineItems.filter(l => l.description && l.amount);
-    const totalAmount = items.reduce((s, i) => s + parseFloat(i.amount || "0"), 0) || parseFloat(form.amount);
+    const manualItems = lineItems.filter(l => l.description && l.amount).map(l => ({ description: l.description, amount: parseFloat(l.amount) }));
+    const catalogItems = selectedProductIds.map(id => {
+      const p = products.find(x => x.id === id);
+      return { description: p?.name, amount: p?.unit_price };
+    }).filter(i => i.description);
+    
+    const allItems = [...catalogItems, ...manualItems];
+    const totalAmount = allItems.reduce((s, i) => s + (i.amount || 0), 0) || parseFloat(form.amount) || 0;
+    
     await fetch(`${API_BASE_URL}/invoices`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,12 +116,13 @@ export default function InvoicesPage() {
         tax: parseFloat(form.tax) || 0,
         due_date: form.due_date || null,
         notes: form.notes || null,
-        line_items: items.map(i => ({ description: i.description, amount: parseFloat(i.amount) })),
+        line_items: allItems,
       }),
     });
     setShowModal(false);
     setForm({ client_id: "", service_request_id: "", amount: "", tax: "0", due_date: "", notes: "" });
     setLineItems([{ description: "", amount: "" }]);
+    setSelectedProductIds([]);
     fetchAll();
     setSubmitting(false);
   }
@@ -279,8 +291,31 @@ export default function InvoicesPage() {
                   ))}
                 </select>
               </div>
+              
               <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Line Items</label>
+                <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-2 block">Catalog Services</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto p-2 border border-slate-200 dark:border-zinc-700 rounded-xl bg-slate-50 dark:bg-zinc-800">
+                  {products.map(p => (
+                    <label key={p.id} className="flex items-start gap-2 p-2 hover:bg-slate-100 dark:hover:bg-zinc-700 rounded-lg cursor-pointer transition-colors">
+                      <input type="checkbox"
+                        checked={selectedProductIds.includes(p.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedProductIds(prev => [...prev, p.id]);
+                          else setSelectedProductIds(prev => prev.filter(id => id !== p.id));
+                        }}
+                        className="mt-1 accent-indigo-600"
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-semibold text-slate-900 dark:text-zinc-100">{p.name}</span>
+                        <span className="text-xs text-slate-500 font-bold">${p.unit_price} {p.currency}</span>
+                      </div>
+                    </label>
+                  ))}
+                  {products.length === 0 && <p className="text-sm text-slate-500 col-span-2 text-center py-2">No services in catalog.</p>}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Custom Line Items</label>
                 {lineItems.map((item, idx) => (
                   <div key={idx} className="flex gap-2 mb-2">
                     <input value={item.description} onChange={e => setLineItems(p => p.map((l, i) => i === idx ? { ...l, description: e.target.value } : l))}
