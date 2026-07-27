@@ -101,10 +101,10 @@ export default function InvoicesPage() {
     e.preventDefault();
     setSubmitting(true);
     const multiplier = billCurrency === 'INR' ? 4.4 : 1;
-    const manualItems = lineItems.filter(l => l.description && l.amount).map(l => ({ description: l.description, amount: parseFloat(l.amount) }));
+    const manualItems = lineItems.filter(l => l.description && l.amount).map(l => ({ description: l.description, amount: parseFloat(l.amount), provider: "Custom" }));
     const catalogItems = selectedProductIds.map(id => {
       const p = products.find(x => x.id === id);
-      return { description: p?.name, amount: p ? p.unit_price * multiplier : 0 };
+      return { description: p?.name, amount: p ? p.unit_price * multiplier : 0, provider: p?.sku || "Custom" };
     }).filter(i => i.description);
     
     const allItems = [...catalogItems, ...manualItems];

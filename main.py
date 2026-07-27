@@ -5305,6 +5305,167 @@ def respond_nps(survey_id: int, body: NPSRespondRequest, session: Session = Depe
     return {"ok": True}
 
 
+# ─────────────────────────────────────────────────────────────
+@app.get("/invoices/{invoice_id}/pdf")
+def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
+    """Generate a professional PDF for an invoice."""
+    from fastapi.responses import StreamingResponse
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    inv = session.get(Invoice, invoice_id)
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    client = session.get(ClientProfile, inv.client_id) if inv.client_id else None
+    client_name = ""
+    if client:
+        user = session.get(User, client.userId) if client.userId else None
+        client_name = client.companyName or (user.name if user else f"Client #{client.id}")
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=40, bottomMargin=40, leftMargin=40, rightMargin=40)
+    styles = getSampleStyleSheet()
+    
+    # Custom Styles
+    title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=22, textColor=colors.HexColor("#000000"))
+    normal_b = ParagraphStyle("NormalB", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#111111"))
+    normal = ParagraphStyle("NormalR", parent=styles["Normal"], fontName="Helvetica", fontSize=10, textColor=colors.HexColor("#333333"))
+    small = ParagraphStyle("Small", parent=normal, fontSize=8, textColor=colors.HexColor("#555555"))
+    h3 = ParagraphStyle("H3", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=12, spaceAfter=8)
+
+    els = []
+    
+    # Header Section
+    header_data = [
+        [
+            Paragraph("PROFORMA INVOICE", title_style),
+            Paragraph("ABCD & CO", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=16))
+        ],
+        [
+            [Paragraph(f"Invoice Number: {inv.invoice_number}", normal),
+             Paragraph(f"Date: {inv.created_at.strftime('%B %d, %Y') if inv.created_at else '—'}", normal)],
+            [Paragraph("+123-456-7890", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("123 Anywhere St., Any City", ParagraphStyle("Right", parent=normal, alignment=2))]
+        ]
+    ]
+    header_table = Table(header_data, colWidths=[260, 255])
+    header_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    els.append(header_table)
+    els.append(Spacer(1, 30))
+
+    # Info Section
+    info_data = [
+        [Paragraph("BILL TO:", h3), Paragraph("SHIP TO:", h3), Paragraph("SHIPPING DETAILS:", h3)],
+        [
+            [Paragraph(client_name or "—", normal_b), Paragraph("Client Address", normal)],
+            [Paragraph(client_name or "—", normal_b), Paragraph("Client Address", normal)],
+            [Paragraph("Freight type - Digital", normal), Paragraph(f"Due Date - {inv.due_date or 'N/A'}", normal)]
+        ]
+    ]
+    info_table = Table(info_data, colWidths=[171, 171, 173])
+    info_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    els.append(info_table)
+    els.append(Spacer(1, 30))
+
+    # Line Items Table
+    curr = "₹" if getattr(inv, 'currency', 'MXN') == "INR" else "$"
+    
+    items_header = ["ITEM", "DESCRIPTION", "PROVIDER", "PRICE", "AMOUNT"]
+    items_data = [items_header]
+    
+    for idx, li in enumerate(inv.line_items or [], 1):
+        amt = float(li.get('amount', 0))
+        prov = li.get('provider', 'Custom')
+        desc = li.get('description', '')
+        items_data.append([str(idx) + ".", desc, prov, f"{curr}{amt:.2f}", f"{curr}{amt:.2f}"])
+        
+    lt = Table(items_data, colWidths=[40, 195, 100, 90, 90])
+    
+    # Base table style
+    ts = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#5472d3")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("PADDING", (0, 0), (-1, -1), 10),
+        ("ALIGN", (3, 0), (4, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]
+    
+    # Alternating row colors
+    for i in range(1, len(items_data)):
+        bg = colors.HexColor("#f8f9fa") if i % 2 != 0 else colors.white
+        ts.append(("BACKGROUND", (0, i), (-1, i), bg))
+        
+    lt.setStyle(TableStyle(ts))
+    els.append(lt)
+    els.append(Spacer(1, 15))
+    
+    # Totals Section
+    totals_data = [
+        ["", "Sub Total:", f"{curr}{inv.amount:.2f}"],
+        ["", "Tax:", f"{curr}{inv.tax:.2f}"],
+        ["", "Freight:", f"{curr}0.00"],
+    ]
+    tt = Table(totals_data, colWidths=[295, 110, 110])
+    tt.setStyle(TableStyle([
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("ALIGN", (1, 0), (2, -1), "RIGHT"),
+        ("PADDING", (0, 0), (-1, -1), 5),
+    ]))
+    els.append(tt)
+    els.append(Spacer(1, 10))
+    
+    grand_total_data = [["", f"TOTAL: {curr}{inv.total:.2f}"]]
+    gt = Table(grand_total_data, colWidths=[295, 220])
+    gt.setStyle(TableStyle([
+        ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#f1f5f9")),
+        ("FONTNAME", (1, 0), (1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (1, 0), (1, 0), 16),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("PADDING", (1, 0), (1, 0), 10),
+    ]))
+    els.append(gt)
+    els.append(Spacer(1, 40))
+    
+    # Footer Section
+    footer_data = [
+        [Paragraph("PAYMENT INFORMATION:", h3), Paragraph("SIGNATURE/STAMP", h3)],
+        [
+            [Paragraph("<b>Bank:</b> Any Bank", normal), 
+             Paragraph("<b>Name:</b> SERPHAWK & DAPROS", normal), 
+             Paragraph("<b>Account:</b> 0123 4567 8901", normal)],
+            [Paragraph("Place:", normal), Paragraph("Date:", normal)]
+        ]
+    ]
+    ft = Table(footer_data, colWidths=[257, 258])
+    ft.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    els.append(ft)
+    
+    els.append(Spacer(1, 20))
+    els.append(Paragraph("<b>TERM AND CONDITIONS:</b>", normal))
+    els.append(Paragraph("Payment is due 30 days from the invoice date.", normal))
+    
+    doc.build(els)
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="application/pdf", headers={
+        "Content-Disposition": f"inline; filename=Invoice_{inv.invoice_number}.pdf"
+    })
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Proposals & Contracts
 # ─────────────────────────────────────────────────────────────────────────────
