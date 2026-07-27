@@ -706,6 +706,7 @@ class Invoice(SQLModel, table=True):
     amount: float = Field(default=0.0)
     tax: float = Field(default=0.0)
     total: float = Field(default=0.0)
+    currency: str = Field(default="MXN", max_length=10)
     status: str = Field(default="Draft")  # Draft, Sent, Paid, Overdue, Partial, Cancelled
     due_date: Optional[str] = None
     notes: Optional[str] = Field(default=None, sa_column=Column(Text))

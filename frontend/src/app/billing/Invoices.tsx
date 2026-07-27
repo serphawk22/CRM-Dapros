@@ -22,6 +22,7 @@ interface Invoice {
   total: number;
   status: string;
   due_date?: string;
+  currency?: string;
   notes?: string;
   line_items: any[];
   paid_at?: string;
@@ -52,6 +53,7 @@ export default function InvoicesPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState("All");
+  const [billCurrency, setBillCurrency] = useState<'MXN'|'INR'>('MXN');
 
   const [form, setForm] = useState({
     client_id: "", service_request_id: "", amount: "",
@@ -97,10 +99,11 @@ export default function InvoicesPage() {
   async function createInvoice(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    const multiplier = billCurrency === 'INR' ? 4.4 : 1;
     const manualItems = lineItems.filter(l => l.description && l.amount).map(l => ({ description: l.description, amount: parseFloat(l.amount) }));
     const catalogItems = selectedProductIds.map(id => {
       const p = products.find(x => x.id === id);
-      return { description: p?.name, amount: p?.unit_price };
+      return { description: p?.name, amount: p ? p.unit_price * multiplier : 0 };
     }).filter(i => i.description);
     
     const allItems = [...catalogItems, ...manualItems];
@@ -113,6 +116,7 @@ export default function InvoicesPage() {
         client_id: Number(form.client_id),
         service_request_id: form.service_request_id ? Number(form.service_request_id) : null,
         amount: totalAmount,
+        currency: billCurrency,
         tax: parseFloat(form.tax) || 0,
         due_date: form.due_date || null,
         notes: form.notes || null,
@@ -236,7 +240,7 @@ export default function InvoicesPage() {
                   <tr key={inv.id} className="hover:bg-gray-50 dark:bg-zinc-950 transition-colors group">
                     <td className="px-4 py-4 font-bold text-gray-900 dark:text-zinc-50">{inv.invoice_number}</td>
                     <td className="px-4 py-4 text-gray-700 dark:text-zinc-200">{inv.client_name || "—"}</td>
-                    <td className="px-4 py-4 font-bold text-gray-900 dark:text-zinc-50">${inv.total.toFixed(2)}</td>
+                    <td className="px-4 py-4 font-bold text-gray-900 dark:text-zinc-50">{inv.currency === 'INR' ? '₹' : '$'}{inv.total.toFixed(2)}</td>
                     <td className="px-4 py-4">
                       <span className={cn("flex items-center gap-1.5 w-fit px-3 py-1 rounded-full text-xs font-bold", cfg.bg, cfg.color)}>
                         <cfg.icon className="w-3 h-3" />{inv.status}
@@ -266,7 +270,13 @@ export default function InvoicesPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-black">New Invoice</h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-black">New Invoice</h2>
+                <div className="flex bg-slate-100 dark:bg-zinc-800 p-1 rounded-lg">
+                  <button type="button" onClick={() => setBillCurrency('MXN')} className={`px-3 py-1 text-xs font-bold transition-all rounded ${billCurrency === 'MXN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>MXN</button>
+                  <button type="button" onClick={() => setBillCurrency('INR')} className={`px-3 py-1 text-xs font-bold transition-all rounded ${billCurrency === 'INR' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}>INR</button>
+                </div>
+              </div>
               <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={createInvoice} className="space-y-4">
@@ -307,7 +317,7 @@ export default function InvoicesPage() {
                       />
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold text-slate-900 dark:text-zinc-100">{p.name}</span>
-                        <span className="text-xs text-slate-500 font-bold">${p.unit_price} {p.currency}</span>
+                        <span className="text-xs text-slate-500 font-bold">{billCurrency === 'INR' ? '₹' : '$'}{(p.unit_price * (billCurrency === 'INR' ? 4.4 : 1)).toFixed(2)} {billCurrency}</span>
                       </div>
                     </label>
                   ))}
@@ -379,14 +389,14 @@ export default function InvoicesPage() {
               {selectedInvoice.line_items?.map((item: any, i: number) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span className="text-gray-700 dark:text-zinc-200">{item.description}</span>
-                  <span className="font-bold">${Number(item.amount).toFixed(2)}</span>
+                  <span className="font-bold">{selectedInvoice.currency === 'INR' ? '₹' : '$'}{Number(item.amount).toFixed(2)}</span>
                 </div>
               ))}
               <div className="border-t pt-2 flex justify-between font-bold">
-                <span>Tax</span><span>${selectedInvoice.tax.toFixed(2)}</span>
+                <span>Tax</span><span>{selectedInvoice.currency === 'INR' ? '₹' : '$'}{selectedInvoice.tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-black">
-                <span>Total</span><span>${selectedInvoice.total.toFixed(2)}</span>
+                <span>Total</span><span>{selectedInvoice.currency === 'INR' ? '₹' : '$'}{selectedInvoice.total.toFixed(2)}</span>
               </div>
             </div>
 

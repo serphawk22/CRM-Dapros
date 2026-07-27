@@ -962,6 +962,7 @@ class InvoiceCreateRequest(BaseModel):
     client_id: int
     service_request_id: Optional[int] = None
     amount: float
+    currency: Optional[str] = "MXN"
     tax: float = 0.0
     due_date: Optional[str] = None
     notes: Optional[str] = None
@@ -1440,21 +1441,22 @@ def dev_seed_catalog(session: Session = Depends(get_session)):
     session.exec(delete(Product))
     
     services = [
-        "Local and Organic SEO",
-        "PPC & Google Ads Management",
-        "Social Media Management",
-        "Digital Marketing Consulting",
-        "Web Development",
-        "App Development",
-        "AI & Automation Services",
-        "Custom Software Development",
-        "Ecommerce",
-        "Secure Hosting"
+        {"name": "Local and Organic SEO", "provider": "DaPros"},
+        {"name": "PPC & Google Ads Management", "provider": "DaPros"},
+        {"name": "Social Media Management", "provider": "Serphawk"},
+        {"name": "Digital Marketing Consulting", "provider": "Serphawk"},
+        {"name": "Web Development", "provider": "Serphawk"},
+        {"name": "App Development", "provider": "Serphawk"},
+        {"name": "AI & Automation Services", "provider": "Serphawk"},
+        {"name": "Custom Software Development", "provider": "Serphawk"},
+        {"name": "Ecommerce", "provider": "DaPros"},
+        {"name": "Secure Hosting", "provider": "DaPros"}
     ]
     
     for s in services:
         prod = Product(
-            name=s,
+            name=s["name"],
+            sku=s["provider"],
             unit_price=100.0,
             currency="MXN",
             description="Includes equivalent to ~440 INR",
@@ -1465,6 +1467,16 @@ def dev_seed_catalog(session: Session = Depends(get_session)):
         
     session.commit()
     return {"message": "Catalog successfully seeded with 10 unified services at 100 MXN."}
+
+@app.get("/dev/patch-invoices")
+def dev_patch_invoices(session: Session = Depends(get_session)):
+    from sqlalchemy import text
+    try:
+        session.exec(text("ALTER TABLE invoices ADD COLUMN currency VARCHAR(10) DEFAULT 'MXN';"))
+        session.commit()
+        return {"success": True, "message": "Invoices table successfully patched with currency column."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.post("/clients/import-sheet")
 async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
@@ -4771,6 +4783,7 @@ def create_invoice(body: InvoiceCreateRequest, session: Session = Depends(get_se
         amount=body.amount,
         tax=body.tax,
         total=total,
+        currency=body.currency,
         due_date=body.due_date,
         notes=body.notes,
         line_items=body.line_items or [],
@@ -5661,12 +5674,13 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
 
     # Line items
     els.append(Paragraph("Line Items", h2))
+    curr = "₹" if getattr(inv, 'currency', 'MXN') == "INR" else "$"
     items_data = [["#", "Description", "Amount"]]
     for idx, li in enumerate(inv.line_items or [], 1):
-        items_data.append([str(idx), li.get("description", ""), f"${float(li.get('amount', 0)):.2f}"])
-    items_data.append(["", "Subtotal", f"${inv.amount:.2f}"])
-    items_data.append(["", "Tax", f"${inv.tax:.2f}"])
-    items_data.append(["", "TOTAL", f"${inv.total:.2f}"])
+        items_data.append([str(idx), li.get("description", ""), f"{curr}{float(li.get('amount', 0)):.2f}"])
+    items_data.append(["", "Subtotal", f"{curr}{inv.amount:.2f}"])
+    items_data.append(["", "Tax", f"{curr}{inv.tax:.2f}"])
+    items_data.append(["", "TOTAL", f"{curr}{inv.total:.2f}"])
 
     lt = Table(items_data, colWidths=[40, 310, 100])
     lt.setStyle(TableStyle([

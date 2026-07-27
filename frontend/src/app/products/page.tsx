@@ -26,6 +26,7 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [displayCurrency, setDisplayCurrency] = useState<'MXN' | 'INR'>('MXN');
   
   // Form State
   const [formData, setFormData] = useState({
@@ -139,9 +140,14 @@ export default function ProductsPage() {
             <p className="text-slate-500 text-sm">Manage your catalog items</p>
           </div>
         </div>
-        <button onClick={() => openModal()} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium shadow-sm transition-colors">
-          <Plus className="w-4 h-4" /> Add Item
-        </button>
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <button onClick={() => setDisplayCurrency('MXN')} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${displayCurrency === 'MXN' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>MXN</button>
+            <button onClick={() => setDisplayCurrency('INR')} className={`px-3 py-1.5 rounded-md text-sm font-bold transition-all ${displayCurrency === 'INR' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500'}`}>INR</button>
+          </div>
+          <button onClick={() => openModal()} className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium shadow-sm transition-colors">
+            <Plus className="w-4 h-4" /> Add Item
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -207,12 +213,18 @@ export default function ProductsPage() {
                 filteredProducts.map(p => (
                   <tr key={p.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                     <td className="p-4">
-                      <p className="font-bold text-slate-900 dark:text-white text-sm">{p.name}</p>
-                      {p.sku && <p className="text-xs font-mono text-slate-400 mt-0.5">SKU: {p.sku}</p>}
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-slate-900 dark:text-white text-sm">{p.name}</p>
+                        {p.sku === 'Serphawk' && <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400">Serphawk</span>}
+                        {p.sku === 'DaPros' && <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400">DaPros</span>}
+                      </div>
+                      {p.sku && p.sku !== 'Serphawk' && p.sku !== 'DaPros' && <p className="text-xs font-mono text-slate-400 mt-0.5">SKU: {p.sku}</p>}
                       {p.description && <p className="text-xs text-slate-500 mt-1 line-clamp-1">{p.description}</p>}
                     </td>
                     <td className="p-4 text-sm font-medium text-slate-600 dark:text-slate-300">{p.category || '—'}</td>
-                    <td className="p-4 font-black text-slate-900 dark:text-white text-sm">{p.currency} {p.unit_price.toFixed(2)}</td>
+                    <td className="p-4 font-black text-slate-900 dark:text-white text-sm">
+                      {displayCurrency} {(p.unit_price * (displayCurrency === 'INR' ? 4.4 : 1)).toFixed(2)}
+                    </td>
                     <td className="p-4 text-sm text-slate-500">{p.tax_rate}%</td>
                     <td className="p-4">
                       {p.is_active ? (
