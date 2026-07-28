@@ -5307,14 +5307,16 @@ def respond_nps(survey_id: int, body: NPSRespondRequest, session: Session = Depe
 
 # ─────────────────────────────────────────────────────────────
 @app.get("/invoices/{invoice_id}/pdf")
-def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
+def invoice_pdf(invoice_id: int, provider: Optional[str] = None, session: Session = Depends(get_session)):
     """Generate a professional PDF for an invoice."""
     from fastapi.responses import StreamingResponse
     import io
+    import os
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.utils import ImageReader
 
     inv = session.get(Invoice, invoice_id)
     if not inv:
@@ -5338,30 +5340,51 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
 
     els = []
     
-    # Header Section
-    logo_path = os.path.join(os.path.dirname(__file__), "logo.jpg")
-    from reportlab.platypus import Image
-    if os.path.exists(logo_path):
-        from reportlab.lib.utils import ImageReader
-        img_reader = ImageReader(logo_path)
-        img_w, img_h = img_reader.getSize()
-        aspect = img_h / float(img_w)
-        logo = Image(logo_path, width=120, height=120 * aspect)
+    is_dapros = (provider == "DAPROS")
+    
+    if is_dapros:
+        curr = "$"
+        title_text = "INVOICE"
+        logo_el = Paragraph("DaPros", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=24, textColor=colors.HexColor("#000000")))
+        contact_info = [
+             Paragraph("+52 33 5018 8216 | contacto@dapros.com.mx", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("DaPros, Web Design in Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Canarias 1178, 44620 Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Jal., Mexico", ParagraphStyle("Right", parent=normal, alignment=2))
+        ]
+        payment_name = "DaPros"
+        place = "Guadalajara"
     else:
-        logo = Paragraph("SERP HAWK", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=16))
+        curr = "₹"
+        title_text = "PROFORMA INVOICE"
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.jpg")
+        if os.path.exists(logo_path):
+            img_reader = ImageReader(logo_path)
+            img_w, img_h = img_reader.getSize()
+            aspect = img_h / float(img_w)
+            logo_el = Image(logo_path, width=120, height=120 * aspect)
+        else:
+            logo_el = Paragraph("SERP HAWK", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=16))
 
+        contact_info = [
+             Paragraph("089213 81769 | info@serphawk.com", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("B, 2nd Floor, Bannerghatta Slip Rd, KEB Colony", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("New Gurappana Palya, 1st Stage, BTM 1st Stage", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Bengaluru, Karnataka 560029", ParagraphStyle("Right", parent=normal, alignment=2))
+        ]
+        payment_name = "SERP HAWK"
+        place = "Bengaluru"
+
+    # Header Section
     header_data = [
         [
-            Paragraph("PROFORMA INVOICE", title_style),
-            logo
+            Paragraph(title_text, title_style),
+            logo_el
         ],
         [
             [Paragraph(f"Invoice Number: {inv.invoice_number}", normal),
              Paragraph(f"Date: {inv.created_at.strftime('%B %d, %Y') if inv.created_at else '—'}", normal)],
-            [Paragraph("089213 81769 | info@serphawk.com", ParagraphStyle("Right", parent=normal, alignment=2)),
-             Paragraph("B, 2nd Floor, Bannerghatta Slip Rd, KEB Colony", ParagraphStyle("Right", parent=normal, alignment=2)),
-             Paragraph("New Gurappana Palya, 1st Stage, BTM 1st Stage", ParagraphStyle("Right", parent=normal, alignment=2)),
-             Paragraph("Bengaluru, Karnataka 560029", ParagraphStyle("Right", parent=normal, alignment=2))]
+            contact_info
         ]
     ]
     header_table = Table(header_data, colWidths=[260, 255])
@@ -5391,8 +5414,6 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
     els.append(Spacer(1, 30))
 
     # Line Items Table
-    curr = "₹" if getattr(inv, 'currency', 'MXN') == "INR" else "$"
-    
     items_header = ["ITEM", "DESCRIPTION", "PROVIDER", "PRICE", "AMOUNT"]
     items_data = [items_header]
     
@@ -5457,9 +5478,9 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
         [Paragraph("PAYMENT INFORMATION:", h3), Paragraph("SIGNATURE/STAMP", h3)],
         [
             [Paragraph("<b>Bank:</b> ___________________", normal), 
-             Paragraph("<b>Name:</b> SERP HAWK", normal), 
+             Paragraph(f"<b>Name:</b> {payment_name}", normal), 
              Paragraph("<b>Account:</b> ___________________", normal)],
-            [Paragraph("Place: Bengaluru", normal), Paragraph("Date: ____________", normal)]
+            [Paragraph(f"Place: {place}", normal), Paragraph("Date: ____________", normal)]
         ]
     ]
     ft = Table(footer_data, colWidths=[257, 258])

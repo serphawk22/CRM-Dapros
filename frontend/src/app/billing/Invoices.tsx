@@ -50,6 +50,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [downloadingInvoice, setDownloadingInvoice] = useState<Invoice | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [filterStatus, setFilterStatus] = useState("All");
@@ -94,7 +95,14 @@ export default function InvoicesPage() {
   }
 
   function downloadInvoice(inv: Invoice) {
-    window.open(`${API_BASE_URL}/invoices/${inv.id}/pdf`, '_blank');
+    setDownloadingInvoice(inv);
+  }
+
+  function handleDownloadSelect(provider: 'SERP_HAWK' | 'DAPROS') {
+    if (downloadingInvoice) {
+      window.open(`${API_BASE_URL}/invoices/${downloadingInvoice.id}/pdf?provider=${provider}`, '_blank');
+      setDownloadingInvoice(null);
+    }
   }
 
   async function createInvoice(e: React.FormEvent) {
@@ -427,6 +435,32 @@ export default function InvoicesPage() {
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {downloadingInvoice && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm shadow-2xl p-6 relative overflow-hidden border border-zinc-200 dark:border-zinc-800">
+            <button onClick={() => setDownloadingInvoice(null)} className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 bg-zinc-100 dark:bg-zinc-800/50 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+            <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-2 tracking-tight">Download Invoice</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 font-medium">Select the agency provider format for this PDF.</p>
+            <div className="space-y-3">
+              <button onClick={() => handleDownloadSelect('SERP_HAWK')} className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all text-left group">
+                <div>
+                  <div className="font-bold text-indigo-900 dark:text-indigo-300">SERP Hawk</div>
+                  <div className="text-xs font-semibold text-indigo-600/70 dark:text-indigo-400/70">Formal Proforma (INR)</div>
+                </div>
+                <Download className="w-5 h-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+              <button onClick={() => handleDownloadSelect('DAPROS')} className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all text-left group">
+                <div>
+                  <div className="font-bold text-emerald-900 dark:text-emerald-300">DaPros</div>
+                  <div className="text-xs font-semibold text-emerald-600/70 dark:text-emerald-400/70">Clean Format (MXN)</div>
+                </div>
+                <Download className="w-5 h-5 text-emerald-400 group-hover:text-emerald-600 transition-colors" />
+              </button>
             </div>
           </div>
         </div>
