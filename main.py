@@ -5332,7 +5332,7 @@ def invoice_pdf(invoice_id: int, provider: Optional[str] = None, session: Sessio
     styles = getSampleStyleSheet()
     
     # Custom Styles
-    title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=22, textColor=colors.HexColor("#000000"))
+    title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=22, leading=26, textColor=colors.HexColor("#000000"))
     normal_b = ParagraphStyle("NormalB", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#111111"))
     normal = ParagraphStyle("NormalR", parent=styles["Normal"], fontName="Helvetica", fontSize=10, textColor=colors.HexColor("#333333"))
     small = ParagraphStyle("Small", parent=normal, fontSize=8, textColor=colors.HexColor("#555555"))
@@ -5345,7 +5345,7 @@ def invoice_pdf(invoice_id: int, provider: Optional[str] = None, session: Sessio
     if is_dapros:
         curr = "$"
         title_text = "INVOICE"
-        logo_el = Paragraph("DaPros", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=24, textColor=colors.HexColor("#000000")))
+        logo_el = Paragraph("DaPros", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=28, leading=32, textColor=colors.HexColor("#000000")))
         contact_info = [
              Paragraph("+52 33 5018 8216 | contacto@dapros.com.mx", ParagraphStyle("Right", parent=normal, alignment=2)),
              Paragraph("DaPros, Web Design in Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
@@ -5391,7 +5391,8 @@ def invoice_pdf(invoice_id: int, provider: Optional[str] = None, session: Sessio
     header_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (1, 0), (1, -1), "RIGHT"),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 25),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
     ]))
     els.append(header_table)
     els.append(Spacer(1, 30))
