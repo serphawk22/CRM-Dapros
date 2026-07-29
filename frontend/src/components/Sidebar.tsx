@@ -132,6 +132,7 @@ const defaultSidebarSections = [
     heading: "SYSTEM",
     items: [
       { id: "item-api-intelligence", name: "API Intelligence", icon: "Activity", href: "/admin/api-intelligence", roles: ["Admin"] },
+      { id: "item-superadmin", name: "SuperAdmin Telemetry", icon: "ActivitySquare", href: "/superadmin", roles: ["Admin"] },
     ],
   },
 ];

@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import I18nProvider from "@/i18n/I18nProvider";
 import { Sidebar } from "@/components/Sidebar";
 import { ClientSidebar } from "@/components/ClientSidebar";
+import { SyncProvider } from "@/context/SyncContext";
 import { GlobalLoader } from "@/components/GlobalLoader";
 import { usePathname } from "next/navigation";
 import { CallNotificationBar } from "@/components/CallNotificationBar";
@@ -70,7 +71,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     return <GlobalLoader />;
   }
 
-  if (pathname === "/login" || pathname === "/demo_showcase" || pathname?.startsWith("/demo_showcase")) {
+  if (pathname === "/login" || pathname === "/signup" || pathname === "/demo_showcase" || pathname?.startsWith("/demo_showcase")) {
     return <main className="h-screen w-full">{children}</main>;
   }
 
@@ -86,13 +87,18 @@ function AppContent({ children }: { children: React.ReactNode }) {
   // ── Admin / Employee / Intern layout ──
   if (isAdminOrEmployee) {
     return (
+    <SyncProvider>
       <SidebarProvider>
         <div className="admin-shell min-h-screen" style={{ background: "var(--background)" }}>
           <Sidebar role={role} />
-          <AdminMainContent>{children}</AdminMainContent>
+          <AdminMainContent>
+            <CallNotificationBar />
+            {children}
+          </AdminMainContent>
           {showChatbot && <Chatbot />}
         </div>
       </SidebarProvider>
+    </SyncProvider>
     );
   }
 
@@ -148,8 +154,23 @@ export default function RootLayout({
             }
           })();
         `}} />
+        <meta name="theme-color" content="#000000" />
+        <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={inter.className}>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                    console.log('ServiceWorker registration failed: ', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
         <div id="google_translate_element" style={{ display: "none" }} />
         <Script
           id="google-translate-init"

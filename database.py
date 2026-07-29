@@ -14,13 +14,22 @@ load_dotenv(override=True)
 
 # Database URL from environment
 # Database URL from environment
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///database.db")
 
 # Windows compatibility fix for psycopg2 and Neon SSL DLLs
 if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 # Create engine with SSL mode for Neon PostgreSQL
+connect_args = {}
+if DATABASE_URL and DATABASE_URL.startswith("postgresql"):
+    connect_args = {
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
 engine = create_engine(
     DATABASE_URL,
     echo=False,
@@ -28,15 +37,29 @@ engine = create_engine(
     pool_size=10,
     max_overflow=20,
     pool_recycle=300,             # recycle connections every 5 min to keep them fresh
-    connect_args={
-        "connect_timeout": 10,    # fail fast instead of hanging
-        "keepalives": 1,
-        "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 5,
-    }
+    connect_args=connect_args
 )
 
+
+
+class Tenant(SQLModel, table=True):
+    __tablename__ = "tenants"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True)
+    business_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    is_trial: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Limits and Usage
+    limit_clients: int = Field(default=15)
+    limit_emails: int = Field(default=5)
+    limit_searches: int = Field(default=2)
+    
+    usage_clients: int = Field(default=0)
+    usage_emails: int = Field(default=0)
+    usage_searches: int = Field(default=0)
 
 class ClientStatus(SQLModel, table=True):
     """
@@ -55,6 +78,7 @@ class User(SQLModel, table=True):
     User model for authentication and role management
     """
     __tablename__ = "users"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
@@ -136,6 +160,7 @@ class ServiceRequest(SQLModel, table=True):
     Client's request for a specific service from the catalog.
     """
     __tablename__ = "service_requests"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     service_id: int = Field(foreign_key="service_catalog.id")
     client_id: int = Field(foreign_key="client_profiles.id")
@@ -165,6 +190,7 @@ class ServiceRequest(SQLModel, table=True):
 
 class MessageThread(SQLModel, table=True):
     __tablename__ = "message_threads"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     service_request_id: int = Field(foreign_key="service_requests.id")
     client_id: int = Field(foreign_key="client_profiles.id")
@@ -178,6 +204,7 @@ class MessageThread(SQLModel, table=True):
 
 class ChatMessage(SQLModel, table=True):
     __tablename__ = "chat_messages"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     thread_id: int = Field(foreign_key="message_threads.id")
     sender_id: int = Field(foreign_key="users.id")
@@ -197,6 +224,7 @@ class Project(SQLModel, table=True):
     Dedicated model for managing client projects, team assignments, and progress.
     """
     __tablename__ = "projects"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
@@ -226,6 +254,7 @@ class ProjectTicket(SQLModel, table=True):
     Jira-style tickets for project management (Kanban).
     """
     __tablename__ = "project_tickets"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     project_id: int = Field(foreign_key="projects.id")
@@ -259,6 +288,7 @@ class ProjectTicketHistory(SQLModel, table=True):
     Logs state transitions and metadata for project tickets.
     """
     __tablename__ = "project_ticket_history"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     ticket_id: int = Field(foreign_key="project_tickets.id")
@@ -273,6 +303,7 @@ class ProjectTicketNote(SQLModel, table=True):
     Notes attached to project tickets.
     """
     __tablename__ = "project_ticket_notes"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     ticket_id: int = Field(foreign_key="project_tickets.id")
@@ -286,6 +317,7 @@ class ClientProfile(SQLModel, table=True):
     Detailed profile for clients
     """
     __tablename__ = "client_profiles"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     userId: Optional[int] = Field(default=None, foreign_key="users.id")
@@ -378,6 +410,7 @@ class RadarAnalysis(SQLModel, table=True):
     Stores a full Google Maps Radar Analysis run for a client.
     """
     __tablename__ = "radar_analyses"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id", index=True)
@@ -409,6 +442,7 @@ class CompetitorRelationship(SQLModel, table=True):
     Tracks the discovery graph: which client was found FROM which radar analysis.
     """
     __tablename__ = "competitor_relationships"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     source_client_id: int = Field(foreign_key="client_profiles.id", index=True)
@@ -426,6 +460,7 @@ class Remark(SQLModel, table=True):
     Internal or client-facing remarks/comments
     """
     __tablename__ = "remarks"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     content: str = Field(sa_column=Column(Text))
@@ -445,6 +480,7 @@ class Document(SQLModel, table=True):
     Documents and OCR results
     """
     __tablename__ = "documents"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     filename: str
@@ -464,6 +500,7 @@ class ActivityLog(SQLModel, table=True):
     Logs of user actions and manual client activities
     """
     __tablename__ = "activity_logs"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: Optional[int] = Field(default=None, primary_key=True)
     userId: Optional[int] = Field(default=None, foreign_key="users.id")
@@ -485,6 +522,7 @@ class Company(SQLModel, table=True):
     Company model - stores prospect information
     """
     __tablename__ = "companies"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
@@ -510,6 +548,7 @@ class EmailLog(SQLModel, table=True):
     EmailLog model - tracks all sent emails for rate limiting
     """
     __tablename__ = "email_logs"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     __table_args__ = (
         Index('ix_email_logs_sender_sent_at', 'sender_email', 'sent_at'),
     )
@@ -536,6 +575,7 @@ class CallLog(SQLModel, table=True):
     Logs incoming/outgoing calls with duration and optional summary
     """
     __tablename__ = "call_logs"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     phone_number: str = Field(max_length=50)
@@ -556,6 +596,7 @@ class ScheduledCall(SQLModel, table=True):
     Scheduled future calls with optional AI-generated pitch
     """
     __tablename__ = "scheduled_calls"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
@@ -576,6 +617,7 @@ class SentEmail(SQLModel, table=True):
     Stores all sent emails with bilingual body content
     """
     __tablename__ = "sent_emails"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
@@ -593,6 +635,7 @@ class SentEmail(SQLModel, table=True):
 
 class SocialProfile(SQLModel, table=True):
     __tablename__ = "social_profiles"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     clientId: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
     platform: str # Facebook, Instagram, LinkedIn, YouTube
@@ -605,6 +648,7 @@ class SocialProfile(SQLModel, table=True):
 
 class SEOAudit(SQLModel, table=True):
     __tablename__ = "seo_audits"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     clientId: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
     health_score: Optional[int] = None
@@ -619,6 +663,7 @@ class SEOAudit(SQLModel, table=True):
 
 class CompetitorAnalysis(SQLModel, table=True):
     __tablename__ = "competitor_analyses"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     clientId: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
     competitor_domain: str
@@ -631,6 +676,7 @@ class CompetitorAnalysis(SQLModel, table=True):
 
 class RankingTracker(SQLModel, table=True):
     __tablename__ = "ranking_tracker"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     clientId: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
     keyword: str
@@ -643,6 +689,7 @@ class RankingTracker(SQLModel, table=True):
 
 class AnalyticsData(SQLModel, table=True):
     __tablename__ = "analytics_data"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     clientId: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
     date: str # YYYY-MM-DD
@@ -670,6 +717,7 @@ class AnalyticsData(SQLModel, table=True):
 class Task(SQLModel, table=True):
     """Task/Kanban item for tracking work"""
     __tablename__ = "tasks"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
@@ -688,6 +736,7 @@ class Task(SQLModel, table=True):
 class TaskComment(SQLModel, table=True):
     """Comments on tasks"""
     __tablename__ = "task_comments"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     task_id: int = Field(foreign_key="tasks.id")
     author_id: Optional[int] = Field(default=None, foreign_key="users.id")
@@ -699,6 +748,7 @@ class TaskComment(SQLModel, table=True):
 class Invoice(SQLModel, table=True):
     """Invoice for billing clients"""
     __tablename__ = "invoices"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     invoice_number: str = Field(max_length=50, index=True)
     client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
@@ -720,6 +770,7 @@ class Invoice(SQLModel, table=True):
 class Notification(SQLModel, table=True):
     """In-app notifications for users"""
     __tablename__ = "notifications"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="users.id")
     title: str = Field(max_length=255)
@@ -733,6 +784,7 @@ class Notification(SQLModel, table=True):
 class Milestone(SQLModel, table=True):
     """Project/client milestones for tracking deliverables"""
     __tablename__ = "milestones"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
@@ -748,6 +800,7 @@ class Milestone(SQLModel, table=True):
 class NPSSurvey(SQLModel, table=True):
     """NPS satisfaction surveys"""
     __tablename__ = "nps_surveys"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="client_profiles.id")
     score: Optional[int] = None  # 0-10
@@ -761,6 +814,7 @@ class NPSSurvey(SQLModel, table=True):
 class Proposal(SQLModel, table=True):
     """Proposals and contracts"""
     __tablename__ = "proposals"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
     client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
@@ -779,6 +833,7 @@ class Proposal(SQLModel, table=True):
 class ClientFileUpload(SQLModel, table=True):
     """Files uploaded by clients or on their behalf"""
     __tablename__ = "client_file_uploads"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="client_profiles.id")
     uploaded_by: Optional[int] = Field(default=None, foreign_key="users.id")
@@ -794,6 +849,7 @@ class ClientFileUpload(SQLModel, table=True):
 class KeywordRankEntry(SQLModel, table=True):
     """Manual/tracked keyword ranking entries per client"""
     __tablename__ = "keyword_rank_entries"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="client_profiles.id")
     keyword: str = Field(max_length=500)
@@ -809,6 +865,7 @@ class KeywordRankEntry(SQLModel, table=True):
 class ClientNote(SQLModel, table=True):
     """Rich notes with tags and pinning for a client"""
     __tablename__ = "client_notes"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="client_profiles.id")
     content: str = Field(sa_column=Column(Text))
@@ -823,6 +880,7 @@ class ClientNote(SQLModel, table=True):
 class Deal(SQLModel, table=True):
     """Sales Pipeline Deal / Opportunity"""
     __tablename__ = "deals"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
     value: float = Field(default=0.0)
@@ -840,6 +898,7 @@ class Deal(SQLModel, table=True):
 class ConversationLog(SQLModel, table=True):
     """Call/meeting/WhatsApp/email/visit conversation logs"""
     __tablename__ = "conversation_logs"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="client_profiles.id")
     title: str = Field(max_length=500)
@@ -855,6 +914,7 @@ class ConversationLog(SQLModel, table=True):
 class ConversationReply(SQLModel, table=True):
     """Threaded replies on conversation logs"""
     __tablename__ = "conversation_replies"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     conversation_id: int = Field(foreign_key="conversation_logs.id")
     content: str = Field(sa_column=Column(Text))
@@ -867,6 +927,7 @@ class ConversationReply(SQLModel, table=True):
 class ClientResearch(SQLModel, table=True):
     """Pre-sales research data for a client or lead"""
     __tablename__ = "client_research"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id", unique=True)
     lead_id: Optional[int] = Field(default=None, foreign_key="leads.id", unique=True)
@@ -884,6 +945,7 @@ class ClientResearch(SQLModel, table=True):
 class ClientTicket(SQLModel, table=True):
     """Internal support tickets raised by Salesperson to Admin"""
     __tablename__ = "client_tickets"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="client_profiles.id")
     author_id: Optional[int] = Field(default=None, foreign_key="users.id")
@@ -895,6 +957,7 @@ class ClientTicket(SQLModel, table=True):
 
 class Account(SQLModel, table=True):
     __tablename__ = "accounts"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     company_name: str = Field(max_length=255, index=True)
     website: Optional[str] = Field(default=None, max_length=500)
@@ -910,6 +973,7 @@ class Account(SQLModel, table=True):
 
 class Lead(SQLModel, table=True):
     __tablename__ = "leads"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     company_name: str = Field(max_length=255, index=True)
     website: Optional[str] = Field(default=None, max_length=500)
@@ -933,6 +997,7 @@ class Lead(SQLModel, table=True):
 
 class Contact(SQLModel, table=True):
     __tablename__ = "contacts"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     first_name: str = Field(max_length=100)
     last_name: Optional[str] = Field(default=None, max_length=100)
@@ -965,6 +1030,7 @@ class Contact(SQLModel, table=True):
 class Meeting(SQLModel, table=True):
     """Scheduled or logged meetings"""
     __tablename__ = "meetings"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
     description: Optional[str] = Field(default=None, sa_column=Column(Text))
@@ -991,6 +1057,7 @@ class Meeting(SQLModel, table=True):
 class Product(SQLModel, table=True):
     """Products / services catalog for quotes and orders"""
     __tablename__ = "products"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=500, index=True)
     sku: Optional[str] = Field(default=None, max_length=100, index=True)
@@ -1008,6 +1075,7 @@ class Product(SQLModel, table=True):
 class QuoteItem(SQLModel, table=True):
     """Line items for a Quote"""
     __tablename__ = "quote_items"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     quote_id: int = Field(foreign_key="quotes.id")
     product_id: Optional[int] = Field(default=None, foreign_key="products.id")
@@ -1022,6 +1090,7 @@ class QuoteItem(SQLModel, table=True):
 class CRMQuote(SQLModel, table=True):
     """Sales quotes sent to leads/clients"""
     __tablename__ = "quotes"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     quote_number: Optional[str] = Field(default=None, max_length=100, index=True)
     title: str = Field(max_length=500)
@@ -1045,6 +1114,7 @@ class CRMQuote(SQLModel, table=True):
 class SalesOrder(SQLModel, table=True):
     """Confirmed sales orders (from accepted quotes or direct)"""
     __tablename__ = "sales_orders"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     order_number: Optional[str] = Field(default=None, max_length=100, index=True)
     quote_id: Optional[int] = Field(default=None, foreign_key="quotes.id")
@@ -1063,6 +1133,7 @@ class SalesOrder(SQLModel, table=True):
 class PurchaseOrder(SQLModel, table=True):
     """Purchase orders sent to vendors/suppliers"""
     __tablename__ = "purchase_orders"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     po_number: Optional[str] = Field(default=None, max_length=100, index=True)
     vendor_name: str = Field(max_length=500)
@@ -1084,6 +1155,7 @@ class PurchaseOrder(SQLModel, table=True):
 class Case(SQLModel, table=True):
     """Support cases raised by clients or internal team"""
     __tablename__ = "cases"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     case_number: Optional[str] = Field(default=None, max_length=100, index=True)
     subject: str = Field(max_length=500)
@@ -1104,6 +1176,7 @@ class Case(SQLModel, table=True):
 class Solution(SQLModel, table=True):
     """Knowledge base solutions for common support cases"""
     __tablename__ = "solutions"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500, index=True)
     content: str = Field(sa_column=Column(Text))
@@ -1121,6 +1194,7 @@ class Solution(SQLModel, table=True):
 
 class EmailIntegration(SQLModel, table=True):
     __tablename__ = "email_integrations"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     email_address: str = Field(max_length=255)
@@ -1137,6 +1211,7 @@ class EmailIntegration(SQLModel, table=True):
 
 class ExtractedEmail(SQLModel, table=True):
     __tablename__ = "extracted_emails"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
     id: Optional[int] = Field(default=None, primary_key=True)
     integration_id: Optional[int] = Field(default=None, foreign_key="email_integrations.id")
     sender_name: str = Field(max_length=255)
@@ -1239,6 +1314,7 @@ class ApiRequest(SQLModel, table=True):
     Single source of truth for token usage, cost, and performance.
     """
     __tablename__ = "api_requests"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     salesperson_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
@@ -1264,6 +1340,7 @@ class ApiRequest(SQLModel, table=True):
 class ApiUsageDaily(SQLModel, table=True):
     """Pre-aggregated daily rollups for fast analytics queries."""
     __tablename__ = "api_usage_daily"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     date: str = Field(index=True)
@@ -1280,6 +1357,7 @@ class ApiUsageDaily(SQLModel, table=True):
 class ApiAlert(SQLModel, table=True):
     """Alert configuration for API cost and usage thresholds."""
     __tablename__ = "api_alerts"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255)
@@ -1340,3 +1418,4 @@ if __name__ == "__main__":
     print("Creating database tables...")
     create_db_and_tables()
     print("Database tables created successfully!")
+

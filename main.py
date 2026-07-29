@@ -122,6 +122,63 @@ from database import (
 # App + CORS
 # ─────────────────────────────────────────────────────────────────────────────
 
+
+import contextvars
+from sqlalchemy import event
+from sqlalchemy.orm import Session
+from sqlalchemy.sql.selectable import Select
+
+current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
+
+@event.listens_for(Session, "do_orm_execute")
+def _add_tenant_filter(execute_state):
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        return
+        
+    # Global tables that don't have tenant_id
+    global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
+    
+    if execute_state.is_select or execute_state.is_update or execute_state.is_delete:
+        # We need to add a filter to the statement if it hits a table with tenant_id
+        stmt = execute_state.statement
+        
+        # A simple check: if it's a Select, we can filter. 
+        # For simplicity and safety without breaking complex joins, we can traverse the entities
+        if execute_state.is_select:
+            for entity in execute_state.statement.column_descriptions:
+                model = entity.get("type") or entity.get("entity")
+                if hasattr(model, "__tablename__") and model.__tablename__ not in global_tables:
+                    if hasattr(model, "tenant_id"):
+                        stmt = stmt.where(model.tenant_id == tenant_id)
+            execute_state.statement = stmt
+
+
+def check_tenant_limit(session: Session, limit_type: str):
+    # This must be called inside the endpoint, it reads current_tenant_id
+    t_id = current_tenant_id.get()
+    if not t_id:
+        return
+    tenant = session.exec(select(Tenant).where(Tenant.id == t_id)).first()
+    if not tenant or not tenant.is_trial:
+        return
+        
+    if limit_type == "clients":
+        if tenant.usage_clients >= tenant.limit_clients:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only add up to {tenant.limit_clients} clients.")
+        tenant.usage_clients += 1
+    elif limit_type == "emails":
+        if tenant.usage_emails >= tenant.limit_emails:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only generate {tenant.limit_emails} AI emails.")
+        tenant.usage_emails += 1
+    elif limit_type == "searches":
+        if tenant.usage_searches >= tenant.limit_searches:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only perform {tenant.limit_searches} AI searches.")
+        tenant.usage_searches += 1
+        
+    session.add(tenant)
+    session.commit()
+
 def get_session():
     with Session(engine) as session:
         yield session
@@ -136,6 +193,13 @@ class APIIntelligenceMiddleware(BaseHTTPMiddleware):
         current_client_id.set(None)
         current_salesperson_id.set(None)
         current_endpoint.set(request.url.path)
+        # Try to infer tenant_id from header
+        tenant_header = request.headers.get("X-Tenant-ID")
+        if tenant_header and tenant_header.isdigit():
+            current_tenant_id.set(int(tenant_header))
+        else:
+            current_tenant_id.set(None)
+
 
         # Try to infer user from JWT token if Authorization header exists
         auth_header = request.headers.get("Authorization")
@@ -293,6 +357,63 @@ def _send_notification_email(to_email: str, subject: str, body_html: str):
     except Exception as e:
         print(f"[Notification email failed] {e}")
 
+
+
+import contextvars
+from sqlalchemy import event
+from sqlalchemy.orm import Session
+from sqlalchemy.sql.selectable import Select
+
+current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
+
+@event.listens_for(Session, "do_orm_execute")
+def _add_tenant_filter(execute_state):
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        return
+        
+    # Global tables that don't have tenant_id
+    global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
+    
+    if execute_state.is_select or execute_state.is_update or execute_state.is_delete:
+        # We need to add a filter to the statement if it hits a table with tenant_id
+        stmt = execute_state.statement
+        
+        # A simple check: if it's a Select, we can filter. 
+        # For simplicity and safety without breaking complex joins, we can traverse the entities
+        if execute_state.is_select:
+            for entity in execute_state.statement.column_descriptions:
+                model = entity.get("type") or entity.get("entity")
+                if hasattr(model, "__tablename__") and model.__tablename__ not in global_tables:
+                    if hasattr(model, "tenant_id"):
+                        stmt = stmt.where(model.tenant_id == tenant_id)
+            execute_state.statement = stmt
+
+
+def check_tenant_limit(session: Session, limit_type: str):
+    # This must be called inside the endpoint, it reads current_tenant_id
+    t_id = current_tenant_id.get()
+    if not t_id:
+        return
+    tenant = session.exec(select(Tenant).where(Tenant.id == t_id)).first()
+    if not tenant or not tenant.is_trial:
+        return
+        
+    if limit_type == "clients":
+        if tenant.usage_clients >= tenant.limit_clients:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only add up to {tenant.limit_clients} clients.")
+        tenant.usage_clients += 1
+    elif limit_type == "emails":
+        if tenant.usage_emails >= tenant.limit_emails:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only generate {tenant.limit_emails} AI emails.")
+        tenant.usage_emails += 1
+    elif limit_type == "searches":
+        if tenant.usage_searches >= tenant.limit_searches:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only perform {tenant.limit_searches} AI searches.")
+        tenant.usage_searches += 1
+        
+    session.add(tenant)
+    session.commit()
 
 def get_session():
     with Session(engine) as session:
@@ -1225,6 +1346,147 @@ def _client_dict(cp: ClientProfile, session: Session) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 # Auth
 # ─────────────────────────────────────────────────────────────────────────────
+from pydantic import BaseModel
+
+class SignupRequest(BaseModel):
+    name: str
+    business_name: str
+    email: str
+    phone: str
+    password: str
+
+@app.post("/signup")
+def signup(body: SignupRequest, session: Session = Depends(get_session)):
+    # 1. Check if user already exists
+    existing_user = session.exec(select(User).where(User.email == body.email)).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already exists")
+        
+    # 2. Create new Tenant (Trial)
+    tenant = Tenant(
+        name=f"{body.business_name} - {body.name}",
+        business_name=body.business_name,
+        email=body.email,
+        phone=body.phone,
+        is_trial=True,
+        limit_clients=15,
+        limit_emails=5,
+        limit_searches=2
+    )
+    session.add(tenant)
+    session.commit()
+    session.refresh(tenant)
+    
+    # 3. Create Admin User for this Tenant
+    hashed = _hash_password(body.password)
+    new_user = User(
+        email=body.email,
+        password=hashed,
+        name=body.name,
+        role="Admin",
+        tenant_id=tenant.id
+    )
+    session.add(new_user)
+    
+    # 4. Create Lead in Master Admin CRM
+    master = session.exec(select(Tenant).where(Tenant.name == "Master Admin")).first()
+    if master:
+        lead = Lead(
+            name=body.name,
+            email=body.email,
+            phone=body.phone,
+            company=body.business_name,
+            source="Trial Signup",
+            status="New",
+            tenant_id=master.id
+        )
+        session.add(lead)
+        
+    session.commit()
+    
+    return {"message": "Trial account created successfully", "tenant_id": tenant.id}
+
+
+@app.get("/superadmin/tenants")
+def get_all_tenants(session: Session = Depends(get_session)):
+    # Bypassing tenant filter for super admin
+    # We temporarily clear the tenant filter context for this query
+    import contextvars
+    from database import Tenant, User, ClientProfile
+    from sqlalchemy import select, func
+    
+    # We don't have to clear contextvars because the do_orm_execute filter 
+    # only filters if current_tenant_id is set. Wait, it IS set by the middleware!
+    # So we must query directly using SQLAlchemy core or raw SQL to bypass the ORM event, 
+    # OR we can just reset current_tenant_id for the duration of this function.
+    
+    old_tenant = current_tenant_id.get()
+    current_tenant_id.set(None)
+    
+    try:
+        tenants = session.exec(select(Tenant)).all()
+        result = []
+        for t in tenants:
+            # Count users
+            user_count = session.exec(select(func.count(User.id)).where(User.tenant_id == t.id)).first()
+            # Count clients
+            client_count = session.exec(select(func.count(ClientProfile.id)).where(ClientProfile.tenant_id == t.id)).first()
+            
+            result.append({
+                "id": t.id,
+                "name": t.name,
+                "business_name": t.business_name,
+                "email": t.email,
+                "phone": t.phone,
+                "is_trial": t.is_trial,
+                "created_at": t.created_at,
+                "users": user_count,
+                "clients": client_count,
+                "limit_clients": t.limit_clients,
+                "limit_emails": t.limit_emails,
+                "limit_searches": t.limit_searches,
+                "usage_clients": t.usage_clients,
+                "usage_emails": t.usage_emails,
+                "usage_searches": t.usage_searches,
+            })
+        return result
+    finally:
+        current_tenant_id.set(old_tenant)
+
+@app.post("/superadmin/tenants/{tenant_id}/analyze")
+def analyze_tenant_usage(tenant_id: int, session: Session = Depends(get_session)):
+    # AI summary of tenant usage
+    old_tenant = current_tenant_id.get()
+    current_tenant_id.set(None)
+    
+    try:
+        tenant = session.exec(select(Tenant).where(Tenant.id == tenant_id)).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        
+        # In a real app we would fetch ApiUsageDaily for this tenant and feed it to an LLM
+        # For now, we simulate an AI insight based on their usage numbers.
+        
+        usage_pct = (tenant.usage_clients / max(1, tenant.limit_clients)) * 100
+        
+        if usage_pct > 80:
+            insight = "High engagement. They are hitting their trial limits. Great candidate for immediate upgrade outreach."
+            score = 95
+        elif usage_pct > 30:
+            insight = "Moderate engagement. They are testing the CRM features. Send an automated email offering a demo."
+            score = 60
+        else:
+            insight = "Low engagement. They haven't used the CRM much since signing up. Consider a re-engagement campaign."
+            score = 25
+            
+        return {
+            "insight": insight,
+            "conversion_score": score
+        }
+    finally:
+        current_tenant_id.set(old_tenant)
+
+
 @app.post("/login")
 def login(body: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == body.email)).first()
@@ -1233,6 +1495,7 @@ def login(body: LoginRequest, session: Session = Depends(get_session)):
     if not _verify_password(body.password, user):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     result = _user_dict(user)
+    result["tenant_id"] = user.tenant_id
     if user.role == "Client":
         cp = session.exec(select(ClientProfile).where(ClientProfile.userId == user.id)).first()
         if cp:
@@ -1357,6 +1620,7 @@ def list_clients(
 
 @app.post("/clients")
 def create_client(body: ClientCreateRequest, session: Session = Depends(get_session)):
+    check_tenant_limit(session, "clients")
     user = None
     if body.email:
         user = session.exec(select(User).where(User.email == body.email)).first()
@@ -2450,6 +2714,7 @@ def upsert_client_research(client_id: int, body: ClientResearchUpdateRequest, se
 
 @app.post("/clients/{client_id}/auto-research")
 def auto_research_client(client_id: int, session: Session = Depends(get_session)):
+    check_tenant_limit(session, "searches")
     cp = session.get(ClientProfile, client_id)
     if not cp:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -2515,6 +2780,7 @@ def auto_research_client(client_id: int, session: Session = Depends(get_session)
 
 @app.post("/clients/{client_id}/generate-outbound-draft")
 def generate_outbound_draft(client_id: int, session: Session = Depends(get_session)):
+    check_tenant_limit(session, "emails")
     cp = session.get(ClientProfile, client_id)
     if not cp:
         raise HTTPException(status_code=404, detail="Client not found")

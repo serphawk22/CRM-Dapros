@@ -34,6 +34,42 @@ export function RoleProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && !(window as any)._fetchPatched) {
+      const originalFetch = window.fetch;
+      window.fetch = async (...args) => {
+        let [resource, config] = args;
+        const saved = localStorage.getItem('crm_user');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed.tenant_id) {
+              config = config || {};
+              config.headers = {
+                ...config.headers,
+                'X-Tenant-ID': String(parsed.tenant_id)
+              };
+            }
+          } catch (e) {}
+        }
+        if (!navigator.onLine && config && config.method && config.method !== 'GET') {
+          try {
+            const { openDB } = await import('idb');
+            const db = await openDB("crm-sync-queue", 1);
+            await db.add("requests", {
+              url: resource,
+              method: config.method,
+              headers: config.headers,
+              body: config.body,
+              timestamp: Date.now(),
+            });
+            return new Response(JSON.stringify({ id: -1, status: "offline", message: "Saved offline" }), { status: 200, statusText: "OK" });
+          } catch(err) {}
+        }
+        return originalFetch(resource, config);
+      };
+      (window as any)._fetchPatched = true;
+    }
+
     const savedUser = localStorage.getItem('crm_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
@@ -44,9 +80,9 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading) {
-      if (!isAuthenticated && pathname !== '/login' && pathname !== '/' && !pathname?.startsWith('/demo_showcase')) {
+      if (!isAuthenticated && pathname !== '/login' && pathname !== '/signup' && pathname !== '/' && !pathname?.startsWith('/demo_showcase')) {
         router.replace('/login');
-      } else if (isAuthenticated && pathname === '/login') {
+      } else if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
         if (user?.role === 'SalesManager') {
           router.replace('/clients');
         } else {
