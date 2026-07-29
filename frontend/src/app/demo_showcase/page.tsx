@@ -1,645 +1,1090 @@
 "use client";
-
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const NAV_SECTIONS = [
-  { id: "hero", label: "Overview" },
-  { id: "architecture", label: "Architecture" },
-  { id: "leads", label: "Lead Management" },
-  { id: "radar", label: "Radar Analysis" },
-  { id: "pipeline", label: "Sales Pipeline" },
-  { id: "communication", label: "Communication" },
-  { id: "automation", label: "Automation" },
-  { id: "client360", label: "Client 360°" },
-  { id: "tasks", label: "Tasks" },
-  { id: "cases", label: "Cases" },
-  { id: "analytics", label: "Analytics" },
-  { id: "ai", label: "AI Engine" },
-  { id: "journey", label: "Journey" },
-  { id: "modules", label: "All Modules" },
-  { id: "beforeafter", label: "Before vs After" },
-  { id: "impact", label: "Impact" },
-];
+/* ─────────────────────────────────────────────────
+   TYPES & CONSTANTS
+───────────────────────────────────────────────── */
+type Theme = "dark" | "light";
 
-const MODULES = [
-  { icon: "🎯", name: "Lead Management", desc: "Capture, qualify & track every lead through a structured lifecycle.", color: "#6366f1" },
-  { icon: "👥", name: "Contact Management", desc: "Rich contact profiles linked to leads, companies & deals.", color: "#8b5cf6" },
-  { icon: "🏢", name: "Client Management", desc: "360° customer view — deals, history, communications & tasks.", color: "#a855f7" },
-  { icon: "📊", name: "Sales Pipeline", desc: "Visual kanban with deal probability, value & stage automation.", color: "#ec4899" },
-  { icon: "🔭", name: "Radar Analysis", desc: "Discover prospects by location, market size & services.", color: "#f43f5e" },
-  { icon: "💬", name: "Communication Hub", desc: "Email, WhatsApp & internal messages in one threaded timeline.", color: "#ef4444" },
-  { icon: "⚡", name: "Automation Engine", desc: "Trigger-based workflows that run on any CRM event.", color: "#f97316" },
-  { icon: "✅", name: "Tasks & Follow-ups", desc: "Smart task management with deadlines, priorities & reminders.", color: "#eab308" },
-  { icon: "🎫", name: "Support Cases", desc: "Full case lifecycle from issue creation to resolution.", color: "#22c55e" },
-  { icon: "📋", name: "Proposals", desc: "Create, send & track professional proposals.", color: "#10b981" },
-  { icon: "🗂️", name: "Projects", desc: "Track deliverables, milestones & team workloads.", color: "#14b8a6" },
-  { icon: "📄", name: "Documents", desc: "Centralized file management linked to clients & deals.", color: "#06b6d4" },
-  { icon: "🧾", name: "Billing & Invoices", desc: "SERP Hawk (INR) or DaPros (MXN) invoice generation.", color: "#0ea5e9" },
-  { icon: "🛍️", name: "Product Catalog", desc: "Service catalog with MXN / INR dual-currency pricing.", color: "#3b82f6" },
-  { icon: "📅", name: "Meetings", desc: "Schedule, track & record all client & internal meetings.", color: "#6366f1" },
-  { icon: "🔔", name: "Notifications", desc: "Real-time smart alerts for tasks, leads & deals.", color: "#8b5cf6" },
-  { icon: "📈", name: "Reports & Rankings", desc: "Team performance analytics & conversion metrics.", color: "#a855f7" },
-  { icon: "🤖", name: "AI Email Agent", desc: "AI-powered email drafting & follow-up automation.", color: "#ec4899" },
-  { icon: "🏆", name: "Sales Manager", desc: "Executive revenue, pipeline & team forecasting.", color: "#f43f5e" },
-  { icon: "👨‍👩‍👧‍👦", name: "Team Management", desc: "Org structure, roles, permissions & performance.", color: "#ef4444" },
-  { icon: "📦", name: "Orders", desc: "Order management linked to clients, products & billing.", color: "#f97316" },
-];
-
-const AUTOMATIONS = [
-  { trigger: "New Lead Created", condition: "Lead source = Website / Radar", actions: ["Assign to sales owner", "Create follow-up task", "Send welcome notification", "Start 3-day sequence"], outcome: "Lead never falls through the cracks", color: "#6366f1" },
-  { trigger: "No Response for 3 Days", condition: "Lead status = Contacted", actions: ["Create urgent reminder", "Notify salesperson", "Escalate to manager", "Log inactivity"], outcome: "100% follow-up consistency guaranteed", color: "#ec4899" },
-  { trigger: "Deal Won", condition: "Pipeline stage = Won", actions: ["Update to customer status", "Create onboarding task", "Notify entire team", "Generate invoice"], outcome: "Instant customer onboarding activated", color: "#22c55e" },
-  { trigger: "Prospect Found on Radar", condition: "Added from Radar Analysis", actions: ["Tag with radar source", "Save research profile", "Add to client list", "Track discovery history"], outcome: "Full prospect intelligence preserved", color: "#f97316" },
-];
-
-const JOURNEY_STEPS = [
-  { icon: "🔭", title: "Prospect Discovered", subtitle: "Radar Analysis", color: "#6366f1" },
-  { icon: "➕", title: "Lead Added", subtitle: "CRM Intake", color: "#8b5cf6" },
-  { icon: "📝", title: "Data Enriched", subtitle: "Auto-fill", color: "#a855f7" },
-  { icon: "✅", title: "Lead Qualified", subtitle: "Scoring", color: "#ec4899" },
-  { icon: "👤", title: "Owner Assigned", subtitle: "Auto-routing", color: "#f43f5e" },
-  { icon: "📅", title: "Follow-up Created", subtitle: "Automation", color: "#ef4444" },
-  { icon: "💬", title: "Communication", subtitle: "Email/WhatsApp", color: "#f97316" },
-  { icon: "💼", title: "Opportunity", subtitle: "Pipeline Entry", color: "#eab308" },
-  { icon: "📊", title: "Deal Progress", subtitle: "Stage Moves", color: "#22c55e" },
-  { icon: "🏆", title: "Deal Won", subtitle: "Conversion", color: "#10b981" },
-  { icon: "🎉", title: "Onboarded", subtitle: "Status Updated", color: "#14b8a6" },
-  { icon: "🎫", title: "Support Case", subtitle: "Issue Handled", color: "#06b6d4" },
-  { icon: "💡", title: "Solution", subtitle: "Knowledge Base", color: "#0ea5e9" },
-  { icon: "❤️", title: "Retained", subtitle: "Loyalty Track", color: "#3b82f6" },
-  { icon: "📈", title: "Analytics", subtitle: "BI Updated", color: "#6366f1" },
-];
-
-function AnimatedCounter({ end, suffix = "", prefix = "", duration = 2000 }: { end: number; suffix?: string; prefix?: string; duration?: number }) {
-  const [count, setCount] = useState(0);
-  const [started, setStarted] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting && !started) setStarted(true); }, { threshold: 0.3 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [started]);
-
-  useEffect(() => {
-    if (!started) return;
-    let start = 0;
-    const step = end / (duration / 16);
-    const timer = setInterval(() => {
-      start += step;
-      if (start >= end) { setCount(end); clearInterval(timer); }
-      else setCount(Math.floor(start));
-    }, 16);
-    return () => clearInterval(timer);
-  }, [started, end, duration]);
-
-  return <span ref={ref}>{prefix}{count.toLocaleString()}{suffix}</span>;
-}
-
-function AnimatedBarChart() {
-  const [drawn, setDrawn] = useState(false);
+function useInView(rootMargin = "0px") {
   const ref = useRef<HTMLDivElement>(null);
-  const data = [
-    { label: "Jan", value: 42, color: "#6366f1" }, { label: "Feb", value: 58, color: "#8b5cf6" },
-    { label: "Mar", value: 71, color: "#a855f7" }, { label: "Apr", value: 65, color: "#ec4899" },
-    { label: "May", value: 89, color: "#f97316" }, { label: "Jun", value: 95, color: "#22c55e" },
-  ];
+  const [inView, setInView] = useState(false);
   useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setDrawn(true); }, { threshold: 0.3 });
-    if (ref.current) obs.observe(ref.current);
+    if (!ref.current) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } },
+      { rootMargin }
+    );
+    obs.observe(ref.current);
     return () => obs.disconnect();
-  }, []);
+  }, [rootMargin]);
+  return { ref, inView };
+}
+
+/* ─────────────────────────────────────────────────
+   BROWSER MOCKUP SHELL
+───────────────────────────────────────────────── */
+function BrowserShell({ children, theme, label = "crm.serphawk.com", height = 480 }: {
+  children: React.ReactNode; theme: Theme; label?: string; height?: number;
+}) {
+  const bg = theme === "dark" ? "#0f0f0f" : "#f0f0f0";
+  const bar = theme === "dark" ? "#1a1a1a" : "#e0e0e0";
+  const dot1 = "#ef4444"; const dot2 = "#f59e0b"; const dot3 = "#22c55e";
   return (
-    <div ref={ref} className="flex items-end gap-3 h-40 px-4">
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-1">
-          <div className="text-[10px] font-bold" style={{ color: d.color }}>{d.value}%</div>
-          <div className="w-full rounded-t-lg transition-all duration-1000" style={{ height: drawn ? `${d.value}%` : "0%", background: `linear-gradient(to top,${d.color},${d.color}88)`, transitionDelay: `${i * 0.1}s`, boxShadow: drawn ? `0 0 12px ${d.color}66` : "none" }} />
-          <div className="text-[9px] text-white/40">{d.label}</div>
+    <div style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${theme === "dark" ? "#222" : "#ddd"}`, background: bg, boxShadow: theme === "dark" ? "0 40px 80px rgba(0,0,0,0.6)" : "0 40px 80px rgba(0,0,0,0.12)" }}>
+      <div style={{ background: bar, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: dot1 }} />
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: dot2 }} />
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: dot3 }} />
+        <div style={{ flex: 1, margin: "0 12px", background: theme === "dark" ? "#111" : "#fff", borderRadius: 6, padding: "4px 12px", fontSize: 11, color: theme === "dark" ? "#555" : "#999", fontFamily: "monospace" }}>{label}</div>
+      </div>
+      <div style={{ height, overflow: "hidden", position: "relative" }}>{children}</div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MOCKUP: LEAD MANAGEMENT
+───────────────────────────────────────────────── */
+function LeadMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [step, setStep] = useState(0);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    const timers = [
+      setTimeout(() => setStep(1), 400),
+      setTimeout(() => setStep(2), 1200),
+      setTimeout(() => setStep(3), 2000),
+      setTimeout(() => setStep(4), 2800),
+      setTimeout(() => setStep(5), 3600),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [active]);
+
+  const leads = [
+    { name: "Rahul Mehta", company: "TechNova Pvt Ltd", status: "New", src: "Website" },
+    { name: "Ana García", company: "DaPros MX", status: "Contacted", src: "Radar" },
+    { name: "James Wilson", company: "GlobalMart Inc", status: "Qualified", src: "Referral" },
+    { name: "Priya Sharma", company: "StartupXYZ", status: "Proposal", src: "Website" },
+  ];
+
+  const statusColors: Record<string, string> = {
+    New: "#3b82f6", Contacted: "#f59e0b", Qualified: "#22c55e", Proposal: "#a855f7"
+  };
+
+  return (
+    <div style={{ display: "flex", height: "100%", fontFamily: "Inter, sans-serif" }}>
+      {/* Sidebar */}
+      <div style={{ width: 180, borderRight: `1px solid ${border}`, padding: 16, background: card }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 16 }}>Navigation</div>
+        {["Dashboard", "Leads", "Contacts", "Clients", "Pipeline", "Tasks", "Billing", "Reports"].map((item, i) => (
+          <div key={i} style={{ padding: "7px 10px", borderRadius: 6, marginBottom: 2, fontSize: 12, fontWeight: item === "Leads" ? 700 : 400, color: item === "Leads" ? fg : muted, background: item === "Leads" ? (theme === "dark" ? "#222" : "#ebebeb") : "transparent", cursor: "pointer" }}>{item}</div>
+        ))}
+      </div>
+      {/* Main */}
+      <div style={{ flex: 1, padding: 20, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: fg }}>Lead Management</div>
+            <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>148 leads this month</div>
+          </div>
+          <div style={{ padding: "7px 16px", borderRadius: 6, background: accent, color: theme === "dark" ? "#000" : "#fff", fontSize: 11, fontWeight: 700, transition: "all 0.3s", transform: step >= 1 ? "scale(1)" : "scale(0.9)", opacity: step >= 1 ? 1 : 0 }}>+ New Lead</div>
         </div>
-      ))}
+        {/* Stats row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 16 }}>
+          {[{ l: "Total Leads", v: "148" }, { l: "Qualified", v: "42" }, { l: "Converted", v: "18" }, { l: "This Week", v: "+23" }].map((s, i) => (
+            <div key={i} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: card, opacity: step >= 2 ? 1 : 0, transition: `opacity 0.4s ${i * 0.1}s` }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: fg }}>{s.v}</div>
+              <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        {/* Table */}
+        <div style={{ border: `1px solid ${border}`, borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr", padding: "8px 14px", background: card, borderBottom: `1px solid ${border}`, fontSize: 10, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span>Name</span><span>Company</span><span>Status</span><span>Source</span>
+          </div>
+          {leads.map((lead, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr", padding: "10px 14px", borderBottom: i < leads.length - 1 ? `1px solid ${border}` : "none", fontSize: 12, alignItems: "center", opacity: step >= 3 ? 1 : 0, transform: step >= 3 ? "translateX(0)" : "translateX(-20px)", transition: `all 0.4s ${0.2 + i * 0.1}s` }}>
+              <span style={{ fontWeight: 600, color: fg }}>{lead.name}</span>
+              <span style={{ color: muted }}>{lead.company}</span>
+              <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: `${statusColors[lead.status]}22`, color: statusColors[lead.status], display: "inline-block" }}>{lead.status}</span>
+              <span style={{ color: muted, fontSize: 11 }}>{lead.src}</span>
+            </div>
+          ))}
+        </div>
+        {/* New lead highlight */}
+        {step >= 4 && (
+          <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 8, border: `2px solid ${accent}`, background: theme === "dark" ? "#111" : "#f8f8f8", animation: "slideUp 0.5s ease-out", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: fg }}>🔔 New lead assigned — Vijay Kumar, Bengaluru</div>
+              <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>Source: Radar Analysis · Auto-assigned to Priya S.</div>
+            </div>
+            <div style={{ fontSize: 10, padding: "4px 10px", borderRadius: 4, background: accent, color: theme === "dark" ? "#000" : "#fff", fontWeight: 700 }}>View</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-function SectionHeader({ badge, title, subtitle, color = "#6366f1" }: { badge: string; title: string; subtitle: string; color?: string }) {
+/* ─────────────────────────────────────────────────
+   MOCKUP: SALES PIPELINE
+───────────────────────────────────────────────── */
+function PipelineMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [dealStage, setDealStage] = useState(0);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    const t1 = setTimeout(() => setDealStage(1), 1000);
+    const t2 = setTimeout(() => setDealStage(2), 2500);
+    const t3 = setTimeout(() => setDealStage(3), 4000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [active]);
+
+  const stages = ["New Lead", "Contacted", "Qualified", "Proposal", "Won"];
+  const stageColors = ["#3b82f6", "#f59e0b", "#a855f7", "#ec4899", "#22c55e"];
+
   return (
-    <div className="text-center max-w-2xl mx-auto">
-      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-4 text-xs font-bold uppercase tracking-widest" style={{ background: `${color}15`, border: `1px solid ${color}30`, color }}>{badge}</div>
-      <h2 className="text-4xl lg:text-5xl font-black text-white mb-4" style={{ letterSpacing: "-0.02em" }}>{title}</h2>
-      <p className="text-lg text-white/40 leading-relaxed">{subtitle}</p>
+    <div style={{ height: "100%", padding: 20, fontFamily: "Inter, sans-serif", overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: fg }}>Sales Pipeline</div>
+        <div style={{ fontSize: 11, color: muted }}>₹4.6L total pipeline value</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, height: "calc(100% - 60px)", alignItems: "start" }}>
+        {stages.map((stage, si) => (
+          <div key={si} style={{ borderRadius: 8, background: card, border: `1px solid ${border}`, overflow: "hidden" }}>
+            <div style={{ padding: "8px 10px", borderBottom: `2px solid ${stageColors[si]}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: stageColors[si] }}>{stage}</span>
+              <span style={{ fontSize: 10, color: muted }}>{si === 0 ? 8 : si === 1 ? 5 : si === 2 ? 4 : si === 3 ? 2 : 1}</span>
+            </div>
+            <div style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {/* Static cards */}
+              {si === 0 && [{ n: "TechNova", v: "₹45K" }, { n: "WebCo", v: "₹22K" }].map((c, ci) => (
+                <div key={ci} style={{ padding: "8px 10px", borderRadius: 6, background: theme === "dark" ? "#1a1a1a" : "#f0f0f0", border: `1px solid ${border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 2 }}>{c.n}</div>
+                  <div style={{ fontSize: 10, color: stageColors[si] }}>{c.v}</div>
+                </div>
+              ))}
+              {si === 2 && [{ n: "StartupXYZ", v: "₹28K" }].map((c, ci) => (
+                <div key={ci} style={{ padding: "8px 10px", borderRadius: 6, background: theme === "dark" ? "#1a1a1a" : "#f0f0f0", border: `1px solid ${border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 2 }}>{c.n}</div>
+                  <div style={{ fontSize: 10, color: stageColors[si] }}>{c.v}</div>
+                </div>
+              ))}
+              {si === 4 && dealStage >= 3 && (
+                <div style={{ padding: "8px 10px", borderRadius: 6, background: "#22c55e22", border: `1px solid #22c55e`, animation: "slideUp 0.5s ease-out" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#22c55e", marginBottom: 2 }}>GlobalMart Inc</div>
+                  <div style={{ fontSize: 10, color: "#22c55e" }}>₹1,20,000 ✓ WON</div>
+                </div>
+              )}
+              {/* Animated moving card */}
+              {si === 1 && dealStage === 0 && (
+                <div style={{ padding: "8px 10px", borderRadius: 6, background: theme === "dark" ? "#1a1a1a" : "#f0f0f0", border: `1px solid ${border}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 2 }}>GlobalMart</div>
+                  <div style={{ fontSize: 10, color: stageColors[si] }}>₹1,20,000</div>
+                </div>
+              )}
+              {si === 2 && dealStage === 1 && (
+                <div style={{ padding: "8px 10px", borderRadius: 6, border: `1px solid ${accent}`, background: theme === "dark" ? "#1a1a1a" : "#f0f0f0", animation: "slideUp 0.4s ease-out" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 2 }}>GlobalMart</div>
+                  <div style={{ fontSize: 10, color: stageColors[si] }}>₹1,20,000</div>
+                  <div style={{ fontSize: 9, color: "#22c55e", marginTop: 2 }}>↑ Moved to Qualified</div>
+                </div>
+              )}
+              {si === 3 && dealStage === 2 && (
+                <div style={{ padding: "8px 10px", borderRadius: 6, border: `1px solid ${accent}`, background: theme === "dark" ? "#1a1a1a" : "#f0f0f0", animation: "slideUp 0.4s ease-out" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 2 }}>GlobalMart</div>
+                  <div style={{ fontSize: 10, color: stageColors[si] }}>₹1,20,000</div>
+                  <div style={{ fontSize: 9, color: "#22c55e", marginTop: 2 }}>↑ Moved to Proposal</div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {dealStage >= 3 && (
+        <div style={{ position: "absolute", bottom: 16, left: 16, right: 16, padding: "10px 16px", borderRadius: 8, background: "#22c55e", color: "#fff", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", animation: "slideUp 0.5s ease-out" }}>
+          <span>Deal Won — GlobalMart Inc · ₹1,20,000</span>
+          <span style={{ fontSize: 10, opacity: 0.8 }}>Auto: Invoice generated · Onboarding task created</span>
+        </div>
+      )}
     </div>
   );
 }
 
+/* ─────────────────────────────────────────────────
+   MOCKUP: AI EMAIL AGENT
+───────────────────────────────────────────────── */
+function EmailAgentMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [typed, setTyped] = useState(0);
+  const [phase, setPhase] = useState(0);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  const emailBody = `Hi Rahul,
+
+Thank you for your interest in SERP Hawk's SEO services.
+
+Based on your website audit, I've identified 3 key areas where we can significantly improve your organic search visibility:
+
+1. Technical SEO — 14 critical errors found
+2. Content gaps — 8 high-volume keywords not targeted
+3. Backlink profile — Opportunity for 40+ quality links
+
+I'd love to schedule a 30-minute call to walk you through our findings.
+
+Are you available this Thursday or Friday?
+
+Best regards,
+Priya S.
+SERP Hawk`;
+
+  useEffect(() => {
+    if (!active) return;
+    const t1 = setTimeout(() => setPhase(1), 500);
+    const t2 = setTimeout(() => setPhase(2), 1500);
+    const t3 = setTimeout(() => setPhase(3), 2000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [active]);
+
+  useEffect(() => {
+    if (phase < 3) { setTyped(0); return; }
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setTyped(i);
+      if (i >= emailBody.length) clearInterval(interval);
+    }, 20);
+    return () => clearInterval(interval);
+  }, [phase]);
+
+  return (
+    <div style={{ height: "100%", fontFamily: "Inter, sans-serif", display: "flex" }}>
+      {/* Left panel — email list */}
+      <div style={{ width: 220, borderRight: `1px solid ${border}`, overflow: "hidden" }}>
+        <div style={{ padding: "14px 16px", borderBottom: `1px solid ${border}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: fg }}>AI Email Agent</div>
+          <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>Drafts, sequences, follow-ups</div>
+        </div>
+        {[
+          { to: "Rahul M.", subj: "SEO Audit Results", tag: "Drafting...", active: true },
+          { to: "Ana García", subj: "Follow-up — Day 3", tag: "Scheduled", active: false },
+          { to: "James W.", subj: "Proposal Follow-up", tag: "Sent", active: false },
+        ].map((e, i) => (
+          <div key={i} style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, background: e.active ? (theme === "dark" ? "#1a1a1a" : "#f0f0f0") : "transparent", opacity: phase >= 1 ? 1 : 0, transition: `opacity 0.3s ${i * 0.1}s` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: fg }}>{e.to}</div>
+              <div style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: e.tag === "Drafting..." ? "#3b82f622" : e.tag === "Scheduled" ? "#f59e0b22" : "#22c55e22", color: e.tag === "Drafting..." ? "#3b82f6" : e.tag === "Scheduled" ? "#f59e0b" : "#22c55e", fontWeight: 700 }}>{e.tag}</div>
+            </div>
+            <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>{e.subj}</div>
+          </div>
+        ))}
+        {phase >= 2 && (
+          <div style={{ padding: "10px 14px", animation: "slideUp 0.4s ease-out" }}>
+            <div style={{ fontSize: 10, color: muted, marginBottom: 8 }}>AI Suggestions</div>
+            <div style={{ fontSize: 10, color: fg, padding: "6px 8px", borderRadius: 6, border: `1px solid ${border}`, marginBottom: 4, cursor: "pointer" }}>Best time to send: Thu 10am</div>
+            <div style={{ fontSize: 10, color: fg, padding: "6px 8px", borderRadius: 6, border: `1px solid ${border}`, cursor: "pointer" }}>Subject A/B test ready</div>
+          </div>
+        )}
+      </div>
+      {/* Right panel — compose */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${border}`, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: theme === "dark" ? "#000" : "#fff" }}>AI</div>
+          <div><div style={{ fontSize: 12, fontWeight: 700, color: fg }}>AI-Drafted Email</div><div style={{ fontSize: 10, color: muted }}>Powered by lead profile + conversation history</div></div>
+        </div>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${border}`, fontSize: 12 }}>
+          <div style={{ marginBottom: 6 }}><span style={{ color: muted }}>To: </span><span style={{ color: fg, fontWeight: 600 }}>rahul.mehta@technova.in</span></div>
+          <div><span style={{ color: muted }}>Subject: </span><span style={{ color: fg, fontWeight: 600 }}>SEO Audit Results — TechNova Pvt Ltd</span></div>
+        </div>
+        <div style={{ flex: 1, padding: 16, fontSize: 12, lineHeight: 1.7, color: fg, whiteSpace: "pre-wrap", fontFamily: "Inter, sans-serif", overflow: "hidden" }}>
+          {emailBody.slice(0, typed)}
+          {typed < emailBody.length && phase >= 3 && <span style={{ borderRight: `2px solid ${accent}`, animation: "blink 0.8s step-end infinite" }}>&nbsp;</span>}
+        </div>
+        {typed >= emailBody.length && (
+          <div style={{ padding: "10px 16px", borderTop: `1px solid ${border}`, display: "flex", gap: 8, animation: "slideUp 0.3s ease-out" }}>
+            <div style={{ padding: "7px 16px", borderRadius: 6, background: accent, color: theme === "dark" ? "#000" : "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Send Now</div>
+            <div style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${border}`, color: fg, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Schedule for Thu 10am</div>
+            <div style={{ padding: "7px 16px", borderRadius: 6, border: `1px solid ${border}`, color: muted, fontSize: 11, cursor: "pointer" }}>Edit Draft</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MOCKUP: AUTOMATION ENGINE
+───────────────────────────────────────────────── */
+function AutomationMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [step, setStep] = useState(-1);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    const timers = [0, 800, 1600, 2400, 3200].map((d, i) => setTimeout(() => setStep(i), d));
+    return () => timers.forEach(clearTimeout);
+  }, [active]);
+
+  const nodes = [
+    { label: "TRIGGER", sub: "New Lead Created", desc: "Via Website Form / Radar", color: "#3b82f6" },
+    { label: "CONDITION", sub: "Lead Source = Radar", desc: "Match filter applied", color: "#f59e0b" },
+    { label: "ACTION 1", sub: "Assign Owner", desc: "Auto-route to Sales Rep", color: "#a855f7" },
+    { label: "ACTION 2", sub: "Create Follow-up Task", desc: "Due in 24 hours", color: "#ec4899" },
+    { label: "RESULT", sub: "Lead Active", desc: "Sequence started", color: "#22c55e" },
+  ];
+
+  return (
+    <div style={{ height: "100%", padding: 24, fontFamily: "Inter, sans-serif", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: fg }}>Automation: New Lead from Radar</div>
+        <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>Runs automatically when triggered · Last run: 2 minutes ago</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
+        {nodes.map((node, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+            <div style={{ padding: "14px 16px", borderRadius: 10, border: `2px solid ${step >= i ? node.color : border}`, background: step >= i ? `${node.color}11` : "transparent", minWidth: 130, transition: "all 0.5s ease", opacity: step >= i ? 1 : 0.3, transform: step >= i ? "translateY(0)" : "translateY(8px)" }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: node.color, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>{node.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: fg, marginBottom: 2 }}>{node.sub}</div>
+              <div style={{ fontSize: 10, color: muted }}>{node.desc}</div>
+              {step >= i && <div style={{ marginTop: 6, width: "100%", height: 2, borderRadius: 1, background: node.color, animation: "expandWidth 0.5s ease-out" }} />}
+            </div>
+            {i < nodes.length - 1 && (
+              <div style={{ display: "flex", alignItems: "center", padding: "0 8px", flexShrink: 0 }}>
+                <div style={{ width: 30, height: 2, background: step > i ? accent : border, transition: "background 0.5s" }} />
+                <div style={{ width: 0, height: 0, borderTop: "5px solid transparent", borderBottom: "5px solid transparent", borderLeft: `7px solid ${step > i ? accent : border}`, transition: "border-color 0.5s" }} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {step >= 4 && (
+        <div style={{ marginTop: 20, padding: "12px 16px", borderRadius: 8, border: `1px solid #22c55e`, background: "#22c55e11", animation: "slideUp 0.4s ease-out" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#22c55e" }}>Automation executed successfully</div>
+          <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>Owner: Priya S. · Task created · Notification sent · Sequence active</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MOCKUP: RADAR ANALYSIS
+───────────────────────────────────────────────── */
+function RadarMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [pinsVisible, setPinsVisible] = useState(0);
+  const [selected, setSelected] = useState(false);
+  const [added, setAdded] = useState(false);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    const timers = [0, 400, 800, 1200, 1600].map((d, i) => setTimeout(() => setPinsVisible(i + 1), d));
+    const t6 = setTimeout(() => setSelected(true), 2400);
+    const t7 = setTimeout(() => setAdded(true), 3600);
+    return () => { timers.forEach(clearTimeout); clearTimeout(t6); clearTimeout(t7); };
+  }, [active]);
+
+  const pins = [
+    { x: 42, y: 38, name: "TechNova", market: "₹50L+", dist: "1.2km", team: 45 },
+    { x: 63, y: 52, name: "DesignCo", market: "₹12L+", dist: "3.1km", team: 12 },
+    { x: 28, y: 60, name: "StartupXY", market: "₹8L+", dist: "4.5km", team: 8 },
+    { x: 71, y: 32, name: "GlobalPro", market: "₹32L+", dist: "2.8km", team: 28 },
+    { x: 55, y: 70, name: "WebAgency", market: "₹18L+", dist: "3.9km", team: 15 },
+  ];
+
+  return (
+    <div style={{ height: "100%", display: "flex", fontFamily: "Inter, sans-serif" }}>
+      {/* Map area */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        {/* Grid background */}
+        <div style={{ position: "absolute", inset: 0, backgroundImage: `linear-gradient(${theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"} 1px, transparent 1px), linear-gradient(90deg, ${theme === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"} 1px, transparent 1px)`, backgroundSize: "30px 30px" }} />
+        {/* Radar rings */}
+        <div style={{ position: "absolute", left: "42%", top: "38%", transform: "translate(-50%,-50%)" }}>
+          {[80, 130, 180].map((r, i) => <div key={i} style={{ position: "absolute", width: r, height: r, borderRadius: "50%", border: `1px solid ${theme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`, left: -r / 2, top: -r / 2 }} />)}
+        </div>
+        {/* Pins */}
+        {pins.map((pin, i) => i < pinsVisible && (
+          <div key={i} style={{ position: "absolute", left: `${pin.x}%`, top: `${pin.y}%`, transform: "translate(-50%, -100%)", animation: "dropPin 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)" }}>
+            <div style={{ padding: "3px 8px", borderRadius: 4, background: selected && i === 0 ? accent : (theme === "dark" ? "#1a1a1a" : "#f0f0f0"), border: `1px solid ${selected && i === 0 ? accent : border}`, fontSize: 10, fontWeight: 700, color: selected && i === 0 ? (theme === "dark" ? "#000" : "#fff") : fg, marginBottom: 2, whiteSpace: "nowrap", transition: "all 0.3s" }}>{pin.name}</div>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: selected && i === 0 ? accent : (theme === "dark" ? "#444" : "#bbb"), margin: "0 auto", transition: "background 0.3s" }} />
+          </div>
+        ))}
+        <div style={{ position: "absolute", bottom: 12, left: 12, fontSize: 10, color: muted }}>Bengaluru • 5km radius</div>
+      </div>
+      {/* Right panel */}
+      <div style={{ width: 220, borderLeft: `1px solid ${border}`, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "12px 14px", borderBottom: `1px solid ${border}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: fg }}>Top Prospects</div>
+          <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>Sorted by market size</div>
+        </div>
+        <div style={{ flex: 1, overflow: "auto" }}>
+          {pins.map((pin, i) => i < pinsVisible && (
+            <div key={i} onClick={() => setSelected(true)} style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, cursor: "pointer", background: selected && i === 0 ? (theme === "dark" ? "#1a1a1a" : "#f0f0f0") : "transparent", transition: "background 0.3s", animation: `fadeIn 0.3s ease-out` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: fg }}>{pin.name}</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: fg }}>#{i + 1}</div>
+              </div>
+              <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>{pin.market} · {pin.dist} · {pin.team} staff</div>
+            </div>
+          ))}
+        </div>
+        {selected && !added && (
+          <div style={{ padding: 12, borderTop: `1px solid ${border}`, animation: "slideUp 0.3s ease-out" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 8 }}>TechNova Pvt Ltd</div>
+            <button onClick={() => setAdded(true)} style={{ width: "100%", padding: "8px", borderRadius: 6, background: accent, color: theme === "dark" ? "#000" : "#fff", fontSize: 11, fontWeight: 700, border: "none", cursor: "pointer" }}>+ Add to CRM</button>
+          </div>
+        )}
+        {added && (
+          <div style={{ padding: 12, borderTop: `1px solid #22c55e`, background: "#22c55e11", animation: "slideUp 0.3s ease-out" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#22c55e" }}>Added to CRM</div>
+            <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>Tagged: Radar Analysis · Bengaluru</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MOCKUP: ANALYTICS DASHBOARD
+───────────────────────────────────────────────── */
+function AnalyticsMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [bars, setBars] = useState(false);
+  const [count, setCount] = useState(0);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    setTimeout(() => setBars(true), 400);
+    let c = 0;
+    const interval = setInterval(() => {
+      c += 3;
+      setCount(Math.min(c, 148));
+      if (c >= 148) clearInterval(interval);
+    }, 30);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  const barData = [
+    { label: "Jan", h: 45 }, { label: "Feb", h: 60 }, { label: "Mar", h: 52 },
+    { label: "Apr", h: 78 }, { label: "May", h: 90 }, { label: "Jun", h: 100 },
+  ];
+
+  return (
+    <div style={{ height: "100%", padding: 16, fontFamily: "Inter, sans-serif" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: fg }}>Analytics Overview</div>
+        <div style={{ fontSize: 10, color: muted }}>Last 6 months</div>
+      </div>
+      {/* KPI Row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
+        {[
+          { label: "Total Leads", value: count, suffix: "" },
+          { label: "Converted", value: Math.floor(count * 0.3), suffix: "" },
+          { label: "Revenue", value: Math.floor(count * 0.2), suffix: "K" },
+          { label: "Tasks Done", value: Math.floor(count * 2.1), suffix: "" },
+        ].map((k, i) => (
+          <div key={i} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: card }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: fg }}>{k.value}{k.suffix}</div>
+            <div style={{ fontSize: 9, color: muted, marginTop: 2 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+      {/* Chart */}
+      <div style={{ border: `1px solid ${border}`, borderRadius: 8, padding: 14, background: card }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: fg, marginBottom: 12 }}>Lead Growth</div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 100 }}>
+          {barData.map((b, i) => (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <div style={{ width: "100%", borderRadius: "4px 4px 0 0", background: accent, height: bars ? `${b.h}%` : "0%", transition: `height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) ${i * 0.1}s`, opacity: bars ? 1 : 0 }} />
+              <div style={{ fontSize: 9, color: muted }}>{b.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Pipeline */}
+      <div style={{ marginTop: 10 }}>
+        {[{ stage: "Won", pct: 18, color: "#22c55e" }, { stage: "Active", pct: 42, color: accent }, { stage: "Lost", pct: 12, color: "#ef4444" }].map((s, i) => (
+          <div key={i} style={{ marginBottom: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 3 }}><span style={{ color: fg }}>{s.stage}</span><span style={{ color: muted }}>{s.pct}%</span></div>
+            <div style={{ height: 4, background: border, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: bars ? `${s.pct}%` : "0%", background: s.color, borderRadius: 2, transition: `width 1s ease-out ${0.5 + i * 0.2}s` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MOCKUP: COMMUNICATION HUB
+───────────────────────────────────────────────── */
+function CommunicationMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [msgStep, setMsgStep] = useState(0);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    const timers = [300, 1200, 2200, 3200, 4000].map((d, i) => setTimeout(() => setMsgStep(i + 1), d));
+    return () => timers.forEach(clearTimeout);
+  }, [active]);
+
+  const msgs = [
+    { from: "GlobalMart", text: "Hi, we're interested in your SEO packages. Can you share pricing?", type: "in", channel: "WhatsApp" },
+    { from: "CRM System", text: "New message from GlobalMart Inc · Auto-linked to client profile · Priya S. notified", type: "system" },
+    { from: "Priya S.", text: "Hi! Absolutely. We have packages starting at ₹15,000/month. Let me share our detailed deck.", type: "out" },
+    { from: "GlobalMart", text: "That sounds great. Can we schedule a demo call this week?", type: "in", channel: "WhatsApp" },
+    { from: "Priya S.", text: "Of course! I've just sent a calendar link. Looking forward to it.", type: "out" },
+  ];
+
+  return (
+    <div style={{ height: "100%", display: "flex", fontFamily: "Inter, sans-serif" }}>
+      {/* Contact list */}
+      <div style={{ width: 190, borderRight: `1px solid ${border}` }}>
+        <div style={{ padding: "12px 14px", borderBottom: `1px solid ${border}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: fg }}>All Conversations</div>
+        </div>
+        {["GlobalMart Inc", "TechNova Pvt Ltd", "StartupXYZ"].map((name, i) => (
+          <div key={i} style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, background: i === 0 ? (theme === "dark" ? "#1a1a1a" : "#f0f0f0") : "transparent" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ width: 28, height: 28, borderRadius: 6, background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: theme === "dark" ? "#000" : "#fff", flexShrink: 0 }}>{name[0]}</div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: fg }}>{name}</div>
+                <div style={{ fontSize: 9, color: i === 0 && msgStep >= 1 ? "#22c55e" : muted }}>{i === 0 ? (msgStep >= 1 ? "Active now" : "2 days ago") : "1 week ago"}</div>
+              </div>
+              {i === 0 && msgStep >= 1 && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", marginLeft: "auto" }} />}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Thread */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div><div style={{ fontSize: 12, fontWeight: 700, color: fg }}>GlobalMart Inc</div><div style={{ fontSize: 10, color: muted }}>3 active deals · ₹2.4L pipeline</div></div>
+          <div style={{ fontSize: 9, padding: "3px 8px", borderRadius: 4, background: "#22c55e22", color: "#22c55e", fontWeight: 700 }}>Enterprise Client</div>
+        </div>
+        <div style={{ flex: 1, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8, overflow: "hidden" }}>
+          {msgs.slice(0, msgStep).map((msg, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: msg.type === "out" ? "flex-end" : msg.type === "system" ? "center" : "flex-start", animation: "slideUp 0.3s ease-out" }}>
+              {msg.type === "system" ? (
+                <div style={{ padding: "4px 12px", borderRadius: 20, background: theme === "dark" ? "#1a1a1a" : "#f0f0f0", border: `1px solid ${border}`, fontSize: 9, color: muted, maxWidth: "80%", textAlign: "center" }}>{msg.text}</div>
+              ) : (
+                <div style={{ maxWidth: "70%" }}>
+                  {msg.channel && <div style={{ fontSize: 9, color: muted, marginBottom: 3 }}>via {msg.channel}</div>}
+                  <div style={{ padding: "8px 12px", borderRadius: msg.type === "out" ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: msg.type === "out" ? accent : (theme === "dark" ? "#1a1a1a" : "#f0f0f0"), border: `1px solid ${border}` }}>
+                    <div style={{ fontSize: 11, color: msg.type === "out" ? (theme === "dark" ? "#000" : "#fff") : fg, lineHeight: 1.5 }}>{msg.text}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: "8px 12px", borderTop: `1px solid ${border}`, display: "flex", gap: 6, alignItems: "center" }}>
+          <div style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: `1px solid ${border}`, fontSize: 11, color: muted }}>Reply...</div>
+          <div style={{ padding: "7px 12px", borderRadius: 6, background: accent, color: theme === "dark" ? "#000" : "#fff", fontSize: 10, fontWeight: 700 }}>Send</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MOCKUP: CLIENT 360°
+───────────────────────────────────────────────── */
+function ClientMockup({ theme, active }: { theme: Theme; active: boolean }) {
+  const [phase, setPhase] = useState(0);
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#aaa";
+  const card = theme === "dark" ? "#161616" : "#fafafa";
+  const border = theme === "dark" ? "#222" : "#eee";
+  const accent = theme === "dark" ? "#fff" : "#000";
+
+  useEffect(() => {
+    if (!active) return;
+    [300, 700, 1100, 1500, 1900, 2300].map((d, i) => setTimeout(() => setPhase(i + 1), d));
+  }, [active]);
+
+  return (
+    <div style={{ height: "100%", display: "flex", fontFamily: "Inter, sans-serif" }}>
+      {/* Profile left */}
+      <div style={{ width: 200, borderRight: `1px solid ${border}`, padding: 16 }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 12, background: accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 900, color: theme === "dark" ? "#000" : "#fff", margin: "0 auto 10px" }}>G</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: fg }}>GlobalMart Inc</div>
+          <div style={{ fontSize: 10, color: muted, marginTop: 2 }}>Enterprise · Bangalore</div>
+          <div style={{ marginTop: 8, display: "inline-block", padding: "3px 10px", borderRadius: 20, background: "#22c55e22", border: "1px solid #22c55e", fontSize: 10, fontWeight: 700, color: "#22c55e" }}>Active Client</div>
+        </div>
+        <div style={{ borderTop: `1px solid ${border}`, paddingTop: 12, fontSize: 11 }}>
+          {[["Revenue", "₹1.2L ARR"], ["Since", "Jan 2025"], ["Owner", "Priya S."], ["Source", "Radar"]].map(([k, v], i) => (
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, opacity: phase >= i + 1 ? 1 : 0, transition: `opacity 0.3s ${i * 0.1}s` }}>
+              <span style={{ color: muted }}>{k}</span>
+              <span style={{ color: fg, fontWeight: 600 }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Right detail */}
+      <div style={{ flex: 1, padding: 16, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+          {[["3", "Active Deals", "₹2.4L"], ["47", "Messages", "All channels"], ["12", "Tasks", "3 overdue"]].map(([v, l, sub], i) => (
+            <div key={i} style={{ padding: "10px 12px", borderRadius: 8, border: `1px solid ${border}`, background: card, opacity: phase >= 2 ? 1 : 0, transition: `opacity 0.3s ${i * 0.1}s` }}>
+              <div style={{ fontSize: 20, fontWeight: 900, color: fg }}>{v}</div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: fg, marginTop: 2 }}>{l}</div>
+              <div style={{ fontSize: 9, color: muted }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ border: `1px solid ${border}`, borderRadius: 8, overflow: "hidden", opacity: phase >= 3 ? 1 : 0, transition: "opacity 0.5s" }}>
+          <div style={{ padding: "8px 12px", borderBottom: `1px solid ${border}`, fontSize: 11, fontWeight: 700, color: fg }}>Activity Timeline</div>
+          {[
+            { time: "2h ago", text: "Message received via WhatsApp", type: "msg" },
+            { time: "1 day ago", text: "Proposal sent — SEO Package Premium", type: "deal" },
+            { time: "3 days ago", text: "Task completed: Follow-up call", type: "task" },
+            { time: "1 week ago", text: "Invoice paid — ₹45,000", type: "billing" },
+          ].map((a, i) => (
+            <div key={i} style={{ padding: "8px 12px", borderBottom: i < 3 ? `1px solid ${border}` : "none", display: "flex", gap: 10, alignItems: "center", fontSize: 11, opacity: phase >= 4 ? 1 : 0, transition: `opacity 0.3s ${i * 0.1}s` }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: accent, flexShrink: 0 }} />
+              <span style={{ color: fg, flex: 1 }}>{a.text}</span>
+              <span style={{ color: muted, fontSize: 10 }}>{a.time}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   SECTION COMPONENT
+───────────────────────────────────────────────── */
+function ShowcaseSection({ theme, title, subtitle, mockup, reverse = false, index }: {
+  theme: Theme; title: string; subtitle: string; mockup: (active: boolean) => React.ReactNode; reverse?: boolean; index: number;
+}) {
+  const { ref, inView } = useInView("-100px");
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#999";
+  const border = theme === "dark" ? "#111" : "#eee";
+
+  return (
+    <div ref={ref} style={{ borderTop: `1px solid ${border}` }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+        {/* Copy */}
+        <div style={{ order: reverse ? 2 : 1, opacity: inView ? 1 : 0, transform: inView ? "translateX(0)" : reverse ? "translateX(40px)" : "translateX(-40px)", transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Module {String(index).padStart(2, "0")}</div>
+          <h2 style={{ fontSize: "clamp(28px, 3.5vw, 44px)", fontWeight: 900, color: fg, lineHeight: 1.1, letterSpacing: "-0.03em", marginBottom: 20 }}>{title}</h2>
+          <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, maxWidth: 380 }}>{subtitle}</p>
+        </div>
+        {/* Mockup */}
+        <div style={{ order: reverse ? 1 : 2, opacity: inView ? 1 : 0, transform: inView ? "translateY(0)" : "translateY(30px)", transition: "all 0.8s cubic-bezier(0.16,1,0.3,1) 0.1s" }}>
+          <BrowserShell theme={theme}>{mockup(inView)}</BrowserShell>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────
+   MAIN PAGE
+───────────────────────────────────────────────── */
 export default function DemoShowcase() {
-  const [activeSection, setActiveSection] = useState("hero");
+  const [theme, setTheme] = useState<Theme>("dark");
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
-  const [activeModule, setActiveModule] = useState<number | null>(null);
-  const [activeAutomation, setActiveAutomation] = useState<number | null>(null);
   const tourRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => { if (e.isIntersecting) setActiveSection(e.target.id); });
-    }, { threshold: 0.3 });
-    NAV_SECTIONS.forEach(s => { const el = document.getElementById(s.id); if (el) obs.observe(el); });
-    return () => obs.disconnect();
-  }, []);
+  const sections = ["hero", "leads", "pipeline", "radar", "email-agent", "automation", "communication", "analytics", "client360", "journey", "modules", "impact"];
+
+  const bg = theme === "dark" ? "#000" : "#fff";
+  const fg = theme === "dark" ? "#fff" : "#000";
+  const muted = theme === "dark" ? "#555" : "#999";
+  const border = theme === "dark" ? "#111" : "#f0f0f0";
+  const card = theme === "dark" ? "#0a0a0a" : "#f8f8f8";
 
   const scrollTo = useCallback((id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   useEffect(() => {
     if (!tourActive || tourPaused) return;
-    if (tourStep >= NAV_SECTIONS.length) { setTourActive(false); setTourStep(0); return; }
-    scrollTo(NAV_SECTIONS[tourStep].id);
-    tourRef.current = setTimeout(() => setTourStep(s => s + 1), 4000);
+    if (tourStep >= sections.length) { setTourActive(false); setTourStep(0); return; }
+    scrollTo(sections[tourStep]);
+    tourRef.current = setTimeout(() => setTourStep(s => s + 1), 5000);
     return () => { if (tourRef.current) clearTimeout(tourRef.current); };
   }, [tourActive, tourStep, tourPaused, scrollTo]);
 
-  const startTour = () => { setTourStep(0); setTourActive(true); setTourPaused(false); };
-  const exitTour = () => { setTourActive(false); setTourStep(0); if (tourRef.current) clearTimeout(tourRef.current); };
+  const { ref: heroRef, inView: heroIn } = useInView();
+  const { ref: modulesRef, inView: modulesIn } = useInView("-100px");
+  const { ref: journeyRef, inView: journeyIn } = useInView("-100px");
+  const { ref: impactRef, inView: impactIn } = useInView("-100px");
 
   return (
-    <div className="min-h-screen text-white overflow-x-hidden" style={{ background: "#080c1a", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ background: bg, color: fg, fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif", minHeight: "100vh", overflowX: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-        @keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-        @keyframes slideInLeft { from { opacity:0; transform:translateX(-40px); } to { opacity:1; transform:translateX(0); } }
-        @keyframes slideInRight { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
-        @keyframes pulse { 0%,100%{opacity:.3;transform:scale(1);} 50%{opacity:.6;transform:scale(1.05);} }
-        @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
-        @keyframes glow { 0%,100%{box-shadow:0 0 20px rgba(99,102,241,.3);} 50%{box-shadow:0 0 40px rgba(99,102,241,.7);} }
-        @keyframes ticker { 0%{transform:translateX(0);} 100%{transform:translateX(-50%);} }
-        @keyframes orbit { 0%{transform:translate(-50%,-50%) rotate(0deg) translateX(130px) rotate(0deg);} 100%{transform:translate(-50%,-50%) rotate(360deg) translateX(130px) rotate(-360deg);} }
-        @keyframes nodeAppear { from{opacity:0;transform:scale(0.5);} to{opacity:1;transform:scale(1);} }
-        @keyframes spin-slow { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
-        .glass { background:rgba(255,255,255,.04); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.08); }
-        .glass-hover { transition:all .3s ease; }
-        .glass-hover:hover { background:rgba(255,255,255,.07); border-color:rgba(99,102,241,.4); transform:translateY(-2px); box-shadow:0 8px 30px rgba(99,102,241,.15); }
-        .gradient-text { background:linear-gradient(135deg,#fff 0%,#a5b4fc 50%,#818cf8 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-        .hero-gradient { background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(99,102,241,.15) 0%,transparent 70%),radial-gradient(ellipse 50% 40% at 80% 50%,rgba(168,85,247,.08) 0%,transparent 60%); }
-        .glow-indigo { animation:glow 3s ease-in-out infinite; }
-        .module-card:hover .module-icon { transform:scale(1.2) rotate(-5deg); transition:transform .3s ease; }
-        .scrollbar-hide::-webkit-scrollbar { display:none; }
-        ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:#0d1124; } ::-webkit-scrollbar-thumb { background:#6366f1; border-radius:2px; }
+        @keyframes dropPin { 0% { opacity:0; transform:translate(-50%,-60%) scale(0.7); } 60% { transform:translate(-50%,-110%) scale(1.1); } 100% { opacity:1; transform:translate(-50%,-100%) scale(1); } }
+        @keyframes expandWidth { from { width:0; } to { width:100%; } }
+        @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes ticker { from { transform:translateX(0); } to { transform:translateX(-50%); } }
+        @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-6px);} }
+        @keyframes nudgeRight { 0%,100%{transform:translateX(0);} 50%{transform:translateX(4px);} }
       `}</style>
 
-      {/* STICKY NAV */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass" style={{ borderBottom:"1px solid rgba(255,255,255,.06)" }}>
-        <div className="max-w-screen-xl mx-auto px-4 flex items-center justify-between h-14">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-sm" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)" }}>🦅</div>
-            <span className="font-black text-sm" style={{ color:"#a5b4fc" }}>SERP HAWK CRM</span>
-            <span className="hidden md:block text-xs text-white/30">· Demo</span>
+      {/* ── STICKY HEADER ── */}
+      <header style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: bg === "#000" ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.85)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "-0.03em", color: fg }}>SERP HAWK CRM</div>
+            <div style={{ fontSize: 11, color: muted }}>Product Showcase</div>
           </div>
-          <div className="hidden lg:flex items-center gap-0.5 overflow-x-auto scrollbar-hide">
-            {NAV_SECTIONS.slice(0,11).map(s => (
-              <button key={s.id} onClick={() => scrollTo(s.id)} className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all whitespace-nowrap" style={{ color:activeSection===s.id?"#a5b4fc":"rgba(255,255,255,.4)", background:activeSection===s.id?"rgba(99,102,241,.15)":"transparent" }}>{s.label}</button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={startTour} className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)" }}>▶ Start Tour</button>
-            <a href="/login" className="px-3 py-1.5 rounded-lg text-xs font-bold text-white/60 border border-white/10 hover:border-indigo-500/40 transition-all">Launch CRM →</a>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button onClick={() => { setTourStep(0); setTourActive(true); setTourPaused(false); }}
+              style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${border}`, background: "transparent", color: fg, fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: "-0.01em" }}>
+              Start Tour
+            </button>
+            {/* Theme toggle */}
+            <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+              style={{ width: 60, height: 28, borderRadius: 14, border: `1px solid ${border}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px", position: "relative", transition: "all 0.3s" }}>
+              <div style={{ position: "absolute", left: theme === "dark" ? 4 : 34, width: 18, height: 18, borderRadius: "50%", background: fg, transition: "left 0.3s cubic-bezier(0.34,1.56,0.64,1)" }} />
+              <span style={{ position: "absolute", left: theme === "dark" ? 26 : 8, fontSize: 9, fontWeight: 800, color: fg, letterSpacing: "0.04em" }}>{theme === "dark" ? "W" : "B"}</span>
+            </button>
+            <a href="/login" style={{ padding: "6px 14px", borderRadius: 6, background: fg, color: bg, fontSize: 11, fontWeight: 700, textDecoration: "none", letterSpacing: "-0.01em" }}>Launch CRM</a>
           </div>
         </div>
-      </nav>
+      </header>
 
-      {/* TOUR OVERLAY */}
+      {/* ── TOUR BAR ── */}
       {tourActive && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass rounded-2xl px-6 py-4 flex items-center gap-4 shadow-2xl" style={{ border:"1px solid rgba(99,102,241,.4)", minWidth:340 }}>
-          <div className="flex-1">
-            <div className="text-[10px] text-white/40 uppercase tracking-widest mb-0.5">Guided Tour</div>
-            <div className="font-bold text-sm text-white">{NAV_SECTIONS[Math.min(tourStep,NAV_SECTIONS.length-1)]?.label}</div>
-            <div className="mt-1.5 h-1 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-500" style={{ width:`${(tourStep/NAV_SECTIONS.length)*100}%`, background:"linear-gradient(to right,#6366f1,#a855f7)" }} />
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 200, background: bg, border: `1px solid ${fg}`, borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, boxShadow: `0 20px 60px ${fg === "#fff" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.4)"}`, minWidth: 360 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Guided Tour</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: fg }}>Section {tourStep + 1} of {sections.length}</div>
+            <div style={{ marginTop: 6, height: 2, background: border, borderRadius: 1 }}>
+              <div style={{ height: "100%", width: `${(tourStep / sections.length) * 100}%`, background: fg, borderRadius: 1, transition: "width 0.5s" }} />
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setTourStep(s => Math.max(0,s-1))} className="w-8 h-8 rounded-lg glass flex items-center justify-center text-white/60 hover:text-white text-sm">‹</button>
-            <button onClick={() => setTourPaused(p => !p)} className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs" style={{ background:"rgba(99,102,241,.3)" }}>{tourPaused?"▶":"⏸"}</button>
-            <button onClick={() => setTourStep(s => Math.min(NAV_SECTIONS.length-1,s+1))} className="w-8 h-8 rounded-lg glass flex items-center justify-center text-white/60 hover:text-white text-sm">›</button>
-            <button onClick={exitTour} className="w-8 h-8 rounded-lg glass flex items-center justify-center text-white/40 hover:text-white text-xs">✕</button>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[["‹", () => setTourStep(s => Math.max(0, s - 1))], [tourPaused ? "▶" : "⏸", () => setTourPaused(p => !p)], ["›", () => setTourStep(s => Math.min(sections.length - 1, s + 1))], ["✕", () => { setTourActive(false); setTourStep(0); }]].map(([label, fn], i) => (
+              <button key={i} onClick={fn as () => void} style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${border}`, background: "transparent", color: fg, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>{label as string}</button>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ══ HERO ══ */}
-      <section id="hero" className="relative min-h-screen flex items-center justify-center pt-14 hero-gradient overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage:"linear-gradient(rgba(99,102,241,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.04) 1px,transparent 1px)", backgroundSize:"60px 60px" }} />
-        <div className="max-w-screen-xl mx-auto px-4 py-20 grid lg:grid-cols-2 gap-12 items-center">
-          <div style={{ animation:"slideInLeft 1s ease-out forwards" }}>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-6 text-xs font-semibold" style={{ background:"rgba(99,102,241,.15)", border:"1px solid rgba(99,102,241,.3)", color:"#a5b4fc" }}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />SERP HAWK CRM — Live Product Showcase
-            </div>
-            <h1 className="text-5xl lg:text-6xl font-black leading-tight mb-6" style={{ letterSpacing:"-0.03em" }}>
-              <span className="gradient-text">The Intelligent CRM</span><br />
-              <span className="text-white">Built to Automate</span><br />
-              <span className="text-white/60">Your Entire</span><br />
-              <span className="text-white">Customer Journey.</span>
-            </h1>
-            <p className="text-lg text-white/50 leading-relaxed mb-8 max-w-lg">From discovering prospects to managing relationships, automating follow-ups, tracking performance, and closing opportunities — everything your team needs, connected in one intelligent platform.</p>
-            <div className="flex flex-wrap gap-3">
-              <button onClick={startTour} className="px-6 py-3 rounded-xl font-bold text-white text-sm glow-indigo" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)" }}>▶ Start Product Tour</button>
-              <button onClick={() => scrollTo("journey")} className="px-6 py-3 rounded-xl font-bold text-sm glass glass-hover" style={{ color:"#a5b4fc", border:"1px solid rgba(99,102,241,.3)" }}>View Customer Journey →</button>
-            </div>
-            <div className="mt-10 flex gap-6">
-              {[{ v:"21+", l:"CRM Modules" }, { v:"100%", l:"Automated" }, { v:"360°", l:"Customer View" }].map((s,i) => (
-                <div key={i}><div className="text-2xl font-black" style={{ color:"#a5b4fc" }}>{s.v}</div><div className="text-xs text-white/40">{s.l}</div></div>
-              ))}
-            </div>
+      {/* ═══════════════════════════════════════════════════
+          HERO
+      ═══════════════════════════════════════════════════ */}
+      <section id="hero" ref={heroRef} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", paddingTop: 56 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "80px 32px 40px" }}>
+          <div style={{ marginBottom: 24, opacity: heroIn ? 1 : 0, transform: heroIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>SERP Hawk — CRM Platform</div>
           </div>
-          {/* Ecosystem viz */}
-          <div className="relative" style={{ height:400, animation:"slideInRight 1s ease-out forwards" }}>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="relative">
-                <div className="w-28 h-28 rounded-full flex items-center justify-center z-10 relative" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)", boxShadow:"0 0 60px rgba(99,102,241,.6)" }}>
-                  <div className="text-center"><div className="text-white font-black text-xs">CRM</div><div className="text-white/70 text-[9px]">CORE</div></div>
-                </div>
-                {[1,2,3].map(i => <div key={i} className="absolute inset-0 rounded-full border border-indigo-500/20" style={{ transform:`scale(${1+i*0.8})`, animation:`pulse ${2+i*.5}s ease-in-out infinite`, animationDelay:`${i*.3}s` }} />)}
+          <h1 style={{ fontSize: "clamp(48px, 7vw, 96px)", fontWeight: 900, lineHeight: 1.0, letterSpacing: "-0.04em", maxWidth: 900, marginBottom: 32, color: fg, opacity: heroIn ? 1 : 0, transform: heroIn ? "translateY(0)" : "translateY(30px)", transition: "all 1s cubic-bezier(0.16,1,0.3,1) 0.1s" }}>
+            The Intelligent CRM Built for Growth.
+          </h1>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "start" }}>
+            <div style={{ opacity: heroIn ? 1 : 0, transition: "all 0.8s 0.3s" }}>
+              <p style={{ fontSize: 18, color: muted, lineHeight: 1.7, marginBottom: 36, maxWidth: 440 }}>
+                From discovering prospects to closing deals, automating workflows, and retaining customers — your entire customer lifecycle, automated and connected.
+              </p>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button onClick={() => { setTourStep(0); setTourActive(true); }} style={{ padding: "12px 28px", borderRadius: 8, background: fg, color: bg, fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", letterSpacing: "-0.02em" }}>Start Guided Tour</button>
+                <a href="/login" style={{ padding: "12px 28px", borderRadius: 8, background: "transparent", color: fg, fontSize: 13, fontWeight: 600, cursor: "pointer", border: `1px solid ${border}`, textDecoration: "none", letterSpacing: "-0.02em", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  Launch CRM <span style={{ animation: "nudgeRight 1.5s ease-in-out infinite" }}>→</span>
+                </a>
               </div>
-            </div>
-            {[
-              { label:"Leads", angle:0, color:"#6366f1" }, { label:"Contacts", angle:40, color:"#8b5cf6" },
-              { label:"Radar", angle:80, color:"#a855f7" }, { label:"Pipeline", angle:120, color:"#ec4899" },
-              { label:"Deals", angle:160, color:"#f43f5e" }, { label:"Tasks", angle:200, color:"#f97316" },
-              { label:"Messages", angle:240, color:"#eab308" }, { label:"Automation", angle:280, color:"#22c55e" },
-              { label:"Analytics", angle:320, color:"#0ea5e9" },
-            ].map((n,i) => {
-              const rad=(n.angle*Math.PI)/180, r=155, x=Math.cos(rad)*r, y=Math.sin(rad)*r;
-              return (
-                <div key={i} className="absolute flex items-center justify-center" style={{ left:"50%", top:"50%", transform:`translate(calc(-50% + ${x}px),calc(-50% + ${y}px))`, animation:`fadeInUp 0.6s ease-out forwards`, animationDelay:`${i*.15}s`, opacity:0 }}>
-                  <div className="px-3 py-1.5 rounded-full text-[11px] font-bold text-white border whitespace-nowrap" style={{ background:`${n.color}22`, borderColor:`${n.color}66`, boxShadow:`0 0 15px ${n.color}33`, color:n.color }}>{n.label}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="absolute bottom-0 left-0 right-0 overflow-hidden" style={{ borderTop:"1px solid rgba(99,102,241,.15)" }}>
-          <div className="flex gap-8 py-2 text-[11px] font-semibold" style={{ animation:"ticker 30s linear infinite", width:"max-content", color:"rgba(99,102,241,.5)" }}>
-            {[...Array(3)].flatMap(()=>["Lead Management","Sales Pipeline","Radar Analysis","Automation Engine","Communication Hub","Analytics Dashboard","Client 360°","AI Email Agent","Invoice Generator","Support Cases"]).map((t,i)=>(
-              <span key={i} className="flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-indigo-500"/>{t}</span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ ARCHITECTURE ══ */}
-      <section id="architecture" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-lg mx-auto">
-          <SectionHeader badge="Architecture" title="The Complete CRM Ecosystem" subtitle="Every module is connected. Every action is tracked. Every insight is automated." />
-          <div className="flex flex-col items-center gap-0 mt-16">
-            {[
-              { icon:"📢", label:"Marketing & Outreach", desc:"Campaigns, content, ads", color:"#6366f1" },
-              { icon:"🔭", label:"Radar Analysis", desc:"Discover prospects by location & market", color:"#8b5cf6" },
-              { icon:"📥", label:"Lead Generation", desc:"Website forms, imports, manual entry", color:"#a855f7" },
-              { icon:"✅", label:"Lead Qualification", desc:"Scoring, criteria, owner assignment", color:"#ec4899" },
-              { icon:"👤", label:"Client Management", desc:"360° customer profile creation", color:"#f43f5e" },
-              { icon:"📊", label:"Sales Pipeline", desc:"Deal stages, probabilities, forecasting", color:"#f97316" },
-              { icon:"💬", label:"Communication", desc:"Email, WhatsApp, internal messaging", color:"#eab308" },
-              { icon:"⚡", label:"Automation", desc:"Workflows triggered by CRM events", color:"#22c55e" },
-              { icon:"🎫", label:"Cases & Support", desc:"Issue tracking, resolution, satisfaction", color:"#10b981" },
-              { icon:"📈", label:"Reports & Analytics", desc:"KPIs, conversions, team performance", color:"#0ea5e9" },
-              { icon:"🚀", label:"Business Growth", desc:"Data-driven decisions at scale", color:"#3b82f6" },
-            ].map((node,i) => (
-              <div key={i} className="flex flex-col items-center">
-                <div className="group flex items-center gap-4 px-6 py-3 rounded-2xl glass glass-hover cursor-default" style={{ animation:`fadeInUp .5s ease-out forwards`, animationDelay:`${i*.08}s`, opacity:0, minWidth:320, border:`1px solid ${node.color}22` }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background:`${node.color}22`, border:`1px solid ${node.color}44` }}>{node.icon}</div>
-                  <div><div className="font-bold text-sm text-white">{node.label}</div><div className="text-xs text-white/40">{node.desc}</div></div>
-                  <div className="ml-auto text-xs font-bold" style={{ color:node.color }}>#{i+1}</div>
-                </div>
-                {i<10 && <div className="flex flex-col items-center gap-0.5 py-1"><div className="w-px h-4 bg-gradient-to-b from-indigo-500/50 to-transparent"/><div className="w-1.5 h-1.5 rounded-full" style={{ background:node.color, boxShadow:`0 0 8px ${node.color}` }}/><div className="w-px h-4 bg-gradient-to-b from-transparent to-indigo-500/30"/></div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ LEADS ══ */}
-      <section id="leads" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Lead Management" title="Turn Every Prospect Into a Customer" subtitle="A structured, automated journey from first contact to conversion." color="#6366f1" />
-          <div className="flex flex-wrap justify-center gap-2 mt-12 mb-16">
-            {["New Lead","Lead Captured","Data Enriched","Qualified","Assigned","Follow-up","Communication","Opportunity","Converted ✓"].map((s,i)=>(
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="px-4 py-2 rounded-full text-sm font-semibold" style={{ background:i===8?"rgba(34,197,94,.15)":"rgba(99,102,241,.1)", border:`1px solid ${i===8?"rgba(34,197,94,.4)":"rgba(99,102,241,.25)"}`, color:i===8?"#34d399":"#a5b4fc", animation:`fadeInUp .4s ease-out forwards`, animationDelay:`${i*.07}s`, opacity:0 }}>{s}</div>
-                {i<8 && <span className="text-white/20 text-xs">→</span>}
-              </div>
-            ))}
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="rounded-2xl p-8 border" style={{ background:"rgba(239,68,68,.05)", borderColor:"rgba(239,68,68,.2)" }}>
-              <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center text-lg">😓</div><div><div className="font-black text-white">Without CRM</div><div className="text-xs text-red-400">Manual &amp; fragmented</div></div></div>
-              <div className="space-y-3">{["📊 Spreadsheets with no structure","📞 Manual follow-up calls","🕳️ Leads fall through the cracks","🗂️ Scattered contact information","👁️ Zero pipeline visibility","📉 No performance tracking","⏰ Hours of manual reporting"].map((item,i)=>(<div key={i} className="flex items-center gap-2 text-sm text-white/50"><span className="w-1 h-1 rounded-full bg-red-500 flex-shrink-0"/>{item}</div>))}</div>
-            </div>
-            <div className="rounded-2xl p-8 border" style={{ background:"rgba(34,197,94,.05)", borderColor:"rgba(34,197,94,.2)" }}>
-              <div className="flex items-center gap-3 mb-6"><div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-lg">🚀</div><div><div className="font-black text-white">With SERP HAWK CRM</div><div className="text-xs text-emerald-400">Automated &amp; intelligent</div></div></div>
-              <div className="space-y-3">{["✅ Centralized customer database","⚡ Automated follow-up workflows","🎯 100% lead tracking coverage","📋 Rich contact profiles & history","📊 Real-time pipeline visibility","📈 Live performance analytics","🤖 AI-assisted reporting"].map((item,i)=>(<div key={i} className="flex items-center gap-2 text-sm text-emerald-400/80"><span className="w-1 h-1 rounded-full bg-emerald-500 flex-shrink-0"/>{item}</div>))}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ RADAR ══ */}
-      <section id="radar" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Radar Analysis" title="Intelligent Prospect Discovery" subtitle="Find your ideal clients before your competitors do. Map market opportunities in real time." color="#a855f7" />
-          <div className="grid lg:grid-cols-2 gap-10 mt-14">
-            <div className="rounded-2xl overflow-hidden relative" style={{ height:380, background:"linear-gradient(135deg,#0d1b2a,#0a0f1e)", border:"1px solid rgba(168,85,247,.2)" }}>
-              <div className="absolute inset-0" style={{ backgroundImage:"linear-gradient(rgba(168,85,247,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(168,85,247,.06) 1px,transparent 1px)", backgroundSize:"40px 40px" }} />
-              {[{x:45,y:35,label:"TechNova",color:"#6366f1"},{x:60,y:55,label:"MX Design",color:"#a855f7"},{x:30,y:65,label:"Startup Co",color:"#ec4899"},{x:70,y:30,label:"GlobalMart",color:"#f97316"},{x:55,y:75,label:"WebAgency",color:"#22c55e"}].map((pin,i)=>(
-                <div key={i} className="absolute flex flex-col items-center" style={{ left:`${pin.x}%`, top:`${pin.y}%`, transform:"translate(-50%,-100%)", animation:`nodeAppear .5s ease-out forwards`, animationDelay:`${i*.2}s`, opacity:0 }}>
-                  <div className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white mb-1 whitespace-nowrap" style={{ background:`${pin.color}33`, border:`1px solid ${pin.color}66` }}>{pin.label}</div>
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs" style={{ background:pin.color, boxShadow:`0 0 20px ${pin.color}88` }}>📍</div>
-                </div>
-              ))}
-              <div className="absolute" style={{ left:"45%", top:"35%", transform:"translate(-50%,-50%)" }}>
-                {[80,130,180].map((r,i)=><div key={i} className="absolute rounded-full border" style={{ width:r, height:r, left:-r/2, top:-r/2, borderColor:`rgba(99,102,241,${.12-i*.03})`, animation:`pulse ${2+i}s ease-in-out infinite` }}/>)}
-              </div>
-              <div className="absolute bottom-4 left-4 right-4 rounded-xl p-3 glass" style={{ border:"1px solid rgba(168,85,247,.2)" }}>
-                <div className="text-xs text-white/40 mb-1">Top prospect identified</div>
-                <div className="flex items-center justify-between"><span className="text-sm font-bold text-white">TechNova Pvt Ltd</span><button className="px-3 py-1 rounded-lg text-xs font-bold text-white" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)" }}>+ Add to CRM</button></div>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="text-sm text-white/40 font-semibold uppercase tracking-widest mb-4">4 Intelligence Filters</div>
-              {[
-                { icon:"📍", title:"Distance", desc:"Find prospects closest to your office.", color:"#6366f1", rank:["TechNova — 2.1 km","MX Design — 3.8 km","Startup Co — 5.2 km"] },
-                { icon:"💰", title:"Market Size", desc:"Target companies with the highest revenue potential.", color:"#ec4899", rank:["GlobalMart — ₹50L+","TechNova — ₹30L+","WebAgency — ₹12L+"] },
-                { icon:"👥", title:"Team Size", desc:"Filter prospects by company size.", color:"#f97316", rank:["GlobalMart — 200+","TechNova — 45","MX Design — 12"] },
-                { icon:"🛠️", title:"Services", desc:"Identify prospects using services you can improve.", color:"#22c55e", rank:["WebAgency — SEO match","Startup — Dev match","MX Design — Social"] },
-              ].map((m,i)=>(
-                <div key={i} className="rounded-xl p-4 glass glass-hover border" style={{ borderColor:`${m.color}22` }}>
-                  <div className="flex items-center gap-3 mb-2"><div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background:`${m.color}22` }}>{m.icon}</div><div><div className="font-bold text-sm text-white">{m.title}</div><div className="text-xs text-white/40">{m.desc}</div></div></div>
-                  <div className="flex gap-2 flex-wrap">{m.rank.map((r,ri)=><span key={ri} className="text-[10px] px-2 py-0.5 rounded-full" style={{ background:`${m.color}15`, color:m.color, border:`1px solid ${m.color}30` }}>#{ri+1} {r}</span>)}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ PIPELINE ══ */}
-      <section id="pipeline" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Sales Pipeline" title="Visualize Every Deal in Motion" subtitle="Track opportunities from first contact to closed won — with automated stage actions." color="#ec4899" />
-          <div className="mt-14 overflow-x-auto pb-4 scrollbar-hide">
-            <div className="flex gap-3 min-w-max">
-              {[{name:"New Lead",count:24,value:"₹2.4L",color:"#6366f1"},{name:"Contacted",count:18,value:"₹1.8L",color:"#8b5cf6"},{name:"Qualified",count:12,value:"₹1.2L",color:"#a855f7"},{name:"Proposal",count:8,value:"₹80K",color:"#ec4899"},{name:"Negotiation",count:5,value:"₹50K",color:"#f97316"},{name:"Won ✓",count:3,value:"₹30K",color:"#22c55e"}].map((s,si)=>(
-                <div key={si} className="w-44 rounded-xl p-3 border" style={{ background:`${s.color}0d`, borderColor:`${s.color}30` }}>
-                  <div className="flex items-center justify-between mb-2"><span className="text-xs font-bold" style={{ color:s.color }}>{s.name}</span><span className="text-xs text-white/40">{s.count}</span></div>
-                  <div className="text-xs text-white/40 mb-3">{s.value}</div>
-                  {si===0&&<div className="rounded-lg p-2 flex items-center gap-2" style={{ background:`${s.color}20`, border:`1px solid ${s.color}40` }}><div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ background:s.color }}>T</div><div><div className="text-[10px] font-semibold text-white leading-tight">TechNova</div><div className="text-[10px]" style={{ color:s.color }}>₹45,000</div></div></div>}
-                  {si===2&&<div className="rounded-lg p-2 flex items-center gap-2" style={{ background:`${s.color}20`, border:`1px solid ${s.color}40` }}><div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ background:s.color }}>G</div><div><div className="text-[10px] font-semibold text-white leading-tight">GlobalMart</div><div className="text-[10px]" style={{ color:s.color }}>₹1,20,000</div></div></div>}
-                  {si===4&&<div className="rounded-lg p-2 flex items-center gap-2" style={{ background:`${s.color}20`, border:`1px solid ${s.color}40` }}><div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white flex-shrink-0" style={{ background:s.color }}>S</div><div><div className="text-[10px] font-semibold text-white leading-tight">StartupXYZ</div><div className="text-[10px]" style={{ color:s.color }}>₹28,000</div></div></div>}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="mt-10 grid md:grid-cols-3 gap-4">
-            {[{trigger:"Stage: Qualified",actions:["Auto-create task","Schedule follow-up","Notify salesperson"],color:"#6366f1"},{trigger:"Stage: Proposal",actions:["Generate proposal","Set deadline","Update probability"],color:"#a855f7"},{trigger:"Stage: Won ✓",actions:["Create customer record","Generate invoice","Notify team"],color:"#22c55e"}].map((a,i)=>(
-              <div key={i} className="rounded-xl p-5 glass border" style={{ borderColor:`${a.color}25` }}><div className="text-xs text-white/40 mb-1">Auto-trigger when:</div><div className="font-bold text-sm mb-3" style={{ color:a.color }}>{a.trigger}</div><div className="space-y-1.5">{a.actions.map((act,ai)=><div key={ai} className="flex items-center gap-2 text-xs text-white/60"><span style={{ color:a.color }}>→</span>{act}</div>)}</div></div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ COMMUNICATION ══ */}
-      <section id="communication" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Communication Hub" title="Every Conversation. One Place." subtitle="Email, WhatsApp, internal notes — unified in a single threaded customer timeline." color="#eab308" />
-          <div className="grid lg:grid-cols-2 gap-12 mt-14 items-center">
-            <div className="grid grid-cols-2 gap-4">
-              {[{icon:"📧",name:"Email",desc:"Full email threading per client with open & click tracking",color:"#6366f1"},{icon:"💬",name:"WhatsApp",desc:"WhatsApp Business — messages linked to CRM contact",color:"#22c55e"},{icon:"🌐",name:"Website Chat",desc:"Live chat widget — auto-creates leads in CRM",color:"#0ea5e9"},{icon:"📝",name:"Internal Notes",desc:"Team-only notes visible across client timelines",color:"#a855f7"},{icon:"🔔",name:"Notifications",desc:"Real-time alerts for every CRM event",color:"#f97316"},{icon:"📞",name:"Call Logs",desc:"Log & track every call with notes & follow-ups",color:"#ec4899"}].map((ch,i)=>(
-                <div key={i} className="rounded-xl p-4 glass glass-hover border" style={{ borderColor:`${ch.color}20` }}><div className="text-2xl mb-2">{ch.icon}</div><div className="font-bold text-sm text-white mb-1">{ch.name}</div><div className="text-xs text-white/40 leading-tight">{ch.desc}</div></div>
-              ))}
-            </div>
-            <div className="space-y-3">
-              <div className="text-xs text-white/30 uppercase tracking-widest mb-4">Live Conversation Flow</div>
-              {[{from:"Customer",msg:"Hi, I'm interested in SEO services",dir:"in"},{from:"CRM System",msg:"Notification sent to Sales Team",dir:"system"},{from:"Sales Rep",msg:"Thanks! I'd love to understand your goals.",dir:"out"},{from:"CRM System",msg:"Conversation saved to client profile ✓",dir:"system"}].map((m,i)=>(
-                <div key={i} className={`flex ${m.dir==="out"?"justify-end":m.dir==="system"?"justify-center":"justify-start"}`} style={{ animation:`fadeInUp .5s ease-out forwards`, animationDelay:`${i*.15}s`, opacity:0 }}>
-                  {m.dir==="system"?<div className="px-4 py-1.5 rounded-full text-[11px] text-white/40 glass border border-white/05">⚡ {m.msg}</div>:<div className={`max-w-xs rounded-2xl px-4 py-3 text-sm ${m.dir==="out"?"rounded-tr-sm":"rounded-tl-sm"}`} style={{ background:m.dir==="out"?"rgba(99,102,241,.3)":"rgba(255,255,255,.06)", border:"1px solid rgba(255,255,255,.08)" }}><div className="text-[10px] text-white/40 mb-1">{m.from}</div><div className="text-white text-xs">{m.msg}</div></div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ AUTOMATION ══ */}
-      <section id="automation" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Automation Engine" title="Let Your CRM Work While Your Team Focuses on Growth." subtitle="Intelligent trigger-based workflows execute automatically — no manual intervention needed." color="#22c55e" />
-          <div className="grid md:grid-cols-2 gap-6 mt-14">
-            {AUTOMATIONS.map((a,i)=>(
-              <div key={i} onClick={()=>setActiveAutomation(activeAutomation===i?null:i)} className="rounded-2xl p-6 cursor-pointer transition-all glass-hover border" style={{ background:`${a.color}08`, borderColor:activeAutomation===i?`${a.color}60`:`${a.color}20`, boxShadow:activeAutomation===i?`0 0 30px ${a.color}25`:"none" }}>
-                <div className="flex items-start justify-between mb-4"><div><div className="text-[10px] text-white/30 uppercase tracking-widest mb-1">Trigger</div><div className="font-black text-white">{a.trigger}</div></div><div className="text-xs px-2 py-1 rounded-full" style={{ background:`${a.color}20`, color:a.color }}>{activeAutomation===i?"▾ Hide":"▸ Show"}</div></div>
-                <div className="flex items-center gap-2 flex-wrap mb-4">{["TRIGGER","→","CONDITION","→","ACTION","→","RESULT"].map((step,si)=><span key={si} className={`text-[10px] font-bold ${step==="→"?"text-white/20":""}`} style={step!=="→"?{color:a.color,background:`${a.color}15`,padding:"2px 8px",borderRadius:4,border:`1px solid ${a.color}30`}:{}}>{step}</span>)}</div>
-                {activeAutomation===i&&<div style={{ animation:"fadeIn .3s ease-out" }}><div className="text-xs text-white/40 mb-2">Condition: <span className="text-white/60">{a.condition}</span></div><div className="space-y-2 mb-3">{a.actions.map((act,ai)=><div key={ai} className="flex items-center gap-2 text-sm text-white/70"><div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background:`${a.color}30`, color:a.color }}>{ai+1}</div>{act}</div>)}</div><div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ background:`${a.color}15`, border:`1px solid ${a.color}30` }}><span style={{ color:a.color }}>✓</span><span className="text-xs font-semibold text-white">{a.outcome}</span></div></div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ CLIENT 360° ══ */}
-      <section id="client360" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Client Management" title="One Customer. Every Detail. Zero Gaps." subtitle="The complete 360° customer view — every deal, conversation, task & document in one profile." color="#f97316" />
-          <div className="mt-14">
-            <div className="flex items-center justify-center mb-10"><div className="rounded-2xl p-6 text-center glass glow-indigo" style={{ minWidth:200 }}><div className="w-16 h-16 rounded-2xl mx-auto mb-3 flex items-center justify-center text-2xl font-black" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)" }}>G</div><div className="font-black text-white">GlobalMart Inc</div><div className="text-xs text-indigo-400 mt-1">Enterprise Client</div><div className="flex gap-2 justify-center mt-3"><span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Active</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">₹1.2L ARR</span></div></div></div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[{icon:"💼",title:"3 Active Deals",sub:"₹2.4L in pipeline",color:"#6366f1"},{icon:"💬",title:"47 Messages",sub:"Last: 2 days ago",color:"#22c55e"},{icon:"✅",title:"12 Tasks",sub:"3 overdue",color:"#f97316"},{icon:"🎫",title:"2 Open Cases",sub:"1 high priority",color:"#ec4899"},{icon:"📄",title:"8 Documents",sub:"2 proposals, 6 contracts",color:"#8b5cf6"},{icon:"📅",title:"5 Meetings",sub:"Next: July 30",color:"#0ea5e9"},{icon:"🧾",title:"3 Invoices",sub:"₹45K outstanding",color:"#eab308"},{icon:"🔭",title:"Radar Origin",sub:"Found via Radar Analysis",color:"#a855f7"}].map((c,i)=>(
-                <div key={i} className="rounded-xl p-4 glass glass-hover border" style={{ borderColor:`${c.color}20` }}><div className="text-xl mb-2">{c.icon}</div><div className="font-bold text-sm text-white">{c.title}</div><div className="text-xs text-white/40">{c.sub}</div></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ TASKS ══ */}
-      <section id="tasks" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Tasks & Follow-ups" title="Never Miss an Opportunity Again" subtitle="Smart task management keeps your entire team on track — automatically." color="#eab308" />
-          <div className="grid lg:grid-cols-2 gap-10 mt-14">
-            <div className="space-y-3">
-              {[{day:"Monday",action:"Lead contacted — TechNova",type:"Call",color:"#6366f1",done:true},{day:"Tuesday",action:"Follow-up email scheduled",type:"Email",color:"#a855f7",done:true},{day:"Thursday",action:"Reminder: No response from StartupXYZ",type:"Alert",color:"#f97316",done:false},{day:"Friday",action:"Proposal due — GlobalMart",type:"Task",color:"#ec4899",done:false},{day:"Next Monday",action:"Demo meeting scheduled",type:"Meeting",color:"#22c55e",done:false}].map((t,i)=>(
-                <div key={i} className="flex items-center gap-4 p-4 rounded-xl glass border" style={{ borderColor:`${t.color}20`, animation:`slideInLeft .5s ease-out forwards`, animationDelay:`${i*.1}s`, opacity:0 }}>
-                  <div className="w-2 self-stretch rounded-full" style={{ background:t.color }}/>
-                  <div className="flex-1"><div className="text-xs text-white/30 mb-0.5">{t.day}</div><div className={`text-sm font-semibold ${t.done?"line-through text-white/30":"text-white"}`}>{t.action}</div></div>
-                  <div className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background:`${t.color}20`, color:t.color }}>{t.type}</div>
-                  {t.done&&<span className="text-emerald-400 text-sm">✓</span>}
-                </div>
-              ))}
-            </div>
-            <div className="rounded-2xl p-6 glass border border-white/05">
-              <div className="text-sm font-bold text-white mb-4">Task Overview</div>
-              <div className="grid grid-cols-2 gap-3 mb-6">{[{v:"24",l:"Total Tasks",c:"#6366f1"},{v:"8",l:"Due Today",c:"#f97316"},{v:"5",l:"Overdue",c:"#ef4444"},{v:"11",l:"Completed",c:"#22c55e"}].map((s,i)=><div key={i} className="rounded-xl p-3 text-center" style={{ background:`${s.c}10`, border:`1px solid ${s.c}20` }}><div className="text-2xl font-black" style={{ color:s.c }}>{s.v}</div><div className="text-xs text-white/40">{s.l}</div></div>)}</div>
-              <div className="space-y-2">{[{l:"High Priority",v:30,c:"#ef4444"},{l:"Medium",v:45,c:"#f97316"},{l:"Low Priority",v:25,c:"#22c55e"}].map((b,i)=><div key={i}><div className="flex justify-between text-xs text-white/40 mb-1"><span>{b.l}</span><span>{b.v}%</span></div><div className="h-1.5 bg-white/5 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width:`${b.v}%`, background:b.c }}/></div></div>)}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ CASES ══ */}
-      <section id="cases" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Cases & Support" title="Customer Issues. Resolved Fast." subtitle="Complete support lifecycle from issue creation to resolution — all linked to client history." color="#10b981" />
-          <div className="grid lg:grid-cols-2 gap-10 mt-14 items-start">
-            <div className="space-y-3">
-              {[{n:"01",title:"Issue Reported",desc:"Customer submits support request",icon:"📝",color:"#6366f1"},{n:"02",title:"Case Created",desc:"CRM auto-generates a case record with ID",icon:"🎫",color:"#8b5cf6"},{n:"03",title:"Priority Assigned",desc:"High / Medium / Low based on impact",icon:"🔴",color:"#ec4899"},{n:"04",title:"Team Assigned",desc:"Auto-routing to available agent",icon:"👤",color:"#f97316"},{n:"05",title:"Investigation",desc:"Agent works the case, logs progress",icon:"🔍",color:"#eab308"},{n:"06",title:"Resolution Applied",desc:"Solution found & documented",icon:"💡",color:"#22c55e"},{n:"07",title:"Case Closed",desc:"History saved to customer timeline",icon:"✅",color:"#10b981"}].map((step,i)=>(
-                <div key={i} className="flex items-start gap-3 p-3 rounded-xl glass border" style={{ borderColor:`${step.color}20`, animation:`fadeInUp .4s ease-out forwards`, animationDelay:`${i*.08}s`, opacity:0 }}>
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0" style={{ background:`${step.color}20`, color:step.color }}>{step.n}</div>
-                  <div><div className="text-sm font-bold text-white">{step.icon} {step.title}</div><div className="text-xs text-white/40">{step.desc}</div></div>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-2xl p-6 glass border border-white/08">
-              <div className="flex items-center justify-between mb-4"><div><div className="text-xs text-white/30 mb-0.5">Case ID</div><div className="font-black text-white">#CASE-2026-0047</div></div><div className="px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30">High Priority</div></div>
-              <div className="space-y-3 mb-5">{[["Customer","GlobalMart Inc"],["Issue","Dashboard not loading on mobile"],["Agent","Priya S."],["Created","July 27, 2026"],["Status","🔄 In Progress"]].map(([k,v],i)=><div key={i} className="flex justify-between text-sm"><span className="text-white/40">{k}</span><span className="font-semibold text-white">{v}</span></div>)}</div>
-              <div className="h-px bg-white/05 mb-4"/>
-              <div className="text-xs text-white/30 mb-2">Resolution Progress</div>
-              <div className="h-2 bg-white/05 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width:"60%", background:"linear-gradient(to right,#6366f1,#22c55e)" }}/></div>
-              <div className="text-xs text-white/30 mt-1 text-right">60% complete</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ ANALYTICS ══ */}
-      <section id="analytics" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Reports & Analytics" title="Raw Data Into Business Intelligence." subtitle="Live KPIs, performance dashboards & trend analytics that update in real time." color="#0ea5e9" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-14 mb-12">
-            {[{label:"Leads This Month",value:148,suffix:"",prefix:"",color:"#6366f1"},{label:"Conversion Rate",value:32,suffix:"%",prefix:"",color:"#22c55e"},{label:"Revenue Tracked",value:24,suffix:"L",prefix:"₹",color:"#f97316"},{label:"Tasks Completed",value:312,suffix:"",prefix:"",color:"#a855f7"}].map((k,i)=>(
-              <div key={i} className="rounded-2xl p-6 text-center glass border" style={{ borderColor:`${k.color}20` }}><div className="text-4xl font-black mb-1" style={{ color:k.color }}><AnimatedCounter end={k.value} prefix={k.prefix} suffix={k.suffix}/></div><div className="text-xs text-white/40">{k.label}</div></div>
-            ))}
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="rounded-2xl p-6 glass border border-white/05"><div className="text-sm font-bold text-white mb-1">Lead Growth by Month</div><div className="text-xs text-white/30 mb-4">Jan — Jun 2026</div><AnimatedBarChart/></div>
-            <div className="rounded-2xl p-6 glass border border-white/05">
-              <div className="text-sm font-bold text-white mb-1">Pipeline by Stage</div><div className="text-xs text-white/30 mb-4">Current distribution</div>
-              <div className="space-y-3">{[{stage:"New Lead",pct:35,color:"#6366f1"},{stage:"Contacted",pct:25,color:"#8b5cf6"},{stage:"Qualified",pct:18,color:"#a855f7"},{stage:"Proposal",pct:12,color:"#ec4899"},{stage:"Won ✓",pct:10,color:"#22c55e"}].map((s,i)=><div key={i}><div className="flex justify-between text-xs mb-1"><span className="text-white/60">{s.stage}</span><span style={{ color:s.color }}>{s.pct}%</span></div><div className="h-2 bg-white/05 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width:`${s.pct}%`, background:s.color, boxShadow:`0 0 8px ${s.color}88` }}/></div></div>)}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ AI ══ */}
-      <section id="ai" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="AI Intelligence" title="The CRM That Thinks Ahead." subtitle="AI-powered tools embedded directly into your workflow — not bolted on as an afterthought." color="#a855f7" />
-          <div className="grid md:grid-cols-3 gap-6 mt-14">
-            {[{icon:"🤖",title:"AI Email Agent",desc:"Drafts personalized follow-up emails based on lead profile, conversation history & stage. Your team reviews & sends.",color:"#6366f1"},{icon:"📊",title:"Smart Lead Prioritization",desc:"Scores leads automatically based on engagement, response time & fit criteria. Your team focuses on what matters most.",color:"#a855f7"},{icon:"💡",title:"Suggested Next Actions",desc:"CRM recommends the best next action for every lead and deal — call, email, schedule meeting, or send proposal.",color:"#ec4899"},{icon:"🔭",title:"Radar Intelligence",desc:"AI-assisted prospect research identifies market gaps, competitor overlap & ideal customer profiles in your target area.",color:"#f97316"},{icon:"📝",title:"Auto-Summary & Notes",desc:"After every meeting or call, AI generates a structured summary that gets stored to the customer timeline instantly.",color:"#22c55e"},{icon:"📈",title:"Revenue Forecasting",desc:"Analyzes pipeline velocity, historical close rates & seasonality to predict monthly revenue with confidence intervals.",color:"#0ea5e9"}].map((ai,i)=>(
-              <div key={i} className="rounded-2xl p-6 glass glass-hover border" style={{ borderColor:`${ai.color}20`, animation:`fadeInUp .5s ease-out forwards`, animationDelay:`${i*.1}s`, opacity:0 }}>
-                <div className="text-3xl mb-4" style={{ filter:`drop-shadow(0 0 10px ${ai.color}88)` }}>{ai.icon}</div>
-                <div className="font-black text-white mb-2">{ai.title}</div>
-                <div className="text-sm text-white/50 leading-relaxed">{ai.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ══ JOURNEY ══ */}
-      <section id="journey" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Complete Customer Journey" title="End-to-End. Automated. Intelligent." subtitle="Watch a single customer move through the entire CRM ecosystem from discovery to retention." color="#6366f1" />
-          <div className="mt-14 overflow-x-auto pb-6 scrollbar-hide">
-            <div className="flex gap-0" style={{ width:"max-content", margin:"0 auto" }}>
-              {JOURNEY_STEPS.map((step,i)=>(
-                <div key={i} className="flex items-center">
-                  <div className="flex flex-col items-center" style={{ animation:`fadeInUp .4s ease-out forwards`, animationDelay:`${i*.07}s`, opacity:0 }}>
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl mb-3 relative" style={{ background:`${step.color}22`, border:`2px solid ${step.color}44`, boxShadow:`0 0 20px ${step.color}33` }}>
-                      <span>{step.icon}</span>
-                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black text-white" style={{ background:step.color }}>{i+1}</div>
-                    </div>
-                    <div className="text-center" style={{ maxWidth:90 }}><div className="text-xs font-bold text-white leading-tight mb-0.5">{step.title}</div><div className="text-[10px] text-white/30">{step.subtitle}</div></div>
+              <div style={{ marginTop: 48, display: "flex", gap: 32 }}>
+                {[["21", "CRM Modules"], ["100%", "Automated"], ["2", "Currencies"]].map(([v, l], i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: fg, letterSpacing: "-0.04em" }}>{v}</div>
+                    <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>{l}</div>
                   </div>
-                  {i<JOURNEY_STEPS.length-1&&<div className="mx-2 flex items-center" style={{ marginTop:-24 }}><div className="w-6 h-px" style={{ background:`linear-gradient(to right,${step.color},${JOURNEY_STEPS[i+1].color})`, opacity:.4 }}/><div className="text-white/20 text-xs">›</div></div>}
+                ))}
+              </div>
+            </div>
+            {/* Hero mockup */}
+            <div style={{ opacity: heroIn ? 1 : 0, transform: heroIn ? "translateY(0)" : "translateY(40px)", transition: "all 1s cubic-bezier(0.16,1,0.3,1) 0.2s" }}>
+              <AnalyticsMockup theme={theme} active={heroIn} />
+            </div>
+          </div>
+        </div>
+        {/* Ticker */}
+        <div style={{ borderTop: `1px solid ${border}`, overflow: "hidden", marginTop: 40 }}>
+          <div style={{ display: "flex", gap: 48, padding: "12px 0", animation: "ticker 25s linear infinite", width: "max-content" }}>
+            {[...Array(3)].flatMap(() => ["Lead Management", "Sales Pipeline", "Radar Analysis", "AI Email Agent", "Automation Engine", "Communication Hub", "Client 360°", "Analytics", "Invoice Generation", "Support Cases", "Team Management"]).map((t, i) => (
+              <span key={i} style={{ fontSize: 11, fontWeight: 600, color: muted, whiteSpace: "nowrap", letterSpacing: "0.02em" }}>{t}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════
+          SHOWCASE SECTIONS
+      ═══════════════════════════════════════════════════ */}
+      <ShowcaseSection theme={theme} index={1}
+        title="Lead Management — Capture, Qualify, Convert."
+        subtitle="Every lead from every source — website forms, manual entry, or Radar Analysis — enters a structured, automated qualification pipeline. No spreadsheets. No missed opportunities."
+        mockup={(active) => <LeadMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={2} reverse
+        title="Sales Pipeline — Every Deal. Every Stage. In Motion."
+        subtitle="A visual kanban pipeline that tracks deals from first contact to closed won. Stage changes trigger automatic actions — tasks, notifications, invoices — without manual work."
+        mockup={(active) => <PipelineMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={3}
+        title="Radar Analysis — Find Your Next Client Before They Find You."
+        subtitle="Discover high-potential prospects by location, market size, team size, or services. The CRM maps your target area, identifies top businesses, and adds them to your pipeline in one click."
+        mockup={(active) => <RadarMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={4} reverse
+        title="AI Email Agent — Personalized Outreach at Scale."
+        subtitle="The AI agent studies each lead's profile, conversation history, and stage — then drafts a precise, personalized email in seconds. Your team reviews. The CRM sends, tracks, and follows up."
+        mockup={(active) => <EmailAgentMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={5}
+        title="Automation Engine — Your CRM Works While You Sleep."
+        subtitle="Define once. Run forever. Trigger-based workflows execute automatically across your entire operation — from assigning new leads to onboarding won customers — without a single manual step."
+        mockup={(active) => <AutomationMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={6} reverse
+        title="Communication Hub — Every Message. One Timeline."
+        subtitle="Email, WhatsApp, and internal notes — all unified in a single chronological thread per client. Every conversation is automatically recorded, tagged, and made visible to your entire team."
+        mockup={(active) => <CommunicationMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={7}
+        title="Analytics — Real Intelligence. Not Just Numbers."
+        subtitle="Live dashboards that show lead growth, conversion rates, pipeline velocity, team performance, and revenue — updated in real time. Data-driven decisions for every level of your business."
+        mockup={(active) => <AnalyticsMockup theme={theme} active={active} />}
+      />
+
+      <ShowcaseSection theme={theme} index={8} reverse
+        title="Client 360° — One Profile. Complete Picture."
+        subtitle="Every client record connects deals, messages, tasks, documents, invoices, and support cases in a single view. Anyone on your team can pick up any client conversation — immediately, completely."
+        mockup={(active) => <ClientMockup theme={theme} active={active} />}
+      />
+
+      {/* ═══════════════════════════════════════════════════
+          CUSTOMER JOURNEY
+      ═══════════════════════════════════════════════════ */}
+      <div ref={journeyRef} id="journey" style={{ borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px" }}>
+          <div style={{ marginBottom: 64, opacity: journeyIn ? 1 : 0, transform: journeyIn ? "translateY(0)" : "translateY(30px)", transition: "all 0.8s" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Complete Journey</div>
+            <h2 style={{ fontSize: "clamp(32px, 4vw, 56px)", fontWeight: 900, color: fg, letterSpacing: "-0.03em", lineHeight: 1.1, maxWidth: 700 }}>
+              One customer. Fifteen automated steps. Zero manual work.
+            </h2>
+          </div>
+          <div style={{ overflowX: "auto", paddingBottom: 24 }}>
+            <div style={{ display: "flex", gap: 0, width: "max-content" }}>
+              {[
+                { step: "01", title: "Prospect Discovered", sub: "Radar Analysis" },
+                { step: "02", title: "Lead Added to CRM", sub: "Auto-intake" },
+                { step: "03", title: "Data Enriched", sub: "Profile built" },
+                { step: "04", title: "Lead Qualified", sub: "Scoring applied" },
+                { step: "05", title: "Owner Assigned", sub: "Auto-routing" },
+                { step: "06", title: "Follow-up Created", sub: "Task automation" },
+                { step: "07", title: "Communication Started", sub: "Email + WhatsApp" },
+                { step: "08", title: "Opportunity Created", sub: "Pipeline entry" },
+                { step: "09", title: "Proposal Sent", sub: "AI-generated" },
+                { step: "10", title: "Deal Won", sub: "Conversion event" },
+                { step: "11", title: "Customer Onboarded", sub: "Status updated" },
+                { step: "12", title: "Invoice Generated", sub: "INR or MXN" },
+                { step: "13", title: "Support Case Opened", sub: "Issue tracked" },
+                { step: "14", title: "Resolution Applied", sub: "Knowledge base" },
+                { step: "15", title: "Analytics Updated", sub: "Business intelligence" },
+              ].map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "stretch" }}>
+                  <div style={{ padding: "20px 20px", opacity: journeyIn ? 1 : 0, transform: journeyIn ? "translateY(0)" : "translateY(20px)", transition: `all 0.6s cubic-bezier(0.16,1,0.3,1) ${i * 0.05}s` }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 8 }}>{s.step}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: fg, marginBottom: 4, whiteSpace: "nowrap" }}>{s.title}</div>
+                    <div style={{ fontSize: 10, color: muted, whiteSpace: "nowrap" }}>{s.sub}</div>
+                    <div style={{ marginTop: 12, width: "100%", height: 2, background: border, borderRadius: 1 }}>
+                      {journeyIn && <div style={{ height: "100%", background: fg, borderRadius: 1, animation: `expandWidth 0.4s ease-out ${0.5 + i * 0.05}s both` }} />}
+                    </div>
+                  </div>
+                  {i < 14 && <div style={{ width: 1, background: border, alignSelf: "center", height: 40, marginTop: -10 }} />}
                 </div>
               ))}
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* ══ MODULES ══ */}
-      <section id="modules" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="All Modules" title="21 Powerful Modules. One Platform." subtitle="Every tool your team needs — from lead capture to customer retention — built-in and connected." color="#8b5cf6" />
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-14">
-            {MODULES.map((m,i)=>(
-              <div key={i} onClick={()=>setActiveModule(activeModule===i?null:i)} className="module-card rounded-2xl p-5 cursor-pointer transition-all glass-hover border" style={{ borderColor:activeModule===i?`${m.color}60`:`${m.color}15`, background:activeModule===i?`${m.color}12`:`${m.color}06`, boxShadow:activeModule===i?`0 0 30px ${m.color}20`:"none", animation:`fadeInUp .4s ease-out forwards`, animationDelay:`${i*.04}s`, opacity:0 }}>
-                <div className="module-icon text-2xl mb-3" style={{ display:"inline-block" }}>{m.icon}</div>
-                <div className="font-bold text-sm text-white mb-1">{m.name}</div>
-                {activeModule===i?<div className="text-xs text-white/50 leading-relaxed" style={{ animation:"fadeIn .2s ease-out" }}>{m.desc}</div>:<div className="text-[10px]" style={{ color:m.color }}>Click to learn more →</div>}
+      {/* ═══════════════════════════════════════════════════
+          MODULE GRID
+      ═══════════════════════════════════════════════════ */}
+      <div ref={modulesRef} id="modules" style={{ borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px" }}>
+          <div style={{ marginBottom: 64, opacity: modulesIn ? 1 : 0, transition: "opacity 0.8s" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>All Modules</div>
+            <h2 style={{ fontSize: "clamp(32px, 4vw, 56px)", fontWeight: 900, color: fg, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+              21 modules. One platform.
+            </h2>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 1, border: `1px solid ${border}` }}>
+            {[
+              ["Lead Management", "Capture, qualify & track every lead through a structured lifecycle with automated routing."],
+              ["Contact Management", "Rich contact profiles linked to companies, leads, deals and communication history."],
+              ["Client Management", "360° customer view — deals, history, communications, tasks and documents."],
+              ["Sales Pipeline", "Visual kanban pipeline with deal probability, value and automated stage actions."],
+              ["Radar Analysis", "Discover high-potential prospects by location, market size, team size and services."],
+              ["Communication Hub", "Email, WhatsApp and internal notes — unified in one threaded timeline per client."],
+              ["Automation Engine", "Trigger-based workflows that run automatically on any CRM event."],
+              ["Tasks & Follow-ups", "Smart task management with deadlines, priorities and auto-reminders."],
+              ["Support Cases", "Full case lifecycle — issue creation, assignment, resolution and customer history."],
+              ["Proposals", "Create, send and track professional proposals with e-signature capability."],
+              ["Projects", "Track deliverables, milestones and team workloads across all client projects."],
+              ["Documents", "Centralized file management linked to clients, deals and support cases."],
+              ["Billing & Invoices", "Generate formal invoices for SERP Hawk in INR or DaPros in MXN."],
+              ["Product Catalog", "Service catalog with dual-currency pricing in MXN and INR."],
+              ["Meetings", "Schedule, track and record all client and internal meetings."],
+              ["Notifications", "Real-time smart alerts for every task, lead, deal and system event."],
+              ["Reports & Rankings", "Team performance analytics, lead sources, conversion and KPI dashboards."],
+              ["AI Email Agent", "AI-powered email drafting, personalization, sequencing and follow-up automation."],
+              ["Sales Manager View", "Executive-level revenue, pipeline, team and forecasting dashboards."],
+              ["Team Management", "Org structure, roles, permissions and individual performance tracking."],
+              ["Orders", "Order management linked to clients, products, catalog and billing."],
+            ].map(([name, desc], i) => (
+              <div key={i} style={{ padding: "24px 28px", border: `1px solid ${border}`, background: bg, cursor: "default", transition: "background 0.2s", opacity: modulesIn ? 1 : 0, transition2: `opacity 0.5s ${i * 0.03}s` as never } as React.CSSProperties}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = card; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = bg; }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: fg, marginBottom: 6, letterSpacing: "-0.02em" }}>{name}</div>
+                <div style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>{desc}</div>
               </div>
             ))}
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* ══ BEFORE / AFTER ══ */}
-      <section id="beforeafter" className="py-28 px-4" style={{ background:"#080c1a" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Transformation" title="The Before vs After Your Business Deserves." subtitle="See the measurable difference a centralized, intelligent CRM makes for your team." />
-          <div className="grid md:grid-cols-2 gap-8 mt-14">
-            <div className="rounded-2xl p-8 border relative overflow-hidden" style={{ background:"rgba(17,17,40,.8)", borderColor:"rgba(239,68,68,.2)" }}>
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500/60 to-transparent"/>
-              <div className="text-4xl mb-4">😓</div><div className="text-xl font-black text-white mb-6">Before CRM</div>
-              <div className="space-y-4">{[["🗂️","Data in spreadsheets","Disorganized, error-prone, not shared"],["📞","Manual follow-ups","Inconsistent, forgotten, too late"],["🕳️","Lost leads","No system to track or recover them"],["👁️","No visibility","Management flying blind"],["📊","Manual reporting","Hours every week on data entry"],["🔌","Disconnected tools","Email here, notes there, tasks elsewhere"]].map(([icon,title,sub],i)=><div key={i} className="flex items-start gap-3"><span className="text-lg">{icon}</span><div><div className="text-sm font-semibold text-red-400">{title}</div><div className="text-xs text-white/30">{sub}</div></div></div>)}</div>
+      {/* ═══════════════════════════════════════════════════
+          BUSINESS IMPACT
+      ═══════════════════════════════════════════════════ */}
+      <div ref={impactRef} id="impact" style={{ borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
+            <div style={{ opacity: impactIn ? 1 : 0, transform: impactIn ? "translateX(0)" : "translateX(-30px)", transition: "all 0.8s" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Business Impact</div>
+              <h2 style={{ fontSize: "clamp(32px, 4vw, 52px)", fontWeight: 900, color: fg, letterSpacing: "-0.03em", lineHeight: 1.1, marginBottom: 24 }}>
+                Results your team will feel immediately.
+              </h2>
+              <p style={{ fontSize: 16, color: muted, lineHeight: 1.7 }}>
+                SERP HAWK CRM replaces your spreadsheets, email threads, reminder notes and disconnected tools with a single, automated system that works around the clock.
+              </p>
             </div>
-            <div className="rounded-2xl p-8 border relative overflow-hidden" style={{ background:"rgba(5,40,25,.8)", borderColor:"rgba(34,197,94,.2)" }}>
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500/60 to-transparent"/>
-              <div className="text-4xl mb-4">🚀</div><div className="text-xl font-black text-white mb-6">With SERP HAWK CRM</div>
-              <div className="space-y-4">{[["✅","Centralized customer data","One source of truth for every team member"],["⚡","Automated workflows","Follow-ups happen automatically, every time"],["🎯","Zero lead leakage","Every prospect tracked from day 1"],["📊","Real-time visibility","Live dashboards for leadership & teams"],["🤖","AI-powered reporting","Instant insights, zero manual work"],["🔗","Everything connected","Leads, deals, tasks, messages — unified"]].map(([icon,title,sub],i)=><div key={i} className="flex items-start gap-3"><span className="text-lg">{icon}</span><div><div className="text-sm font-semibold text-emerald-400">{title}</div><div className="text-xs text-white/30">{sub}</div></div></div>)}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══ IMPACT ══ */}
-      <section id="impact" className="py-28 px-4" style={{ background:"#0a0f1e" }}>
-        <div className="max-w-screen-xl mx-auto">
-          <SectionHeader badge="Business Impact" title="Measurable Results, Not Just Features." subtitle="The SERP HAWK CRM delivers tangible improvements across every dimension of your business." color="#22c55e" />
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-14">
-            {[{icon:"⏰",metric:"80%",label:"Reduction in Manual Work",desc:"Automation handles repetitive tasks so your team focuses on closing.",color:"#6366f1"},{icon:"🎯",metric:"3×",label:"Faster Lead Response",desc:"Automated notifications ensure no lead waits more than minutes.",color:"#22c55e"},{icon:"📊",metric:"100%",label:"Follow-up Consistency",desc:"Every lead, every deal — followed up without exception.",color:"#a855f7"},{icon:"👁️",metric:"360°",label:"Customer Visibility",desc:"Every team member has the full picture at any moment.",color:"#0ea5e9"},{icon:"📈",metric:"2×",label:"Sales Productivity",desc:"Sales team spends time selling, not managing spreadsheets.",color:"#f97316"},{icon:"❤️",metric:"↑↑",label:"Customer Retention",desc:"Cases, follow-ups & satisfaction tracking keeps clients loyal.",color:"#ec4899"}].map((k,i)=>(
-              <div key={i} className="rounded-2xl p-6 glass border glass-hover" style={{ borderColor:`${k.color}20` }}>
-                <div className="text-3xl mb-3">{k.icon}</div>
-                <div className="text-4xl font-black mb-1" style={{ color:k.color }}>{k.metric}</div>
-                <div className="font-bold text-white mb-2">{k.label}</div>
-                <div className="text-sm text-white/40 leading-relaxed">{k.desc}</div>
+            <div style={{ opacity: impactIn ? 1 : 0, transform: impactIn ? "translateX(0)" : "translateX(30px)", transition: "all 0.8s 0.1s" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, border: `1px solid ${border}` }}>
+                {[
+                  ["80%", "Reduction in manual work"],
+                  ["3×", "Faster lead response time"],
+                  ["100%", "Follow-up consistency"],
+                  ["360°", "Complete customer visibility"],
+                  ["2×", "Sales team productivity"],
+                  ["Zero", "Leads falling through the cracks"],
+                ].map(([v, l], i) => (
+                  <div key={i} style={{ padding: "28px 24px", border: `1px solid ${border}`, background: bg }}>
+                    <div style={{ fontSize: 36, fontWeight: 900, color: fg, letterSpacing: "-0.04em", marginBottom: 6, opacity: impactIn ? 1 : 0, transition: `opacity 0.5s ${0.3 + i * 0.1}s` }}>{v}</div>
+                    <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>{l}</div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* ══ FINAL CTA ══ */}
-      <section className="py-32 px-4 text-center relative overflow-hidden" style={{ background:"#080c1a" }}>
-        <div className="absolute inset-0" style={{ background:"radial-gradient(ellipse 70% 60% at 50% 50%,rgba(99,102,241,.12) 0%,transparent 70%)" }}/>
-        <div className="relative max-w-2xl mx-auto">
-          <div className="w-20 h-20 rounded-3xl mx-auto mb-8 flex items-center justify-center text-4xl" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)", boxShadow:"0 0 60px rgba(99,102,241,.5)", animation:"float 3s ease-in-out infinite" }}>🦅</div>
-          <h2 className="text-5xl font-black mb-4 gradient-text" style={{ letterSpacing:"-0.03em" }}>Ready to See It in Action?</h2>
-          <p className="text-lg text-white/50 mb-10 leading-relaxed">The SERP HAWK CRM is live and ready for your team. Experience the full power of an intelligent, automated CRM platform built for modern businesses.</p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <a href="/login" className="px-8 py-4 rounded-xl font-bold text-white text-lg glow-indigo" style={{ background:"linear-gradient(135deg,#6366f1,#a855f7)", boxShadow:"0 4px 30px rgba(99,102,241,.4)" }}>🚀 Launch the CRM</a>
-            <a href="https://wa.me/919502901416?text=Hi,%20I'd%20like%20to%20book%20a%20live%20CRM%20demo" target="_blank" rel="noopener noreferrer" className="px-8 py-4 rounded-xl font-bold text-white text-lg glass glass-hover" style={{ border:"1px solid rgba(99,102,241,.3)", color:"#a5b4fc" }}>📱 Book a Live Demo</a>
+      {/* ═══════════════════════════════════════════════════
+          FINAL CTA
+      ═══════════════════════════════════════════════════ */}
+      <div id="cta" style={{ borderTop: `1px solid ${border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "120px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
+          <div>
+            <h2 style={{ fontSize: "clamp(36px, 5vw, 72px)", fontWeight: 900, color: fg, letterSpacing: "-0.04em", lineHeight: 1.0, marginBottom: 32 }}>
+              Ready to see it in action?
+            </h2>
+            <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, marginBottom: 40, maxWidth: 380 }}>
+              The SERP HAWK CRM is live and ready for your team. Login to experience the full platform — or book a personal demo on WhatsApp.
+            </p>
+            <div style={{ display: "flex", gap: 12 }}>
+              <a href="/login" style={{ padding: "14px 32px", borderRadius: 8, background: fg, color: bg, fontSize: 14, fontWeight: 700, textDecoration: "none", letterSpacing: "-0.02em" }}>
+                Launch the CRM
+              </a>
+              <a href="https://wa.me/919502901416?text=Hi,%20I'd%20like%20to%20book%20a%20CRM%20demo" target="_blank" rel="noopener noreferrer"
+                style={{ padding: "14px 32px", borderRadius: 8, border: `1px solid ${border}`, background: "transparent", color: fg, fontSize: 14, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.02em" }}>
+                Book a Demo
+              </a>
+            </div>
           </div>
-          <div className="mt-12 flex flex-wrap justify-center gap-6 text-sm text-white/25">
-            {["21 CRM Modules","AI-Powered","Dual Currency (INR / MXN)","WhatsApp Integrated","Fully Automated"].map((f,i)=><span key={i} className="flex items-center gap-1.5"><span className="w-1 h-1 rounded-full bg-indigo-500"/>{f}</span>)}
+          <div>
+            <div style={{ border: `1px solid ${border}`, borderRadius: 12, padding: 32 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 24 }}>Platform Overview</div>
+              {[
+                ["21 CRM Modules", "Complete, connected, ready to use"],
+                ["Dual Currency", "INR for SERP Hawk · MXN for DaPros"],
+                ["WhatsApp Integration", "Messages linked to client profiles"],
+                ["AI Email Agent", "Drafts and sends personalized outreach"],
+                ["Radar Analysis", "Prospect discovery and market intelligence"],
+                ["Automation Engine", "Trigger-based workflows, zero manual work"],
+              ].map(([title, desc], i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px 0", borderBottom: i < 5 ? `1px solid ${border}` : "none" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: fg }}>{title}</div>
+                  <div style={{ fontSize: 11, color: muted, textAlign: "right", maxWidth: 200 }}>{desc}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </section>
+      </div>
 
-      <div className="py-6 px-4 text-center border-t" style={{ borderColor:"rgba(255,255,255,.05)" }}>
-        <div className="text-xs text-white/20">© 2026 SERP HAWK CRM · Premium CRM Platform · Built for intelligent customer relationship management</div>
+      {/* Footer */}
+      <div style={{ borderTop: `1px solid ${border}`, padding: "24px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 11, color: muted }}>© 2026 SERP HAWK · Intelligent CRM Platform</div>
+        <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} style={{ fontSize: 11, color: muted, background: "transparent", border: "none", cursor: "pointer" }}>
+          Switch to {theme === "dark" ? "White" : "Black"} Mode
+        </button>
       </div>
     </div>
   );
