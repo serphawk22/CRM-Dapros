@@ -5,6 +5,204 @@ import { useState, useEffect, useRef, useCallback } from "react";
    TYPES & CONSTANTS
 ───────────────────────────────────────────────── */
 type Theme = "dark" | "light";
+type Lang = "en" | "es";
+
+const T = {
+  en: {
+    brand: "SERP HAWK CRM",
+    showcase: "Product Showcase",
+    startTour: "Start Tour",
+    launchCRM: "Launch CRM",
+    guidedTour: "Guided Tour",
+    sectionOf: (step: number, total: number) => `Section ${step} of ${total}`,
+    heroLabel: "SERP Hawk — CRM Platform",
+    heroTitle: "The Intelligent CRM Built for Growth.",
+    heroSub: "From discovering prospects to closing deals, automating workflows, and retaining customers — your entire customer lifecycle, automated and connected.",
+    startGuidedTour: "Start Guided Tour",
+    crmModules: "CRM Modules",
+    automated: "Automated",
+    currencies: "Currencies",
+    module: "Module",
+    journeyLabel: "Complete Journey",
+    journeyTitle: "One customer. Fifteen automated steps. Zero manual work.",
+    modulesLabel: "All Modules",
+    modulesTitle: "21 modules. One platform.",
+    impactLabel: "Business Impact",
+    impactTitle: "Results your team will feel immediately.",
+    impactSub: "SERP HAWK CRM replaces your spreadsheets, email threads, reminder notes and disconnected tools with a single, automated system that works around the clock.",
+    ctaTitle: "Ready to see it in action?",
+    ctaSub: "The SERP HAWK CRM is live and ready for your team. Login to experience the full platform — or book a personal demo on WhatsApp.",
+    bookDemo: "Book a Demo",
+    platformOverview: "Platform Overview",
+    switchToWhite: "Switch to White Mode",
+    switchToBlack: "Switch to Black Mode",
+    footer: "© 2026 SERP HAWK · Intelligent CRM Platform",
+    impactItems: [
+      ["80%", "Reduction in manual work"],
+      ["3×", "Faster lead response time"],
+      ["100%", "Follow-up consistency"],
+      ["360°", "Complete customer visibility"],
+      ["2×", "Sales team productivity"],
+      ["Zero", "Leads falling through the cracks"],
+    ] as [string, string][],
+    sections: [
+      { title: "Lead Management — Capture, Qualify, Convert.", sub: "Every lead from every source — website forms, manual entry, or Radar Analysis — enters a structured, automated qualification pipeline. No spreadsheets. No missed opportunities." },
+      { title: "Sales Pipeline — Every Deal. Every Stage. In Motion.", sub: "A visual kanban pipeline that tracks deals from first contact to closed won. Stage changes trigger automatic actions — tasks, notifications, invoices — without manual work." },
+      { title: "Radar Analysis — Find Your Next Client Before They Find You.", sub: "Discover high-potential prospects by location, market size, team size, or services. The CRM maps your target area, identifies top businesses, and adds them to your pipeline in one click." },
+      { title: "AI Email Agent — Personalized Outreach at Scale.", sub: "The AI agent studies each lead's profile, conversation history, and stage — then drafts a precise, personalized email in seconds. Your team reviews. The CRM sends, tracks, and follows up." },
+      { title: "Automation Engine — Your CRM Works While You Sleep.", sub: "Define once. Run forever. Trigger-based workflows execute automatically across your entire operation — from assigning new leads to onboarding won customers — without a single manual step." },
+      { title: "Communication Hub — Every Message. One Timeline.", sub: "Email, WhatsApp, and internal notes — all unified in a single chronological thread per client. Every conversation is automatically recorded, tagged, and made visible to your entire team." },
+      { title: "Analytics — Real Intelligence. Not Just Numbers.", sub: "Live dashboards that show lead growth, conversion rates, pipeline velocity, team performance, and revenue — updated in real time. Data-driven decisions for every level of your business." },
+      { title: "Client 360° — One Profile. Complete Picture.", sub: "Every client record connects deals, messages, tasks, documents, invoices, and support cases in a single view. Anyone on your team can pick up any client conversation — immediately, completely." },
+    ] as { title: string; sub: string }[],
+    journeySteps: [
+      ["01", "Prospect Discovered", "Radar Analysis"],
+      ["02", "Lead Added to CRM", "Auto-intake"],
+      ["03", "Data Enriched", "Profile built"],
+      ["04", "Lead Qualified", "Scoring applied"],
+      ["05", "Owner Assigned", "Auto-routing"],
+      ["06", "Follow-up Created", "Task automation"],
+      ["07", "Communication Started", "Email + WhatsApp"],
+      ["08", "Opportunity Created", "Pipeline entry"],
+      ["09", "Proposal Sent", "AI-generated"],
+      ["10", "Deal Won", "Conversion event"],
+      ["11", "Customer Onboarded", "Status updated"],
+      ["12", "Invoice Generated", "INR or MXN"],
+      ["13", "Support Case Opened", "Issue tracked"],
+      ["14", "Resolution Applied", "Knowledge base"],
+      ["15", "Analytics Updated", "Business intelligence"],
+    ] as [string, string, string][],
+    modules: [
+      ["Lead Management", "Capture, qualify & track every lead through a structured lifecycle with automated routing."],
+      ["Contact Management", "Rich contact profiles linked to companies, leads, deals and communication history."],
+      ["Client Management", "360° customer view — deals, history, communications, tasks and documents."],
+      ["Sales Pipeline", "Visual kanban pipeline with deal probability, value and automated stage actions."],
+      ["Radar Analysis", "Discover high-potential prospects by location, market size, team size and services."],
+      ["Communication Hub", "Email, WhatsApp and internal notes — unified in one threaded timeline per client."],
+      ["Automation Engine", "Trigger-based workflows that run automatically on any CRM event."],
+      ["Tasks & Follow-ups", "Smart task management with deadlines, priorities and auto-reminders."],
+      ["Support Cases", "Full case lifecycle — issue creation, assignment, resolution and customer history."],
+      ["Proposals", "Create, send and track professional proposals with e-signature capability."],
+      ["Projects", "Track deliverables, milestones and team workloads across all client projects."],
+      ["Documents", "Centralized file management linked to clients, deals and support cases."],
+      ["Billing & Invoices", "Generate formal invoices for SERP Hawk in INR or DaPros in MXN."],
+      ["Product Catalog", "Service catalog with dual-currency pricing in MXN and INR."],
+      ["Meetings", "Schedule, track and record all client and internal meetings."],
+      ["Notifications", "Real-time smart alerts for every task, lead, deal and system event."],
+      ["Reports & Rankings", "Team performance analytics, lead sources, conversion and KPI dashboards."],
+      ["AI Email Agent", "AI-powered email drafting, personalization, sequencing and follow-up automation."],
+      ["Sales Manager View", "Executive-level revenue, pipeline, team and forecasting dashboards."],
+      ["Team Management", "Org structure, roles, permissions and individual performance tracking."],
+      ["Orders", "Order management linked to clients, products, catalog and billing."],
+    ] as [string, string][],
+    platformItems: [
+      ["21 CRM Modules", "Complete, connected, ready to use"],
+      ["Dual Currency", "INR for SERP Hawk · MXN for DaPros"],
+      ["WhatsApp Integration", "Messages linked to client profiles"],
+      ["AI Email Agent", "Drafts and sends personalized outreach"],
+      ["Radar Analysis", "Prospect discovery and market intelligence"],
+      ["Automation Engine", "Trigger-based workflows, zero manual work"],
+    ] as [string, string][],
+    tickerItems: ["Lead Management", "Sales Pipeline", "Radar Analysis", "AI Email Agent", "Automation Engine", "Communication Hub", "Client 360°", "Analytics", "Invoice Generation", "Support Cases", "Team Management"],
+  },
+  es: {
+    brand: "SERP HAWK CRM",
+    showcase: "Demostración del Producto",
+    startTour: "Iniciar Tour",
+    launchCRM: "Abrir CRM",
+    guidedTour: "Tour Guiado",
+    sectionOf: (step: number, total: number) => `Sección ${step} de ${total}`,
+    heroLabel: "SERP Hawk — Plataforma CRM",
+    heroTitle: "El CRM Inteligente Construido para Crecer.",
+    heroSub: "Desde descubrir prospectos hasta cerrar tratos, automatizar flujos de trabajo y retener clientes — todo el ciclo de vida de sus clientes, automatizado y conectado.",
+    startGuidedTour: "Iniciar Tour Guiado",
+    crmModules: "Módulos CRM",
+    automated: "Automatizado",
+    currencies: "Monedas",
+    module: "Módulo",
+    journeyLabel: "Recorrido Completo",
+    journeyTitle: "Un cliente. Quince pasos automatizados. Cero trabajo manual.",
+    modulesLabel: "Todos los Módulos",
+    modulesTitle: "21 módulos. Una plataforma.",
+    impactLabel: "Impacto en el Negocio",
+    impactTitle: "Resultados que su equipo sentirá de inmediato.",
+    impactSub: "SERP HAWK CRM reemplaza sus hojas de cálculo, hilos de correo, notas recordatorias y herramientas desconectadas con un sistema único y automatizado que funciona las 24 horas.",
+    ctaTitle: "¿Listo para verlo en acción?",
+    ctaSub: "El CRM SERP HAWK está activo y listo para su equipo. Inicie sesión para experimentar la plataforma completa — o reserve una demo personal por WhatsApp.",
+    bookDemo: "Reservar Demo",
+    platformOverview: "Resumen de la Plataforma",
+    switchToWhite: "Cambiar a Modo Blanco",
+    switchToBlack: "Cambiar a Modo Negro",
+    footer: "© 2026 SERP HAWK · Plataforma CRM Inteligente",
+    impactItems: [
+      ["80%", "Reducción en trabajo manual"],
+      ["3×", "Respuesta más rápida a leads"],
+      ["100%", "Consistencia en seguimiento"],
+      ["360°", "Visibilidad total del cliente"],
+      ["2×", "Productividad del equipo de ventas"],
+      ["Cero", "Leads perdidos sin atender"],
+    ] as [string, string][],
+    sections: [
+      { title: "Gestión de Leads — Capturar, Calificar, Convertir.", sub: "Cada lead de cada fuente — formularios web, entrada manual o Análisis Radar — ingresa a un pipeline de calificación estructurado y automatizado. Sin hojas de cálculo. Sin oportunidades perdidas." },
+      { title: "Pipeline de Ventas — Cada Trato. Cada Etapa. En Movimiento.", sub: "Un pipeline visual kanban que rastrea tratos desde el primer contacto hasta el cierre. Los cambios de etapa activan acciones automáticas — tareas, notificaciones, facturas — sin trabajo manual." },
+      { title: "Análisis Radar — Encuentre a su Próximo Cliente Antes que la Competencia.", sub: "Descubra prospectos de alto potencial por ubicación, tamaño de mercado, equipo o servicios. El CRM mapea su área objetivo, identifica los mejores negocios y los agrega a su pipeline con un clic." },
+      { title: "Agente de Email con IA — Alcance Personalizado a Escala.", sub: "El agente de IA estudia el perfil de cada lead, el historial de conversaciones y la etapa — luego redacta un correo personalizado en segundos. Su equipo revisa. El CRM envía, rastrea y hace seguimiento." },
+      { title: "Motor de Automatización — Su CRM Trabaja Mientras Usted Descansa.", sub: "Defínalo una vez. Ejecútelo para siempre. Los flujos de trabajo basados en disparadores se ejecutan automáticamente en toda su operación — desde asignar nuevos leads hasta incorporar clientes ganados." },
+      { title: "Centro de Comunicación — Cada Mensaje. Una Línea de Tiempo.", sub: "Email, WhatsApp y notas internas — todo unificado en un hilo cronológico por cliente. Cada conversación se registra, etiqueta y hace visible para todo su equipo automáticamente." },
+      { title: "Analíticas — Inteligencia Real. No Solo Números.", sub: "Paneles en vivo que muestran crecimiento de leads, tasas de conversión, velocidad del pipeline, rendimiento del equipo e ingresos — actualizados en tiempo real. Decisiones basadas en datos para todos los niveles." },
+      { title: "Cliente 360° — Un Perfil. Imagen Completa.", sub: "Cada registro de cliente conecta tratos, mensajes, tareas, documentos, facturas y casos de soporte en una sola vista. Cualquier miembro del equipo puede retomar cualquier conversación — de inmediato y completamente." },
+    ] as { title: string; sub: string }[],
+    journeySteps: [
+      ["01", "Prospecto Descubierto", "Análisis Radar"],
+      ["02", "Lead Agregado", "Ingreso automático"],
+      ["03", "Datos Enriquecidos", "Perfil construido"],
+      ["04", "Lead Calificado", "Puntuación aplicada"],
+      ["05", "Propietario Asignado", "Enrutamiento auto"],
+      ["06", "Seguimiento Creado", "Automatización de tareas"],
+      ["07", "Comunicación Iniciada", "Email + WhatsApp"],
+      ["08", "Oportunidad Creada", "Entrada al pipeline"],
+      ["09", "Propuesta Enviada", "Generada por IA"],
+      ["10", "Trato Ganado", "Evento de conversión"],
+      ["11", "Cliente Incorporado", "Estado actualizado"],
+      ["12", "Factura Generada", "INR o MXN"],
+      ["13", "Caso de Soporte", "Problema rastreado"],
+      ["14", "Resolución Aplicada", "Base de conocimiento"],
+      ["15", "Analíticas Actualizadas", "Inteligencia de negocio"],
+    ] as [string, string, string][],
+    modules: [
+      ["Gestión de Leads", "Captura, califica y rastrea cada lead con enrutamiento automatizado."],
+      ["Gestión de Contactos", "Perfiles ricos vinculados a empresas, leads, tratos e historial."],
+      ["Gestión de Clientes", "Vista 360° del cliente — tratos, historial, comunicaciones y tareas."],
+      ["Pipeline de Ventas", "Pipeline kanban visual con probabilidad, valor y acciones de etapa."],
+      ["Análisis Radar", "Descubra prospectos por ubicación, tamaño de mercado y servicios."],
+      ["Centro de Comunicación", "Email, WhatsApp y notas internas — unificados por cliente."],
+      ["Motor de Automatización", "Flujos de trabajo basados en disparadores automáticos."],
+      ["Tareas y Seguimientos", "Gestión inteligente con plazos, prioridades y recordatorios."],
+      ["Casos de Soporte", "Ciclo completo de casos — creación, asignación y resolución."],
+      ["Propuestas", "Cree, envíe y rastree propuestas profesionales con firma electrónica."],
+      ["Proyectos", "Rastree entregables, hitos y cargas de trabajo de todos los clientes."],
+      ["Documentos", "Gestión centralizada de archivos vinculados a clientes y casos."],
+      ["Facturación", "Facturas formales para SERP Hawk en INR o DaPros en MXN."],
+      ["Catálogo de Productos", "Catálogo de servicios con precios en doble moneda MXN e INR."],
+      ["Reuniones", "Programe, rastree y registre todas las reuniones con clientes."],
+      ["Notificaciones", "Alertas inteligentes en tiempo real para tareas, leads y tratos."],
+      ["Reportes y Rankings", "Analíticas de rendimiento del equipo, fuentes de leads y KPIs."],
+      ["Agente de Email IA", "Redacción, personalización y automatización de seguimientos."],
+      ["Vista de Gerente", "Paneles ejecutivos de ingresos, pipeline y pronósticos."],
+      ["Gestión de Equipo", "Estructura org, roles, permisos y seguimiento de rendimiento."],
+      ["Órdenes", "Gestión de órdenes vinculada a clientes, productos y facturación."],
+    ] as [string, string][],
+    platformItems: [
+      ["21 Módulos CRM", "Completos, conectados, listos para usar"],
+      ["Doble Moneda", "INR para SERP Hawk · MXN para DaPros"],
+      ["Integración WhatsApp", "Mensajes vinculados a perfiles de clientes"],
+      ["Agente de Email IA", "Redacta y envía mensajes personalizados"],
+      ["Análisis Radar", "Descubrimiento de prospectos e inteligencia"],
+      ["Motor de Automatización", "Flujos automáticos, cero trabajo manual"],
+    ] as [string, string][],
+    tickerItems: ["Gestión de Leads", "Pipeline de Ventas", "Análisis Radar", "Agente de Email IA", "Motor de Automatización", "Centro de Comunicación", "Cliente 360°", "Analíticas", "Generación de Facturas", "Casos de Soporte", "Gestión de Equipo"],
+  },
+} as const;
 
 function useInView(rootMargin = "0px") {
   const ref = useRef<HTMLDivElement>(null);
@@ -688,8 +886,8 @@ function ClientMockup({ theme, active }: { theme: Theme; active: boolean }) {
 /* ─────────────────────────────────────────────────
    SECTION COMPONENT
 ───────────────────────────────────────────────── */
-function ShowcaseSection({ theme, title, subtitle, mockup, reverse = false, index }: {
-  theme: Theme; title: string; subtitle: string; mockup: (active: boolean) => React.ReactNode; reverse?: boolean; index: number;
+function ShowcaseSection({ theme, title, subtitle, mockup, reverse = false, index, moduleLabel }: {
+  theme: Theme; title: string; subtitle: string; mockup: (active: boolean) => React.ReactNode; reverse?: boolean; index: number; moduleLabel?: string;
 }) {
   const { ref, inView } = useInView("-100px");
   const fg = theme === "dark" ? "#fff" : "#000";
@@ -701,7 +899,7 @@ function ShowcaseSection({ theme, title, subtitle, mockup, reverse = false, inde
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
         {/* Copy */}
         <div style={{ order: reverse ? 2 : 1, opacity: inView ? 1 : 0, transform: inView ? "translateX(0)" : reverse ? "translateX(40px)" : "translateX(-40px)", transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Module {String(index).padStart(2, "0")}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>{moduleLabel} {String(index).padStart(2, "0")}</div>
           <h2 style={{ fontSize: "clamp(28px, 3.5vw, 44px)", fontWeight: 900, color: fg, lineHeight: 1.1, letterSpacing: "-0.03em", marginBottom: 20 }}>{title}</h2>
           <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, maxWidth: 380 }}>{subtitle}</p>
         </div>
@@ -719,6 +917,8 @@ function ShowcaseSection({ theme, title, subtitle, mockup, reverse = false, inde
 ───────────────────────────────────────────────── */
 export default function DemoShowcase() {
   const [theme, setTheme] = useState<Theme>("dark");
+  const [lang, setLang] = useState<Lang>("en");
+  const tx = T[lang];
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const [tourPaused, setTourPaused] = useState(false);
@@ -769,13 +969,19 @@ export default function DemoShowcase() {
       <header style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, background: bg === "#000" ? "rgba(0,0,0,0.85)" : "rgba(255,255,255,0.85)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-            <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "-0.03em", color: fg }}>SERP HAWK CRM</div>
-            <div style={{ fontSize: 11, color: muted }}>Product Showcase</div>
+            <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "-0.03em", color: fg }}>{tx.brand}</div>
+            <div style={{ fontSize: 11, color: muted }}>{tx.showcase}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button onClick={() => { setTourStep(0); setTourActive(true); setTourPaused(false); }}
               style={{ padding: "6px 14px", borderRadius: 6, border: `1px solid ${border}`, background: "transparent", color: fg, fontSize: 11, fontWeight: 600, cursor: "pointer", letterSpacing: "-0.01em" }}>
-              Start Tour
+              {tx.startTour}
+            </button>
+            {/* Language toggle */}
+            <button onClick={() => setLang(l => l === "en" ? "es" : "en")}
+              style={{ width: 60, height: 28, borderRadius: 14, border: `1px solid ${border}`, background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px", position: "relative", transition: "all 0.3s" }}>
+              <div style={{ position: "absolute", left: lang === "en" ? 4 : 34, width: 18, height: 18, borderRadius: "50%", background: fg, transition: "left 0.3s cubic-bezier(0.34,1.56,0.64,1)" }} />
+              <span style={{ position: "absolute", left: lang === "en" ? 26 : 6, fontSize: 8, fontWeight: 800, color: fg, letterSpacing: "0.03em" }}>{lang === "en" ? "ES" : "EN"}</span>
             </button>
             {/* Theme toggle */}
             <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
@@ -783,7 +989,7 @@ export default function DemoShowcase() {
               <div style={{ position: "absolute", left: theme === "dark" ? 4 : 34, width: 18, height: 18, borderRadius: "50%", background: fg, transition: "left 0.3s cubic-bezier(0.34,1.56,0.64,1)" }} />
               <span style={{ position: "absolute", left: theme === "dark" ? 26 : 8, fontSize: 9, fontWeight: 800, color: fg, letterSpacing: "0.04em" }}>{theme === "dark" ? "W" : "B"}</span>
             </button>
-            <a href="/login" style={{ padding: "6px 14px", borderRadius: 6, background: fg, color: bg, fontSize: 11, fontWeight: 700, textDecoration: "none", letterSpacing: "-0.01em" }}>Launch CRM</a>
+            <a href="/login" style={{ padding: "6px 14px", borderRadius: 6, background: fg, color: bg, fontSize: 11, fontWeight: 700, textDecoration: "none", letterSpacing: "-0.01em" }}>{tx.launchCRM}</a>
           </div>
         </div>
       </header>
@@ -792,8 +998,8 @@ export default function DemoShowcase() {
       {tourActive && (
         <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 200, background: bg, border: `1px solid ${fg}`, borderRadius: 12, padding: "12px 20px", display: "flex", alignItems: "center", gap: 16, boxShadow: `0 20px 60px ${fg === "#fff" ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.4)"}`, minWidth: 360 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>Guided Tour</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: fg }}>Section {tourStep + 1} of {sections.length}</div>
+            <div style={{ fontSize: 10, color: muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 2 }}>{tx.guidedTour}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: fg }}>{tx.sectionOf(tourStep + 1, sections.length)}</div>
             <div style={{ marginTop: 6, height: 2, background: border, borderRadius: 1 }}>
               <div style={{ height: "100%", width: `${(tourStep / sections.length) * 100}%`, background: fg, borderRadius: 1, transition: "width 0.5s" }} />
             </div>
@@ -812,24 +1018,24 @@ export default function DemoShowcase() {
       <section id="hero" ref={heroRef} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", paddingTop: 56 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "80px 32px 40px" }}>
           <div style={{ marginBottom: 24, opacity: heroIn ? 1 : 0, transform: heroIn ? "translateY(0)" : "translateY(20px)", transition: "all 0.8s cubic-bezier(0.16,1,0.3,1)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>SERP Hawk — CRM Platform</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>{tx.heroLabel}</div>
           </div>
           <h1 style={{ fontSize: "clamp(48px, 7vw, 96px)", fontWeight: 900, lineHeight: 1.0, letterSpacing: "-0.04em", maxWidth: 900, marginBottom: 32, color: fg, opacity: heroIn ? 1 : 0, transform: heroIn ? "translateY(0)" : "translateY(30px)", transition: "all 1s cubic-bezier(0.16,1,0.3,1) 0.1s" }}>
-            The Intelligent CRM Built for Growth.
+            {tx.heroTitle}
           </h1>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48, alignItems: "start" }}>
             <div style={{ opacity: heroIn ? 1 : 0, transition: "all 0.8s 0.3s" }}>
               <p style={{ fontSize: 18, color: muted, lineHeight: 1.7, marginBottom: 36, maxWidth: 440 }}>
-                From discovering prospects to closing deals, automating workflows, and retaining customers — your entire customer lifecycle, automated and connected.
+                {tx.heroSub}
               </p>
               <div style={{ display: "flex", gap: 12 }}>
-                <button onClick={() => { setTourStep(0); setTourActive(true); }} style={{ padding: "12px 28px", borderRadius: 8, background: fg, color: bg, fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", letterSpacing: "-0.02em" }}>Start Guided Tour</button>
+                <button onClick={() => { setTourStep(0); setTourActive(true); }} style={{ padding: "12px 28px", borderRadius: 8, background: fg, color: bg, fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", letterSpacing: "-0.02em" }}>{tx.startGuidedTour}</button>
                 <a href="/login" style={{ padding: "12px 28px", borderRadius: 8, background: "transparent", color: fg, fontSize: 13, fontWeight: 600, cursor: "pointer", border: `1px solid ${border}`, textDecoration: "none", letterSpacing: "-0.02em", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  Launch CRM <span style={{ animation: "nudgeRight 1.5s ease-in-out infinite" }}>→</span>
+                  {tx.launchCRM} <span style={{ animation: "nudgeRight 1.5s ease-in-out infinite" }}>→</span>
                 </a>
               </div>
               <div style={{ marginTop: 48, display: "flex", gap: 32 }}>
-                {[["21", "CRM Modules"], ["100%", "Automated"], ["2", "Currencies"]].map(([v, l], i) => (
+                {([["21", tx.crmModules], ["100%", tx.automated], ["2", tx.currencies]] as [string,string][]).map(([v, l], i) => (
                   <div key={i}>
                     <div style={{ fontSize: 32, fontWeight: 900, color: fg, letterSpacing: "-0.04em" }}>{v}</div>
                     <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>{l}</div>
@@ -846,7 +1052,7 @@ export default function DemoShowcase() {
         {/* Ticker */}
         <div style={{ borderTop: `1px solid ${border}`, overflow: "hidden", marginTop: 40 }}>
           <div style={{ display: "flex", gap: 48, padding: "12px 0", animation: "ticker 25s linear infinite", width: "max-content" }}>
-            {[...Array(3)].flatMap(() => ["Lead Management", "Sales Pipeline", "Radar Analysis", "AI Email Agent", "Automation Engine", "Communication Hub", "Client 360°", "Analytics", "Invoice Generation", "Support Cases", "Team Management"]).map((t, i) => (
+            {[...Array(3)].flatMap(() => tx.tickerItems).map((t, i) => (
               <span key={i} style={{ fontSize: 11, fontWeight: 600, color: muted, whiteSpace: "nowrap", letterSpacing: "0.02em" }}>{t}</span>
             ))}
           </div>
@@ -856,51 +1062,43 @@ export default function DemoShowcase() {
       {/* ═══════════════════════════════════════════════════
           SHOWCASE SECTIONS
       ═══════════════════════════════════════════════════ */}
-      <ShowcaseSection theme={theme} index={1}
-        title="Lead Management — Capture, Qualify, Convert."
-        subtitle="Every lead from every source — website forms, manual entry, or Radar Analysis — enters a structured, automated qualification pipeline. No spreadsheets. No missed opportunities."
+      <ShowcaseSection theme={theme} index={1} moduleLabel={tx.module}
+        title={tx.sections[0].title} subtitle={tx.sections[0].sub}
         mockup={(active) => <LeadMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={2} reverse
-        title="Sales Pipeline — Every Deal. Every Stage. In Motion."
-        subtitle="A visual kanban pipeline that tracks deals from first contact to closed won. Stage changes trigger automatic actions — tasks, notifications, invoices — without manual work."
+      <ShowcaseSection theme={theme} index={2} reverse moduleLabel={tx.module}
+        title={tx.sections[1].title} subtitle={tx.sections[1].sub}
         mockup={(active) => <PipelineMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={3}
-        title="Radar Analysis — Find Your Next Client Before They Find You."
-        subtitle="Discover high-potential prospects by location, market size, team size, or services. The CRM maps your target area, identifies top businesses, and adds them to your pipeline in one click."
+      <ShowcaseSection theme={theme} index={3} moduleLabel={tx.module}
+        title={tx.sections[2].title} subtitle={tx.sections[2].sub}
         mockup={(active) => <RadarMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={4} reverse
-        title="AI Email Agent — Personalized Outreach at Scale."
-        subtitle="The AI agent studies each lead's profile, conversation history, and stage — then drafts a precise, personalized email in seconds. Your team reviews. The CRM sends, tracks, and follows up."
+      <ShowcaseSection theme={theme} index={4} reverse moduleLabel={tx.module}
+        title={tx.sections[3].title} subtitle={tx.sections[3].sub}
         mockup={(active) => <EmailAgentMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={5}
-        title="Automation Engine — Your CRM Works While You Sleep."
-        subtitle="Define once. Run forever. Trigger-based workflows execute automatically across your entire operation — from assigning new leads to onboarding won customers — without a single manual step."
+      <ShowcaseSection theme={theme} index={5} moduleLabel={tx.module}
+        title={tx.sections[4].title} subtitle={tx.sections[4].sub}
         mockup={(active) => <AutomationMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={6} reverse
-        title="Communication Hub — Every Message. One Timeline."
-        subtitle="Email, WhatsApp, and internal notes — all unified in a single chronological thread per client. Every conversation is automatically recorded, tagged, and made visible to your entire team."
+      <ShowcaseSection theme={theme} index={6} reverse moduleLabel={tx.module}
+        title={tx.sections[5].title} subtitle={tx.sections[5].sub}
         mockup={(active) => <CommunicationMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={7}
-        title="Analytics — Real Intelligence. Not Just Numbers."
-        subtitle="Live dashboards that show lead growth, conversion rates, pipeline velocity, team performance, and revenue — updated in real time. Data-driven decisions for every level of your business."
+      <ShowcaseSection theme={theme} index={7} moduleLabel={tx.module}
+        title={tx.sections[6].title} subtitle={tx.sections[6].sub}
         mockup={(active) => <AnalyticsMockup theme={theme} active={active} />}
       />
 
-      <ShowcaseSection theme={theme} index={8} reverse
-        title="Client 360° — One Profile. Complete Picture."
-        subtitle="Every client record connects deals, messages, tasks, documents, invoices, and support cases in a single view. Anyone on your team can pick up any client conversation — immediately, completely."
+      <ShowcaseSection theme={theme} index={8} reverse moduleLabel={tx.module}
+        title={tx.sections[7].title} subtitle={tx.sections[7].sub}
         mockup={(active) => <ClientMockup theme={theme} active={active} />}
       />
 
@@ -910,35 +1108,19 @@ export default function DemoShowcase() {
       <div ref={journeyRef} id="journey" style={{ borderTop: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px" }}>
           <div style={{ marginBottom: 64, opacity: journeyIn ? 1 : 0, transform: journeyIn ? "translateY(0)" : "translateY(30px)", transition: "all 0.8s" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Complete Journey</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>{tx.journeyLabel}</div>
             <h2 style={{ fontSize: "clamp(32px, 4vw, 56px)", fontWeight: 900, color: fg, letterSpacing: "-0.03em", lineHeight: 1.1, maxWidth: 700 }}>
-              One customer. Fifteen automated steps. Zero manual work.
+              {tx.journeyTitle}
             </h2>
           </div>
           <div style={{ overflowX: "auto", paddingBottom: 24 }}>
             <div style={{ display: "flex", gap: 0, width: "max-content" }}>
-              {[
-                { step: "01", title: "Prospect Discovered", sub: "Radar Analysis" },
-                { step: "02", title: "Lead Added to CRM", sub: "Auto-intake" },
-                { step: "03", title: "Data Enriched", sub: "Profile built" },
-                { step: "04", title: "Lead Qualified", sub: "Scoring applied" },
-                { step: "05", title: "Owner Assigned", sub: "Auto-routing" },
-                { step: "06", title: "Follow-up Created", sub: "Task automation" },
-                { step: "07", title: "Communication Started", sub: "Email + WhatsApp" },
-                { step: "08", title: "Opportunity Created", sub: "Pipeline entry" },
-                { step: "09", title: "Proposal Sent", sub: "AI-generated" },
-                { step: "10", title: "Deal Won", sub: "Conversion event" },
-                { step: "11", title: "Customer Onboarded", sub: "Status updated" },
-                { step: "12", title: "Invoice Generated", sub: "INR or MXN" },
-                { step: "13", title: "Support Case Opened", sub: "Issue tracked" },
-                { step: "14", title: "Resolution Applied", sub: "Knowledge base" },
-                { step: "15", title: "Analytics Updated", sub: "Business intelligence" },
-              ].map((s, i) => (
+              {tx.journeySteps.map(([step, title, sub], i) => (
                 <div key={i} style={{ display: "flex", alignItems: "stretch" }}>
                   <div style={{ padding: "20px 20px", opacity: journeyIn ? 1 : 0, transform: journeyIn ? "translateY(0)" : "translateY(20px)", transition: `all 0.6s cubic-bezier(0.16,1,0.3,1) ${i * 0.05}s` }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 8 }}>{s.step}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: fg, marginBottom: 4, whiteSpace: "nowrap" }}>{s.title}</div>
-                    <div style={{ fontSize: 10, color: muted, whiteSpace: "nowrap" }}>{s.sub}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: muted, marginBottom: 8 }}>{step}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: fg, marginBottom: 4, whiteSpace: "nowrap" }}>{title}</div>
+                    <div style={{ fontSize: 10, color: muted, whiteSpace: "nowrap" }}>{sub}</div>
                     <div style={{ marginTop: 12, width: "100%", height: 2, background: border, borderRadius: 1 }}>
                       {journeyIn && <div style={{ height: "100%", background: fg, borderRadius: 1, animation: `expandWidth 0.4s ease-out ${0.5 + i * 0.05}s both` }} />}
                     </div>
@@ -957,35 +1139,13 @@ export default function DemoShowcase() {
       <div ref={modulesRef} id="modules" style={{ borderTop: `1px solid ${border}` }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px" }}>
           <div style={{ marginBottom: 64, opacity: modulesIn ? 1 : 0, transition: "opacity 0.8s" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>All Modules</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>{tx.modulesLabel}</div>
             <h2 style={{ fontSize: "clamp(32px, 4vw, 56px)", fontWeight: 900, color: fg, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
-              21 modules. One platform.
+              {tx.modulesTitle}
             </h2>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 1, border: `1px solid ${border}` }}>
-            {[
-              ["Lead Management", "Capture, qualify & track every lead through a structured lifecycle with automated routing."],
-              ["Contact Management", "Rich contact profiles linked to companies, leads, deals and communication history."],
-              ["Client Management", "360° customer view — deals, history, communications, tasks and documents."],
-              ["Sales Pipeline", "Visual kanban pipeline with deal probability, value and automated stage actions."],
-              ["Radar Analysis", "Discover high-potential prospects by location, market size, team size and services."],
-              ["Communication Hub", "Email, WhatsApp and internal notes — unified in one threaded timeline per client."],
-              ["Automation Engine", "Trigger-based workflows that run automatically on any CRM event."],
-              ["Tasks & Follow-ups", "Smart task management with deadlines, priorities and auto-reminders."],
-              ["Support Cases", "Full case lifecycle — issue creation, assignment, resolution and customer history."],
-              ["Proposals", "Create, send and track professional proposals with e-signature capability."],
-              ["Projects", "Track deliverables, milestones and team workloads across all client projects."],
-              ["Documents", "Centralized file management linked to clients, deals and support cases."],
-              ["Billing & Invoices", "Generate formal invoices for SERP Hawk in INR or DaPros in MXN."],
-              ["Product Catalog", "Service catalog with dual-currency pricing in MXN and INR."],
-              ["Meetings", "Schedule, track and record all client and internal meetings."],
-              ["Notifications", "Real-time smart alerts for every task, lead, deal and system event."],
-              ["Reports & Rankings", "Team performance analytics, lead sources, conversion and KPI dashboards."],
-              ["AI Email Agent", "AI-powered email drafting, personalization, sequencing and follow-up automation."],
-              ["Sales Manager View", "Executive-level revenue, pipeline, team and forecasting dashboards."],
-              ["Team Management", "Org structure, roles, permissions and individual performance tracking."],
-              ["Orders", "Order management linked to clients, products, catalog and billing."],
-            ].map(([name, desc], i) => (
+            {tx.modules.map(([name, desc], i) => (
               <div key={i} style={{ padding: "24px 28px", border: `1px solid ${border}`, background: bg, cursor: "default", transition: "background 0.2s", opacity: modulesIn ? 1 : 0, transition2: `opacity 0.5s ${i * 0.03}s` as never } as React.CSSProperties}
                 onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = card; }}
                 onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = bg; }}>
@@ -1007,24 +1167,17 @@ export default function DemoShowcase() {
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "100px 32px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
             <div style={{ opacity: impactIn ? 1 : 0, transform: impactIn ? "translateX(0)" : "translateX(-30px)", transition: "all 0.8s" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>Business Impact</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 16 }}>{tx.impactLabel}</div>
               <h2 style={{ fontSize: "clamp(32px, 4vw, 52px)", fontWeight: 900, color: fg, letterSpacing: "-0.03em", lineHeight: 1.1, marginBottom: 24 }}>
-                Results your team will feel immediately.
+                {tx.impactTitle}
               </h2>
               <p style={{ fontSize: 16, color: muted, lineHeight: 1.7 }}>
-                SERP HAWK CRM replaces your spreadsheets, email threads, reminder notes and disconnected tools with a single, automated system that works around the clock.
+                {tx.impactSub}
               </p>
             </div>
             <div style={{ opacity: impactIn ? 1 : 0, transform: impactIn ? "translateX(0)" : "translateX(30px)", transition: "all 0.8s 0.1s" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, border: `1px solid ${border}` }}>
-                {[
-                  ["80%", "Reduction in manual work"],
-                  ["3×", "Faster lead response time"],
-                  ["100%", "Follow-up consistency"],
-                  ["360°", "Complete customer visibility"],
-                  ["2×", "Sales team productivity"],
-                  ["Zero", "Leads falling through the cracks"],
-                ].map(([v, l], i) => (
+                {tx.impactItems.map(([v, l], i) => (
                   <div key={i} style={{ padding: "28px 24px", border: `1px solid ${border}`, background: bg }}>
                     <div style={{ fontSize: 36, fontWeight: 900, color: fg, letterSpacing: "-0.04em", marginBottom: 6, opacity: impactIn ? 1 : 0, transition: `opacity 0.5s ${0.3 + i * 0.1}s` }}>{v}</div>
                     <div style={{ fontSize: 12, color: muted, lineHeight: 1.5 }}>{l}</div>
@@ -1043,32 +1196,25 @@ export default function DemoShowcase() {
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "120px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 80, alignItems: "center" }}>
           <div>
             <h2 style={{ fontSize: "clamp(36px, 5vw, 72px)", fontWeight: 900, color: fg, letterSpacing: "-0.04em", lineHeight: 1.0, marginBottom: 32 }}>
-              Ready to see it in action?
+              {tx.ctaTitle}
             </h2>
             <p style={{ fontSize: 16, color: muted, lineHeight: 1.7, marginBottom: 40, maxWidth: 380 }}>
-              The SERP HAWK CRM is live and ready for your team. Login to experience the full platform — or book a personal demo on WhatsApp.
+              {tx.ctaSub}
             </p>
             <div style={{ display: "flex", gap: 12 }}>
               <a href="/login" style={{ padding: "14px 32px", borderRadius: 8, background: fg, color: bg, fontSize: 14, fontWeight: 700, textDecoration: "none", letterSpacing: "-0.02em" }}>
-                Launch the CRM
+                {tx.launchCRM}
               </a>
               <a href="https://wa.me/919502901416?text=Hi,%20I'd%20like%20to%20book%20a%20CRM%20demo" target="_blank" rel="noopener noreferrer"
                 style={{ padding: "14px 32px", borderRadius: 8, border: `1px solid ${border}`, background: "transparent", color: fg, fontSize: 14, fontWeight: 600, textDecoration: "none", letterSpacing: "-0.02em" }}>
-                Book a Demo
+                {tx.bookDemo}
               </a>
             </div>
           </div>
           <div>
             <div style={{ border: `1px solid ${border}`, borderRadius: 12, padding: 32 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 24 }}>Platform Overview</div>
-              {[
-                ["21 CRM Modules", "Complete, connected, ready to use"],
-                ["Dual Currency", "INR for SERP Hawk · MXN for DaPros"],
-                ["WhatsApp Integration", "Messages linked to client profiles"],
-                ["AI Email Agent", "Drafts and sends personalized outreach"],
-                ["Radar Analysis", "Prospect discovery and market intelligence"],
-                ["Automation Engine", "Trigger-based workflows, zero manual work"],
-              ].map(([title, desc], i) => (
+              <div style={{ fontSize: 11, fontWeight: 700, color: muted, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 24 }}>{tx.platformOverview}</div>
+              {tx.platformItems.map(([title, desc], i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "12px 0", borderBottom: i < 5 ? `1px solid ${border}` : "none" }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: fg }}>{title}</div>
                   <div style={{ fontSize: 11, color: muted, textAlign: "right", maxWidth: 200 }}>{desc}</div>
@@ -1081,10 +1227,15 @@ export default function DemoShowcase() {
 
       {/* Footer */}
       <div style={{ borderTop: `1px solid ${border}`, padding: "24px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 11, color: muted }}>© 2026 SERP HAWK · Intelligent CRM Platform</div>
-        <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} style={{ fontSize: 11, color: muted, background: "transparent", border: "none", cursor: "pointer" }}>
-          Switch to {theme === "dark" ? "White" : "Black"} Mode
-        </button>
+        <div style={{ fontSize: 11, color: muted }}>{tx.footer}</div>
+        <div style={{ display: "flex", gap: 16 }}>
+          <button onClick={() => setLang(l => l === "en" ? "es" : "en")} style={{ fontSize: 11, color: muted, background: "transparent", border: "none", cursor: "pointer" }}>
+            {lang === "en" ? "Ver en Español" : "View in English"}
+          </button>
+          <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} style={{ fontSize: 11, color: muted, background: "transparent", border: "none", cursor: "pointer" }}>
+            {theme === "dark" ? tx.switchToWhite : tx.switchToBlack}
+          </button>
+        </div>
       </div>
     </div>
   );
