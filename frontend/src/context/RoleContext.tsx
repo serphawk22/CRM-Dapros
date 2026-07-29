@@ -44,7 +44,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading) {
-      if (!isAuthenticated && pathname !== '/login' && pathname !== '/') {
+      if (!isAuthenticated && pathname !== '/login' && pathname !== '/' && !pathname?.startsWith('/demo_showcase')) {
         router.replace('/login');
       } else if (isAuthenticated && pathname === '/login') {
         if (user?.role === 'SalesManager') {
