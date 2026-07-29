@@ -125,12 +125,12 @@ from database import (
 
 import contextvars
 from sqlalchemy import event
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session as SASession
 from sqlalchemy.sql.selectable import Select
 
 current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
 
-@event.listens_for(Session, "do_orm_execute")
+@event.listens_for(SASession, "do_orm_execute")
 def _add_tenant_filter(execute_state):
     tenant_id = current_tenant_id.get()
     if tenant_id is None:
@@ -359,65 +359,7 @@ def _send_notification_email(to_email: str, subject: str, body_html: str):
 
 
 
-import contextvars
-from sqlalchemy import event
-from sqlalchemy.orm import Session
-from sqlalchemy.sql.selectable import Select
 
-current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
-
-@event.listens_for(Session, "do_orm_execute")
-def _add_tenant_filter(execute_state):
-    tenant_id = current_tenant_id.get()
-    if tenant_id is None:
-        return
-        
-    # Global tables that don't have tenant_id
-    global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
-    
-    if execute_state.is_select or execute_state.is_update or execute_state.is_delete:
-        # We need to add a filter to the statement if it hits a table with tenant_id
-        stmt = execute_state.statement
-        
-        # A simple check: if it's a Select, we can filter. 
-        # For simplicity and safety without breaking complex joins, we can traverse the entities
-        if execute_state.is_select:
-            for entity in execute_state.statement.column_descriptions:
-                model = entity.get("type") or entity.get("entity")
-                if hasattr(model, "__tablename__") and model.__tablename__ not in global_tables:
-                    if hasattr(model, "tenant_id"):
-                        stmt = stmt.where(model.tenant_id == tenant_id)
-            execute_state.statement = stmt
-
-
-def check_tenant_limit(session: Session, limit_type: str):
-    # This must be called inside the endpoint, it reads current_tenant_id
-    t_id = current_tenant_id.get()
-    if not t_id:
-        return
-    tenant = session.exec(select(Tenant).where(Tenant.id == t_id)).first()
-    if not tenant or not tenant.is_trial:
-        return
-        
-    if limit_type == "clients":
-        if tenant.usage_clients >= tenant.limit_clients:
-            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only add up to {tenant.limit_clients} clients.")
-        tenant.usage_clients += 1
-    elif limit_type == "emails":
-        if tenant.usage_emails >= tenant.limit_emails:
-            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only generate {tenant.limit_emails} AI emails.")
-        tenant.usage_emails += 1
-    elif limit_type == "searches":
-        if tenant.usage_searches >= tenant.limit_searches:
-            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only perform {tenant.limit_searches} AI searches.")
-        tenant.usage_searches += 1
-        
-    session.add(tenant)
-    session.commit()
-
-def get_session():
-    with Session(engine) as session:
-        yield session
 
 # Register /sent-emails endpoint after app and get_session are defined
 register_sent_emails_endpoint(app, get_session)
