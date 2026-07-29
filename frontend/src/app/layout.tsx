@@ -70,7 +70,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
     return <GlobalLoader />;
   }
 
-  if (pathname === "/login") {
+  if (pathname === "/login" || pathname === "/demo_showcase" || pathname?.startsWith("/demo_showcase")) {
     return <main className="h-screen w-full">{children}</main>;
   }
 
