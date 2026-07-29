@@ -1226,8 +1226,13 @@ export default function DemoShowcase() {
       </div>
 
       {/* Footer */}
-      <div style={{ borderTop: `1px solid ${border}`, padding: "24px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 11, color: muted }}>{tx.footer}</div>
+      <div style={{ borderTop: `1px solid ${border}`, padding: "24px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+        <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontSize: 11, color: muted }}>{tx.footer}</div>
+          <div style={{ fontSize: 11, color: muted }}>
+            Developed by Varshith, part of SERP HAWK · <a href="mailto:varshith@serphawk.com" style={{ color: fg, textDecoration: "none" }}>varshith@serphawk.com</a>
+          </div>
+        </div>
         <div style={{ display: "flex", gap: 16 }}>
           <button onClick={() => setLang(l => l === "en" ? "es" : "en")} style={{ fontSize: 11, color: muted, background: "transparent", border: "none", cursor: "pointer" }}>
             {lang === "en" ? "Ver en Español" : "View in English"}
