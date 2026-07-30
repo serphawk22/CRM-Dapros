@@ -1386,11 +1386,17 @@ def get_all_tenants(session: Session = Depends(get_session)):
     try:
         tenants = session.exec(select(Tenant)).all()
         result = []
-        for t in tenants:
+        for t_row in tenants:
+            t = t_row[0] if isinstance(t_row, tuple) or type(t_row).__name__ in ("Row", "BaseRow") else t_row
+            
             # Count users
             user_count = session.exec(select(func.count(User.id)).where(User.tenant_id == t.id)).first()
             # Count clients
             client_count = session.exec(select(func.count(ClientProfile.id)).where(ClientProfile.tenant_id == t.id)).first()
+            
+            # Since func.count might return a tuple/row in older SQLModel versions, unwrap it too
+            user_count = user_count[0] if isinstance(user_count, tuple) or type(user_count).__name__ in ("Row", "BaseRow") else user_count
+            client_count = client_count[0] if isinstance(client_count, tuple) or type(client_count).__name__ in ("Row", "BaseRow") else client_count
             
             result.append({
                 "id": t.id,
@@ -1400,8 +1406,8 @@ def get_all_tenants(session: Session = Depends(get_session)):
                 "phone": t.phone,
                 "is_trial": t.is_trial,
                 "created_at": t.created_at,
-                "users": user_count,
-                "clients": client_count,
+                "users": user_count or 0,
+                "clients": client_count or 0,
                 "limit_clients": t.limit_clients,
                 "limit_emails": t.limit_emails,
                 "limit_searches": t.limit_searches,
