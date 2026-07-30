@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
 import { Lock, Mail, Loader2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -325,42 +326,56 @@ export default function LoginPage() {
               )}
             </AnimatePresence>
 
-            {/* Submit */}
-            <motion.button
-              type="submit"
-              disabled={isSubmitting}
-              whileHover={{ scale: isSubmitting ? 1 : 1.01, y: isSubmitting ? 0 : -1 }}
-              whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-              className="relative w-full py-4 rounded-xl font-bold text-white text-[15px] flex items-center justify-center gap-2.5 overflow-hidden transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
-              style={{
-                background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
-                boxShadow: "0 4px 20px rgba(37,99,235,0.35)",
-              }}
-            >
-              {/* Shimmer */}
-              {!isSubmitting && (
-                <motion.div
-                  className="absolute inset-0 opacity-20"
-                  style={{
-                    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
-                  }}
-                  animate={{ x: ["-100%", "200%"] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
-                />
-              )}
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3 mt-2">
+              <motion.button
+                type="submit"
+                disabled={isSubmitting}
+                whileHover={{ scale: isSubmitting ? 1 : 1.01, y: isSubmitting ? 0 : -1 }}
+                whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                className="relative flex-1 py-4 rounded-xl font-bold text-white text-[15px] flex items-center justify-center gap-2.5 overflow-hidden transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
+                style={{
+                  background: "linear-gradient(135deg, #2563eb 0%, #4f46e5 100%)",
+                  boxShadow: "0 4px 20px rgba(37,99,235,0.35)",
+                }}
+              >
+                {/* Shimmer */}
+                {!isSubmitting && (
+                  <motion.div
+                    className="absolute inset-0 opacity-20"
+                    style={{
+                      background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)",
+                    }}
+                    animate={{ x: ["-100%", "200%"] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
+                  />
+                )}
 
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Authenticating...</span>
-                </>
-              ) : (
-                <>
-                  <span>Sign In to Dashboard</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </motion.button>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Authenticating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </motion.button>
+
+              <Link href="/signup" className="flex-1">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.01, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="relative w-full h-full py-4 rounded-xl font-bold text-slate-700 bg-white border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-[15px] flex items-center justify-center gap-2.5 transition-all shadow-sm"
+                >
+                  Create Demo
+                  <ArrowRight className="w-4 h-4 opacity-50" />
+                </motion.button>
+              </Link>
+            </div>
           </form>
 
           {/* Footer */}
