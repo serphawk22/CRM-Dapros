@@ -1354,6 +1354,17 @@ class ApiUsageDaily(SQLModel, table=True):
     error_count: int = Field(default=0)
 
 
+class PageVisitTelemetry(SQLModel, table=True):
+    """Tracks raw page visits and time spent (dwell time) for SuperAdmin analytics."""
+    __tablename__ = "page_visit_telemetry"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    page_path: str = Field(index=True)
+    time_spent_seconds: int = Field(default=0)
+    timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+
 class ApiAlert(SQLModel, table=True):
     """Alert configuration for API cost and usage thresholds."""
     __tablename__ = "api_alerts"

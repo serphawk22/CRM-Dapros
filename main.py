@@ -113,6 +113,7 @@ from database import (
     Task,
     TaskComment,
     Tenant,
+    PageVisitTelemetry,
     User,
     create_db_and_tables,
     engine,
@@ -1419,35 +1420,98 @@ def get_all_tenants(session: Session = Depends(get_session)):
     finally:
         current_tenant_id.set(old_tenant)
 
+class PageVisitRequest(BaseModel):
+    page_path: str
+    time_spent_seconds: int
+
+@app.post("/telemetry/page-visit")
+def log_page_visit(body: PageVisitRequest, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    user_id = current_salesperson_id.get()
+    if not tenant_id or not user_id:
+        return {"status": "skipped", "reason": "unauthenticated"}
+    
+    from database import PageVisitTelemetry
+    visit = PageVisitTelemetry(
+        tenant_id=tenant_id,
+        user_id=user_id,
+        page_path=body.page_path,
+        time_spent_seconds=body.time_spent_seconds
+    )
+    session.add(visit)
+    session.commit()
+    return {"status": "ok"}
+
+
 @app.post("/superadmin/tenants/{tenant_id}/analyze")
 def analyze_tenant_usage(tenant_id: int, session: Session = Depends(get_session)):
-    # AI summary of tenant usage
+    # AI summary of tenant usage and full breakdown
     old_tenant = current_tenant_id.get()
     current_tenant_id.set(None)
     
     try:
+        from database import PageVisitTelemetry
+        from sqlalchemy import func
         tenant = session.exec(select(Tenant).where(Tenant.id == tenant_id)).first()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
         
-        # In a real app we would fetch ApiUsageDaily for this tenant and feed it to an LLM
-        # For now, we simulate an AI insight based on their usage numbers.
+        # Aggregate page visits
+        visits = session.exec(
+            select(
+                PageVisitTelemetry.page_path,
+                func.sum(PageVisitTelemetry.time_spent_seconds).label("total_time"),
+                func.count(PageVisitTelemetry.id).label("visit_count")
+            ).where(PageVisitTelemetry.tenant_id == tenant.id).group_by(PageVisitTelemetry.page_path)
+        ).all()
         
-        usage_pct = (tenant.usage_clients / max(1, tenant.limit_clients)) * 100
+        page_stats = []
+        for v in visits:
+            # v could be a Row tuple (path, total_time, count)
+            # Support both Row tuple and getattr approaches depending on SQLAlchemy version
+            path = v[0] if isinstance(v, tuple) or type(v).__name__ in ("Row", "BaseRow") else getattr(v, "page_path", "")
+            time_spent = v[1] if isinstance(v, tuple) or type(v).__name__ in ("Row", "BaseRow") else getattr(v, "total_time", 0)
+            visit_count = v[2] if isinstance(v, tuple) or type(v).__name__ in ("Row", "BaseRow") else getattr(v, "visit_count", 0)
+            
+            page_stats.append({
+                "path": path,
+                "time_spent": int(time_spent or 0),
+                "visits": int(visit_count or 0)
+            })
+            
+        page_stats.sort(key=lambda x: x["time_spent"], reverse=True)
         
-        if usage_pct > 80:
-            insight = "High engagement. They are hitting their trial limits. Great candidate for immediate upgrade outreach."
-            score = 95
-        elif usage_pct > 30:
-            insight = "Moderate engagement. They are testing the CRM features. Send an automated email offering a demo."
-            score = 60
-        else:
-            insight = "Low engagement. They haven't used the CRM much since signing up. Consider a re-engagement campaign."
-            score = 25
+        # OpenAI integration
+        from modules.llm_engine import get_openai_client
+        client = get_openai_client()
+        
+        prompt = f"Analyze this SaaS trial account usage telemetry. They are an agency CRM user.\n"
+        prompt += f"Limits: {tenant.usage_clients}/{tenant.limit_clients} clients, {tenant.usage_emails}/{tenant.limit_emails} AI emails.\n"
+        prompt += "Page Utilization (seconds spent):\n"
+        for p in page_stats:
+            prompt += f"- {p['path']}: {p['time_spent']} seconds across {p['visits']} visits\n"
+        prompt += "\nProvide a concise 3-sentence strategy for the sales team on how to convert this lead. What features are they stuck on? What features do they love? Give a conversion score (0-100) on the last line like 'SCORE: 85'."
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=250
+            )
+            insight = response.choices[0].message.content.strip()
+            # Extract score
+            import re
+            score_match = re.search(r"SCORE:\s*(\d+)", insight)
+            score = int(score_match.group(1)) if score_match else 50
+            insight = re.sub(r"SCORE:\s*\d+", "", insight).strip()
+        except Exception as e:
+            insight = "Insufficient data or AI error."
+            score = 0
             
         return {
             "insight": insight,
-            "conversion_score": score
+            "conversion_score": score,
+            "page_stats": page_stats
         }
     finally:
         current_tenant_id.set(old_tenant)

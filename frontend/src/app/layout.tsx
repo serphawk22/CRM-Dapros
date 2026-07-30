@@ -17,6 +17,7 @@ import { usePathname } from "next/navigation";
 import { CallNotificationBar } from "@/components/CallNotificationBar";
 import { DeveloperHeader } from "@/components/DeveloperHeader";
 import SpaceAtmosphere from "@/components/SpaceAtmosphere";
+import TelemetryTracker from "@/components/TelemetryTracker";
 import Script from "next/script";
 
 function AdminMainContent({ children }: { children: React.ReactNode }) {
@@ -194,6 +195,7 @@ export default function RootLayout({
           <I18nProvider>
             <LanguageProvider>
               <RoleProvider>
+                <TelemetryTracker />
                 <SpaceAtmosphere />
                 <AppContent>{children}</AppContent>
               </RoleProvider>
