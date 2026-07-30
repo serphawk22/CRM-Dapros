@@ -256,28 +256,30 @@ def on_startup():
     # Auto-migrate: Add missing columns if they don't exist
     from sqlalchemy import text
     try:
-        with engine.begin() as conn:
+        with engine.connect() as conn:
             conn.execute(text('ALTER TABLE projects ADD COLUMN IF NOT EXISTS "projectMemberIds" JSON;'))
-            
-            # Tenant ID Migrations
-            tables_with_tenant = [
-                "users", "client_profiles", "client_notes", "conversation_logs",
-                "activity_logs", "projects", "proposals", "chatbots",
-                "chatbot_sessions", "chatbot_messages", "analytics_data",
-                "website_scans", "api_usage_daily", "deals", "tasks"
-            ]
-            
-            for table in tables_with_tenant:
-                try:
-                    # In PostgreSQL, IF NOT EXISTS is supported
-                    conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;'))
-                    conn.execute(text(f'CREATE INDEX IF NOT EXISTS ix_{table}_tenant_id ON {table} (tenant_id);'))
-                except Exception as e:
-                    print(f"Migration error for {table}: {e}")
-                    
-            print("Successfully added tenant_id and projectMemberIds to tables.")
+            conn.commit()
     except Exception as e:
-        print("Migration error:", e)
+        print("Migration error for projects:", e)
+        
+    # Tenant ID Migrations
+    tables_with_tenant = [
+        "users", "client_profiles", "client_notes", "conversation_logs",
+        "activity_logs", "projects", "proposals", "chatbots",
+        "chatbot_sessions", "chatbot_messages", "analytics_data",
+        "website_scans", "api_usage_daily", "deals", "tasks"
+    ]
+    
+    for table in tables_with_tenant:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;'))
+                conn.execute(text(f'CREATE INDEX IF NOT EXISTS ix_{table}_tenant_id ON {table} (tenant_id);'))
+                conn.commit()
+        except Exception as e:
+            print(f"Migration error for {table}: {e}")
+            
+    print("Finished checking and adding tenant_id columns to tables.")
         
     try:
         with engine.connect() as conn:
