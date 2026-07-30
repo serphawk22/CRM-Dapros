@@ -112,6 +112,7 @@ from database import (
     SocialProfile,
     Task,
     TaskComment,
+    Tenant,
     User,
     create_db_and_tables,
     engine,
