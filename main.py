@@ -262,12 +262,11 @@ def on_startup():
     except Exception as e:
         print("Migration error for projects:", e)
         
-    # Tenant ID Migrations
+    # Tenant ID Migrations (Dynamic reflection to catch all models)
+    from sqlmodel import SQLModel
     tables_with_tenant = [
-        "users", "client_profiles", "client_notes", "conversation_logs",
-        "activity_logs", "projects", "proposals", "chatbots",
-        "chatbot_sessions", "chatbot_messages", "analytics_data",
-        "website_scans", "api_usage_daily", "deals", "tasks"
+        name for name, table in SQLModel.metadata.tables.items() 
+        if "tenant_id" in table.columns
     ]
     
     for table in tables_with_tenant:
@@ -279,7 +278,7 @@ def on_startup():
         except Exception as e:
             print(f"Migration error for {table}: {e}")
             
-    print("Finished checking and adding tenant_id columns to tables.")
+    print(f"Finished checking and adding tenant_id columns to {len(tables_with_tenant)} tables.")
         
     try:
         with engine.connect() as conn:
