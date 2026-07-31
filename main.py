@@ -138,6 +138,9 @@ def _add_tenant_filter(execute_state):
     if tenant_id is None:
         return
         
+    if execute_state.execution_options.get("skip_tenant"):
+        return
+        
     # Global tables that don't have tenant_id
     global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
     
@@ -154,6 +157,20 @@ def _add_tenant_filter(execute_state):
                     if hasattr(model, "tenant_id"):
                         stmt = stmt.where(model.tenant_id == tenant_id)
             execute_state.statement = stmt
+
+
+@event.listens_for(SASession, "before_flush")
+def _auto_assign_tenant_id(session, flush_context, instances):
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        return
+        
+    global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
+    
+    for obj in session.new:
+        if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id") is None:
+            if hasattr(obj, "__tablename__") and obj.__tablename__ not in global_tables:
+                setattr(obj, "tenant_id", tenant_id)
 
 
 def check_tenant_limit(session: Session, limit_type: str):
@@ -1891,7 +1908,7 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
         )
 
         if email:
-            existing_user = session.exec(select(User).where(User.email == email)).first()
+            existing_user = session.exec(select(User).where(User.email == email).execution_options(skip_tenant=True)).first()
             if not existing_user:
                 new_user = User(
                     email=email,
