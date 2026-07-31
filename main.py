@@ -304,6 +304,22 @@ def on_startup():
     print(f"Finished checking and adding tenant_id columns to {len(tables_with_tenant)} tables.")
         
     try:
+        # Ensure varshithh@gmail.com is an Admin and reset admin@serphawk.com password
+        session = Session(engine)
+        harshith = session.exec(select(User).where(User.email == "varshithh@gmail.com")).first()
+        if harshith:
+            harshith.role = "Admin"
+            session.add(harshith)
+        admin = session.exec(select(User).where(User.email == "admin@serphawk.com")).first()
+        if admin:
+            admin.password = _hash_password("Admin123!")
+            session.add(admin)
+        session.commit()
+        session.close()
+    except Exception as e:
+        print("Admin user init error:", e)
+
+    try:
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN sidebar_preferences JSON;"))
             conn.commit()
