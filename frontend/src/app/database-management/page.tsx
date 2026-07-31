@@ -25,7 +25,7 @@ export default function DatabaseManagementPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem('crm_user');
     if (userStr) {
       try {
         const user = JSON.parse(userStr);
