@@ -10007,3 +10007,68 @@ def mark_email_replied(payload: EmailReplyUpdate, session: Session = Depends(get
         print(f"ERROR: {str(e)}")
         return {"error": str(e)}
 
+
+# ─── DATABASE MANAGEMENT ──────────────────────────────────────────────────
+from sqlalchemy import inspect
+
+@app.get("/admin/db/tables")
+def get_db_tables(session: Session = Depends(get_session)):
+    inspector = inspect(session.bind)
+    tables = inspector.get_table_names()
+    return {"tables": tables}
+
+@app.get("/admin/db/tables/{table_name}")
+def get_db_table_data(table_name: str, page: int = 1, per_page: int = 50, sort_col: str = None, sort_dir: str = "asc", session: Session = Depends(get_session)):
+    inspector = inspect(session.bind)
+    if table_name not in inspector.get_table_names():
+        raise HTTPException(status_code=404, detail="Table not found")
+        
+    columns = [{"name": col["name"], "type": str(col["type"])} for col in inspector.get_columns(table_name)]
+    
+    query = f'SELECT * FROM "{table_name}"'
+    if sort_col:
+        # Prevent basic SQL injection on column name
+        if sort_col in [c["name"] for c in columns]:
+            direction = "ASC" if sort_dir.lower() == "asc" else "DESC"
+            query += f' ORDER BY "{sort_col}" {direction}'
+    
+    query += f" LIMIT {per_page} OFFSET {(page - 1) * per_page}"
+    
+    result = session.exec(text(query)).mappings().all()
+    
+    # Get total count
+    count_query = f'SELECT COUNT(*) FROM "{table_name}"'
+    total = session.exec(text(count_query)).scalar()
+    
+    return {
+        "columns": columns,
+        "data": [dict(row) for row in result],
+        "total": total,
+        "page": page,
+        "per_page": per_page
+    }
+
+@app.get("/admin/db/export/{table_name}")
+def export_db_table(table_name: str, session: Session = Depends(get_session)):
+    from fastapi.responses import StreamingResponse
+    import csv, io
+    inspector = inspect(session.bind)
+    if table_name not in inspector.get_table_names():
+        raise HTTPException(status_code=404, detail="Table not found")
+        
+    columns = [col["name"] for col in inspector.get_columns(table_name)]
+    query = f'SELECT * FROM "{table_name}"'
+    result = session.exec(text(query)).mappings().all()
+    
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=columns)
+    writer.writeheader()
+    for row in result:
+        writer.writerow(dict(row))
+        
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={table_name}_export.csv"}
+    )
