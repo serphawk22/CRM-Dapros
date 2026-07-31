@@ -276,6 +276,10 @@ def on_startup():
             with engine.connect() as conn:
                 conn.execute(text(f'ALTER TABLE {table} ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE;'))
                 conn.execute(text(f'CREATE INDEX IF NOT EXISTS ix_{table}_tenant_id ON {table} (tenant_id);'))
+                
+                # Fix for existing records that have NULL tenant_id after migration
+                conn.execute(text(f'UPDATE {table} SET tenant_id = 1 WHERE tenant_id IS NULL;'))
+                
                 conn.commit()
         except Exception as e:
             print(f"Migration error for {table}: {e}")
