@@ -376,6 +376,8 @@ allowed_origins = [
     "https://web-production-80e20.up.railway.app",
     "https://crm-seo.allytechcourses.com",
     "https://crm-seo.serphawk.in",
+    "https://crm.serphawk.in",
+    "https://dapros-crm.serphawk.in",
 ]
 
 
