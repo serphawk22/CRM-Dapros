@@ -50,31 +50,31 @@ interface SidebarProps {
 
 const NOTIFICATION_COUNT = 3;
 
-const defaultSidebarSections = [
+const DEFAULT_SECTIONS = [
   {
-    id: "section-main",
+    id: "section-home",
     heading: null,
     items: [
       { id: "item-dashboard", name: "Dashboard", icon: "LayoutDashboard", href: "/", roles: ["Admin", "Employee", "Client", "Intern", "SalesManager"] },
       { id: "item-notifications", name: "Notifications", icon: "Bell", href: "/notifications", roles: ["Admin", "Employee", "Client"], badge: NOTIFICATION_COUNT },
-      { id: "item-work-queue", name: "My Work Queue", icon: "LayoutList", href: "/work-queue", roles: ["Admin", "Employee"] },
+      { id: "item-work-queue", name: "My Work Queue", icon: "LayoutList", href: "/work-queue", roles: ["Admin"] },
     ],
   },
   {
     id: "section-crm",
     heading: "CRM",
     items: [
-      { id: "item-leads", name: "Leads", icon: "Radar", href: "/leads", roles: ["Admin", "Employee", "SalesManager"] },
-      { id: "item-contacts", name: "Contacts", icon: "Users", href: "/contacts", roles: ["Admin", "Employee", "SalesManager"] },
-      { id: "item-clients", name: "Clients", icon: "CheckCircle", href: "/clients", roles: ["Admin", "Employee", "SalesManager"] },
+      { id: "item-leads", name: "Leads", icon: "Radar", href: "/leads", roles: ["Admin", "SalesManager"] },
+      { id: "item-contacts", name: "Contacts", icon: "Users", href: "/contacts", roles: ["Admin", "SalesManager"] },
+      { id: "item-clients", name: "Clients", icon: "CheckCircle", href: "/clients", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
     id: "section-activities",
     heading: "ACTIVITIES",
     items: [
-      { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "Employee", "SalesManager"] },
-      { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "Employee", "SalesManager"] },
+      { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "SalesManager"] },
+      { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
@@ -89,17 +89,17 @@ const defaultSidebarSections = [
     id: "section-teams",
     heading: "TEAMS",
     items: [
-      { id: "item-teams", name: "Team Directory", icon: "Users", href: "/teams", roles: ["Admin", "SalesManager", "Employee"] },
+      { id: "item-teams", name: "Team Directory", icon: "Users", href: "/teams", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
     id: "section-ai-agents",
     heading: "AI AGENTS",
     items: [
-      { id: "item-email-agent", name: "Email Agent", icon: "Mail", href: "/email-agent", roles: ["Admin", "Employee"] },
-      { id: "item-radar", name: "Radar Analysis", icon: "Radar", href: "/admin/radar", roles: ["Admin", "Employee"] },
-      { id: "item-competitor", name: "Competitor Analysis", icon: "BarChart2", href: "/admin/agents/competitor", roles: ["Admin", "Employee"] },
-      { id: "item-website-scanner", name: "Website Scanner", icon: "Globe", href: "/admin/agents/website-scanner", roles: ["Admin", "Employee"] },
+      { id: "item-email-agent", name: "Email Agent", icon: "Mail", href: "/email-agent", roles: ["Admin"] },
+      { id: "item-radar", name: "Radar Analysis", icon: "Radar", href: "/admin/radar", roles: ["Admin"] },
+      { id: "item-competitor", name: "Competitor Analysis", icon: "BarChart2", href: "/admin/agents/competitor", roles: ["Admin"] },
+      { id: "item-website-scanner", name: "Website Scanner", icon: "Globe", href: "/admin/agents/website-scanner", roles: ["Admin"] },
     ],
   },
   {
@@ -115,8 +115,8 @@ const defaultSidebarSections = [
     id: "section-support",
     heading: "SUPPORT",
     items: [
-      { id: "item-cases", name: "Cases", icon: "HeadphonesIcon", href: "/support/cases", roles: ["Admin", "Employee", "SalesManager"] },
-      { id: "item-solutions", name: "Solutions", icon: "BookOpen", href: "/support/solutions", roles: ["Admin", "Employee", "SalesManager"] },
+      { id: "item-cases", name: "Cases", icon: "HeadphonesIcon", href: "/support/cases", roles: ["Admin", "SalesManager"] },
+      { id: "item-solutions", name: "Solutions", icon: "BookOpen", href: "/support/solutions", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
@@ -124,7 +124,7 @@ const defaultSidebarSections = [
     heading: "FINANCIALS",
     items: [
       { id: "item-proposals", name: "Proposals", icon: "FileEdit", href: "/proposals", roles: ["Admin", "SalesManager"] },
-      { id: "item-marketplace", name: "Marketplace", icon: "ShoppingBag", href: "/admin/marketplace", roles: ["Admin", "Employee", "SalesManager"] },
+      { id: "item-marketplace", name: "Marketplace", icon: "ShoppingBag", href: "/admin/marketplace", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
