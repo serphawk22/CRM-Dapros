@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, Send, Briefcase, Target, Activity, Phone, GraduationCap, ArrowUpRight, CheckCircle2, TrendingUp, DollarSign, Timer, AlertTriangle } from "lucide-react";
+import { Users, Send, Briefcase, Target, Activity, Phone, GraduationCap, ArrowUpRight, CheckCircle2, TrendingUp, DollarSign, Timer, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,9 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
           </motion.div>
         ))}
       </div>
+
+      {/* CALL PITCH WIDGET */}
+      <CallPitchWidget />
 
       {/* QUICK LINKS GRID */}
       <motion.div variants={itemVariants} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm h-max">
@@ -207,5 +210,96 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+function CallPitchWidget() {
+  const [pitchData, setPitchData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [markingDone, setMarkingDone] = useState(false);
+
+  const fetchPitch = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard-call-pitch`);
+      if (res.ok) {
+        const data = await res.json();
+        setPitchData(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch call pitch", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPitch();
+  }, []);
+
+  const handleDone = async () => {
+    if (!pitchData?.client?.id) return;
+    setMarkingDone(true);
+    try {
+      await fetch(`${API_BASE_URL}/dashboard-call-pitch/${pitchData.client.id}/done`, { method: "POST" });
+      await fetchPitch();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setMarkingDone(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm p-6 mb-6 flex items-center justify-center h-40">
+        <Loader2 className="animate-spin text-[var(--primary)] w-6 h-6" />
+      </div>
+    );
+  }
+
+  if (!pitchData?.client) {
+    return null;
+  }
+
+  return (
+    <motion.div variants={itemVariants} className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-xl shadow-sm p-6 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+      
+      <div className="relative z-10 flex flex-col md:flex-row gap-6 items-start md:items-center">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-500 dark:text-indigo-400 text-[10px] uppercase tracking-wider font-bold rounded-md flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3" /> AI Call Pitch
+            </span>
+            <h3 className="font-bold text-lg text-[var(--text-primary)]">
+              {pitchData.client.companyName || pitchData.client.name || "Unknown Client"}
+            </h3>
+          </div>
+          
+          <p className="text-[var(--text-secondary)] text-sm leading-relaxed mb-4 italic font-medium">
+            "{pitchData.pitch_text}"
+          </p>
+          
+          <div className="flex gap-4 text-xs font-semibold text-[var(--text-secondary)]">
+            <span className="bg-[var(--surface)] px-2 py-1 rounded-md border border-[var(--border)]">
+              Industry: {pitchData.client.industry || "N/A"}
+            </span>
+            <span className="bg-[var(--surface)] px-2 py-1 rounded-md border border-[var(--border)]">
+              Phone: {pitchData.client.phone || "N/A"}
+            </span>
+          </div>
+        </div>
+        
+        <button 
+          onClick={handleDone}
+          disabled={markingDone}
+          className="shrink-0 flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-3 rounded-lg font-bold shadow-md transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0"
+        >
+          {markingDone ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+          Call Pitch is Done
+        </button>
+      </div>
+    </motion.div>
   );
 }

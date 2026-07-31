@@ -56,8 +56,10 @@ const emptyForm = {
   company_name: "", website: "", industry: "", email: "",
   phone: "", address: "", source: "Website", status: "New", notes: ""
 };
+import { useRole } from "@/context/RoleContext";
 
 export default function LeadsPage() {
+  const { role, user } = useRole();
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);

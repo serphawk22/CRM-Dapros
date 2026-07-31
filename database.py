@@ -362,6 +362,10 @@ class ClientProfile(SQLModel, table=True):
     contact_person: Optional[str] = Field(default=None, max_length=255)
     last_contact_date: Optional[str] = Field(default=None, max_length=50)
     next_followup_date: Optional[str] = Field(default=None, max_length=50)
+    
+    # AI Call Pitch Widget Tracking
+    call_pitch_done: bool = Field(default=False)
+    call_pitch_text: Optional[str] = Field(default=None, sa_column=Column(Text))
 
     # Geo & Radar Discovery Fields
     latitude: Optional[float] = Field(default=None)

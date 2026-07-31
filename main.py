@@ -292,6 +292,15 @@ def on_startup():
         
     try:
         with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE client_profiles ADD COLUMN IF NOT EXISTS call_pitch_done BOOLEAN DEFAULT FALSE;"))
+            conn.execute(text("ALTER TABLE client_profiles ADD COLUMN IF NOT EXISTS call_pitch_text TEXT;"))
+            conn.commit()
+            print("Successfully added call_pitch columns to client_profiles table.")
+    except Exception as e:
+        print("call_pitch columns already exist or error:", e)
+        
+    try:
+        with engine.connect() as conn:
             conn.execute(text("ALTER TABLE leads ADD COLUMN ai_analysis_results JSON;"))
             conn.commit()
             print("Successfully added ai_analysis_results to leads table.")
@@ -1439,6 +1448,52 @@ def log_page_visit(body: PageVisitRequest, session: Session = Depends(get_sessio
         time_spent_seconds=body.time_spent_seconds
     )
     session.add(visit)
+    session.commit()
+    return {"status": "ok"}
+
+
+@app.get("/dashboard-call-pitch")
+def get_dashboard_call_pitch(session: Session = Depends(get_session)):
+    client = session.exec(select(ClientProfile).where(ClientProfile.call_pitch_done == False).order_by(ClientProfile.id.desc())).first()
+    if not client:
+        return {"client": None, "pitch_text": None}
+        
+    if not client.call_pitch_text:
+        # Generate pitch using OpenAI
+        try:
+            import openai
+            import os
+            api_key = os.getenv("OPENAI_API_KEY", "dummy")
+            client_ai = openai.OpenAI(api_key=api_key)
+            prompt = f"Write a short, punchy 3-sentence sales call pitch for {client.companyName or 'a new client'} in the {client.industry or 'general'} industry. Target keywords: {client.targetKeywords}. Services offered: {client.services_offered}."
+            response = client_ai.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are a top-tier B2B sales expert."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=150
+            )
+            pitch = response.choices[0].message.content.strip()
+            client.call_pitch_text = pitch
+            session.add(client)
+            session.commit()
+            session.refresh(client)
+        except Exception as e:
+            print(f"Error generating call pitch: {e}")
+            client.call_pitch_text = "Hi! I noticed your company might need some help with SEO and growth. I'd love to chat about how we can help you scale."
+            session.add(client)
+            session.commit()
+            
+    return {"client": _client_dict(client, session), "pitch_text": client.call_pitch_text}
+
+@app.post("/dashboard-call-pitch/{client_id}/done")
+def mark_call_pitch_done(client_id: int, session: Session = Depends(get_session)):
+    client = session.exec(select(ClientProfile).where(ClientProfile.id == client_id)).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    client.call_pitch_done = True
+    session.add(client)
     session.commit()
     return {"status": "ok"}
 
