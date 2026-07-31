@@ -310,10 +310,22 @@ def on_startup():
         if harshith:
             harshith.role = "Admin"
             session.add(harshith)
+            
         admin = session.exec(select(User).where(User.email == "admin@serphawk.com")).first()
         if admin:
             admin.password = _hash_password("Admin123!")
             session.add(admin)
+            
+        sm = session.exec(select(User).where(User.email == "varsh@gmail.com")).first()
+        if sm:
+            sm.password = _hash_password("Admin123!")
+            session.add(sm)
+            
+        emp = session.exec(select(User).where(User.email == "varshit@gmail.com")).first()
+        if emp:
+            emp.password = _hash_password("Admin123!")
+            session.add(emp)
+            
         session.commit()
         session.close()
     except Exception as e:
