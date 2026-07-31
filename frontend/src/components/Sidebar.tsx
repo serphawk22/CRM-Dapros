@@ -50,7 +50,7 @@ interface SidebarProps {
 
 const NOTIFICATION_COUNT = 3;
 
-const DEFAULT_SECTIONS = [
+const defaultSidebarSections = [
   {
     id: "section-home",
     heading: null,
