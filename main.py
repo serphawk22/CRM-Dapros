@@ -10009,7 +10009,7 @@ def mark_email_replied(payload: EmailReplyUpdate, session: Session = Depends(get
 
 
 # ─── DATABASE MANAGEMENT ──────────────────────────────────────────────────
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 @app.get("/admin/db/tables")
 def get_db_tables(session: Session = Depends(get_session)):
