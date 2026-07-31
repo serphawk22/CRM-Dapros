@@ -39,7 +39,11 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       window.fetch = async (...args) => {
         let [resource, config] = args;
         const saved = localStorage.getItem('crm_user');
-        if (saved) {
+        
+        // Only inject tenant_id for internal API calls, not external ones like docs.google.com
+        const isInternalApi = typeof resource === 'string' && (resource.startsWith(API_BASE_URL) || resource.startsWith('/'));
+
+        if (saved && isInternalApi) {
           try {
             const parsed = JSON.parse(saved);
             if (parsed.tenant_id) {
