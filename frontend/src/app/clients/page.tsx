@@ -997,7 +997,10 @@ export default function ClientsPage() {
                               const r = await fetch(`${API_BASE_URL}/clients/import-sheet`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ csv_url: sheetUrl })
+                                body: JSON.stringify({ 
+                                  csv_url: sheetUrl,
+                                  assigned_employee_id: user?.id 
+                                })
                               });
                               // Actually just preview: fetch raw CSV separately for table display
                               const rawR = await fetch(sheetUrl);
@@ -1098,7 +1101,10 @@ export default function ClientsPage() {
                             const res = await fetch(`${API_BASE_URL}/clients/import-sheet`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ csv_text: rawCsv })
+                              body: JSON.stringify({ 
+                                csv_text: rawCsv,
+                                assigned_employee_id: user?.id
+                              })
                             });
                             const data = await res.json();
                             setSheetImportResult(data);

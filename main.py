@@ -1779,6 +1779,7 @@ import io as _io
 class SheetImportRequest(_BM):
     csv_url: _Opt[str] = None
     csv_text: _Opt[str] = None
+    assigned_employee_id: _Opt[int] = None
 
 @app.get("/dev/reset-clients")
 def dev_reset_clients(session: Session = Depends(get_session)):
@@ -1889,7 +1890,13 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
 
         dup = session.exec(select(ClientProfile).where(ClientProfile.companyName == company)).first()
         if dup:
-            skipped.append({"reason": "duplicate", "company": company, "existing_id": dup.id})
+            if not dup.assignedEmployeeId and body.assigned_employee_id:
+                dup.assignedEmployeeId = body.assigned_employee_id
+                session.add(dup)
+                session.commit()
+                added.append({"id": dup.id, "company": company, "assigned": True})
+            else:
+                skipped.append({"reason": "duplicate", "company": company, "existing_id": dup.id})
             continue
 
         # Strict data subset for CRM
@@ -1904,7 +1911,8 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
             companyName=company,
             phone=phone,
             status="Active",
-            customFields={"sheet_data": raw_sheet_data, "description": desc}
+            customFields={"sheet_data": raw_sheet_data, "description": desc},
+            assignedEmployeeId=body.assigned_employee_id
         )
 
         if email:
