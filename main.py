@@ -1915,13 +1915,8 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
                 skipped.append({"reason": "duplicate", "company": company, "existing_id": dup.id})
             continue
 
-        # Strict data subset for CRM
-        raw_sheet_data = {
-            "name": company,
-            "email": email or "",
-            "phone": phone or "",
-            "description": desc or ""
-        }
+        # Store the entire row data for sheet_data
+        raw_sheet_data = dict(row)
 
         cp = ClientProfile(
             companyName=company,
@@ -2034,17 +2029,14 @@ def export_clients_csv(session: Session = Depends(get_session)):
     clients_list = session.exec(select(ClientProfile).order_by(ClientProfile.id.asc())).all()
     output = _io.StringIO()
     writer = _csv.writer(output)
-    writer.writerow(["S.No","Client Name","Website URL","Email","Phone/Contact","Country",
-                     "Services Offered","Status","Market Size","Description","Assigned To"])
+    writer.writerow(["Client Name", "Email", "Phone"])
     for i, c in enumerate(clients_list, 1):
         user = session.get(User, c.userId) if c.userId else None
-        emp = session.get(User, c.assignedEmployeeId) if c.assignedEmployeeId else None
-        cf = c.customFields or {}
+        client_email = c.email if hasattr(c, 'email') and c.email else (user.email if user else "")
         writer.writerow([
-            i, c.companyName or "", c.websiteUrl or "", user.email if user else "",
-            c.phone or "", c.address or cf.get("country",""), c.services_offered or "",
-            c.status or "Active", cf.get("market_size",""),
-            cf.get("description", cf.get("ai_description","")), emp.name if emp else "Unassigned"
+            c.companyName or "", 
+            client_email,
+            c.phone or ""
         ])
     output.seek(0)
     return StreamingResponse(
@@ -2075,7 +2067,7 @@ def export_clients_pdf(session: Session = Depends(get_session)):
     elements.append(title)
     elements.append(Spacer(1, 12))
     
-    data = [["S.No", "Client Name", "Website URL", "Email", "Phone", "Status", "Assigned To"]]
+    data = [["S.No", "Client Name", "Email", "Phone"]]
     
     style_normal = styles["Normal"]
     style_normal.wordWrap = 'CJK'
@@ -2090,16 +2082,14 @@ def export_clients_pdf(session: Session = Depends(get_session)):
         emp = session.get(User, c.assignedEmployeeId) if c.assignedEmployeeId else None
         
         name = Paragraph(truncate(c.companyName, 50), style_normal)
-        website = Paragraph(truncate(c.websiteUrl, 40), style_normal)
-        email = Paragraph(truncate(user.email if user else "", 40), style_normal)
+        client_email = c.email if hasattr(c, 'email') and c.email else (user.email if user else "")
+        email = Paragraph(truncate(client_email, 40), style_normal)
         phone = Paragraph(truncate(c.phone, 30), style_normal)
-        status = Paragraph(truncate(c.status or "Active", 20), style_normal)
-        assigned = Paragraph(truncate(emp.name if emp else "Unassigned", 20), style_normal)
         
-        data.append([str(i), name, website, email, phone, status, assigned])
+        data.append([str(i), name, email, phone])
         
     # Col widths (total A4 landscape width is ~842, minus margins (60) = 782)
-    col_widths = [40, 140, 140, 160, 100, 80, 100]
+    col_widths = [40, 300, 242, 200]
     
     table = Table(data, colWidths=col_widths, repeatRows=1)
     table.setStyle(TableStyle([
