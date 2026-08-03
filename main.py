@@ -4275,6 +4275,61 @@ def dashboard_stats(
     email: str = Query(""),
     session: Session = Depends(get_session),
 ):
+    if role == "SalesManager":
+        user = session.exec(select(User).where(User.email == email)).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        assigned_leads_count = session.exec(
+            select(func.count(Lead.id)).where(Lead.owner_id == user.id)
+        ).first() or 0
+        
+        assigned_contacts_count = session.exec(
+            select(func.count(Contact.id)).where(Contact.owner_id == user.id)
+        ).first() or 0
+        
+        assigned_clients_count = session.exec(
+            select(func.count(ClientProfile.id)).where(ClientProfile.assignedEmployeeId == user.id)
+        ).first() or 0
+        
+        recent_meetings = session.exec(
+            select(Meeting).where(Meeting.host_id == user.id).order_by(Meeting.scheduled_at.desc()).limit(5)
+        ).all()
+        
+        recent_calls = session.exec(
+            select(CallLog).where(
+                or_(CallLog.assigned_to == user.name, CallLog.assigned_to == str(user.id))
+            ).order_by(CallLog.createdAt.desc()).limit(5)
+        ).all()
+        
+        activities = []
+        for m in recent_meetings:
+            activities.append({
+                "type": "Meeting",
+                "title": m.title,
+                "date": m.scheduled_at.isoformat() if m.scheduled_at else None,
+                "status": m.status
+            })
+        for c in recent_calls:
+            activities.append({
+                "type": "Call",
+                "title": c.summary or f"Call to {c.phone_number}",
+                "date": c.createdAt.isoformat() if c.createdAt else None,
+                "status": "Completed"
+            })
+            
+        activities.sort(key=lambda x: x["date"] or "", reverse=True)
+        
+        return {
+            "isSalesManager": True,
+            "metrics": {
+                "assigned_leads": assigned_leads_count,
+                "assigned_contacts": assigned_contacts_count,
+                "assigned_clients": assigned_clients_count
+            },
+            "recent_activity": activities[:5]
+        }
+
     if role in ["Client", "ProjectMember", "Intern"]:
         user = session.exec(select(User).where(User.email == email)).first()
         if not user:

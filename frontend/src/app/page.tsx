@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import PageGuide from '@/components/PageGuide';
 import { AdminDashboard } from "@/components/AdminDashboard";
 import { DeveloperDashboard } from "@/components/DeveloperDashboard";
+import { SalesManagerDashboard } from "@/components/SalesManagerDashboard";
 import Link from "next/link";
 
 const containerVariants = {
@@ -229,9 +230,10 @@ function Dashboard() {
   return (
     <motion.div initial="hidden" animate="show" variants={containerVariants} className={cn(isAdmin || role === 'ProjectMember' ? "space-y-6" : "")}>
       {role === "ProjectMember" && <DeveloperDashboard />}
+      {role === "SalesManager" && <SalesManagerDashboard />}
       {isAdmin && adminStats && <AdminDashboard adminStats={adminStats} NAV_CARDS={NAV_CARDS} language={language} />}
       {/* ── CLIENT VIEW — EDITORIAL CHAPTERS ────────────────────────── */}
-      {!isAdmin && role !== "ProjectMember" && (
+      {!isAdmin && role !== "ProjectMember" && role !== "SalesManager" && (
         <div className="client-editorial">
 
           <div className="mb-6 px-4">
