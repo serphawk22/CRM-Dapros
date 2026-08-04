@@ -99,114 +99,161 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
         </div>
       </motion.div>
 
-      {/* TEAM DIRECTORY */}
+      {/* FINANCIAL & PIPELINE CHARTS */}
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+        
+        {/* REVENUE CHART */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden flex flex-col h-[400px]">
           <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30">
-            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2"><Briefcase className="w-5 h-5 text-indigo-500"/> Sales & Management Team</h3>
+            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-500"/> Financial Overview
+            </h3>
+            <span className="text-xs font-semibold px-2.5 py-1 bg-emerald-500/10 text-emerald-600 rounded-md">Last 6 Months</span>
           </div>
-          <div className="divide-y divide-[var(--border)]">
-            {salesTeam.map(u => (
-              <div key={u.id} className="p-4 flex items-center gap-4 hover:bg-[var(--sidebar-hover)] transition-colors">
-                <div className="w-10 h-10 rounded-full bg-indigo-500/10 text-indigo-600 flex items-center justify-center font-bold">{u.name?.charAt(0)}</div>
-                <div>
-                  <p className="text-sm font-bold text-[var(--text-primary)]">{u.name}</p>
-                  <p className="text-xs text-[var(--text-secondary)]">{u.email} • {u.role}</p>
-                </div>
+          <div className="p-5 flex-1 w-full h-full min-h-0">
+            {adminStats?.revenueData?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={adminStats.revenueData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} tickFormatter={(val) => `$${val/1000}k`} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '12px', fontWeight: 'bold' }} 
+                    itemStyle={{ color: 'var(--text-primary)' }}
+                    formatter={(value: any) => [`$${value.toLocaleString()}`, '']}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} />
+                  <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
+                  <Area type="monotone" dataKey="expenses" name="Expenses" stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExp)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-secondary)]">
+                <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm font-medium">No financial data available</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
+
+        {/* PIPELINE CHART */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden flex flex-col h-[400px]">
           <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30">
-            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2"><GraduationCap className="w-5 h-5 text-emerald-500"/> Development Team</h3>
+            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <Target className="w-5 h-5 text-indigo-500"/> Sales Pipeline
+            </h3>
+            <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-500/10 text-indigo-600 rounded-md">Active Deals</span>
           </div>
-          <div className="divide-y divide-[var(--border)]">
-            {devTeam.map(u => (
-              <div key={u.id} className="p-4 flex items-center gap-4 hover:bg-[var(--sidebar-hover)] transition-colors">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">{u.name?.charAt(0)}</div>
-                <div>
-                  <p className="text-sm font-bold text-[var(--text-primary)]">{u.name}</p>
-                  <p className="text-xs text-[var(--text-secondary)]">{u.email} • {u.role}</p>
-                </div>
+          <div className="p-5 flex-1 w-full h-full min-h-0">
+            {adminStats?.pipelineData?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={adminStats.pipelineData} layout="vertical" margin={{ top: 0, right: 20, left: 20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--border)" />
+                  <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
+                  <YAxis dataKey="stage" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-primary)', fontWeight: 600 }} width={90} />
+                  <Tooltip 
+                    cursor={{ fill: 'var(--sidebar-hover)' }}
+                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '12px', fontWeight: 'bold' }} 
+                  />
+                  <Bar dataKey="count" name="Deals" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-secondary)]">
+                <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm font-medium">No pipeline data available</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </motion.div>
 
-      {/* SALESPERSON UI - MY CLIENTS */}
-      {isSales && (
-        <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30">
-              <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2"><Users className="w-5 h-5 text-blue-500"/> My Clients</h3>
-              <Link href="/clients" className="text-xs text-[var(--primary)] hover:underline font-bold">View All</Link>
-            </div>
-            <div className="divide-y divide-[var(--border)]">
-              {myClients.slice(0, 5).map(c => (
-                <div key={c.id} className="p-4 flex items-center justify-between hover:bg-[var(--sidebar-hover)] transition-colors">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--text-primary)]">{c.companyName || c.name || c.email}</p>
-                    <p className="text-xs text-[var(--text-secondary)]">{c.industry || 'No Industry'} • {c.status}</p>
-                  </div>
-                  <Link href={`/clients/${c.id}`} className="p-2 hover:bg-[var(--primary)]/10 text-[var(--primary)] rounded-lg transition-colors">
-                    <ArrowUpRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              ))}
-              {myClients.length === 0 && <div className="p-8 text-center text-sm text-[var(--text-secondary)]">No clients assigned yet.</div>}
-            </div>
+      {/* TEAM ENGAGEMENT & ACTIVITY */}
+      <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* ENGAGEMENT CHART (Takes 2 columns) */}
+        <div className="lg:col-span-2 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden flex flex-col h-[350px]">
+          <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30">
+            <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2">
+              <Activity className="w-5 h-5 text-blue-500"/> Team Engagement Trends
+            </h3>
+            <span className="text-xs font-semibold px-2.5 py-1 bg-blue-500/10 text-blue-600 rounded-md">Last 7 Days</span>
           </div>
-          
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden">
-            <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30">
-              <h3 className="font-bold text-[var(--text-primary)] flex items-center gap-2"><Target className="w-5 h-5 text-amber-500"/> My Leads</h3>
-              <Link href="/leads" className="text-xs text-[var(--primary)] hover:underline font-bold">View All</Link>
-            </div>
-            <div className="divide-y divide-[var(--border)]">
-              {myLeads.slice(0, 5).map(l => (
-                <div key={l.id} className="p-4 flex items-center justify-between hover:bg-[var(--sidebar-hover)] transition-colors">
-                  <div>
-                    <p className="text-sm font-bold text-[var(--text-primary)]">{l.name || l.email}</p>
-                    <p className="text-xs text-[var(--text-secondary)]">{l.company || 'No Company'} • {l.status}</p>
-                  </div>
-                  <Link href={`/leads`} className="p-2 hover:bg-[var(--primary)]/10 text-[var(--primary)] rounded-lg transition-colors">
-                    <ArrowUpRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              ))}
-              {myLeads.length === 0 && <div className="p-8 text-center text-sm text-[var(--text-secondary)]">No leads assigned yet.</div>}
-            </div>
+          <div className="p-5 flex-1 w-full h-full min-h-0">
+            {adminStats?.chartLabels?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={adminStats.chartLabels.map((label: string, i: number) => ({
+                  name: label,
+                  activities: adminStats.activityChart?.[i] || 0,
+                  emails: adminStats.emailChart?.[i] || 0,
+                  calls: adminStats.callChart?.[i] || 0
+                }))} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorAct" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '12px', fontWeight: 'bold' }} 
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                  <Area type="monotone" dataKey="activities" name="Total Activities" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorAct)" />
+                  <Area type="step" dataKey="emails" name="Emails Sent" stroke="#f59e0b" strokeWidth={2} fill="transparent" strokeDasharray="4 4" />
+                  <Area type="step" dataKey="calls" name="Calls Made" stroke="#8b5cf6" strokeWidth={2} fill="transparent" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-[var(--text-secondary)]">
+                <AlertTriangle className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm font-medium">No activity data available</p>
+              </div>
+            )}
           </div>
-        </motion.div>
-      )}
-
-      {/* RECENT ACTIVITY */}
-      <motion.div variants={itemVariants} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm">
-        <div className="p-5 border-b border-[var(--border)] flex justify-between items-center">
-          <h3 className="font-bold text-[var(--text-primary)]">Recent Activity</h3>
-          <Link href="/email-agent" className="text-xs font-semibold text-[var(--primary)] hover:underline">View All</Link>
         </div>
-        <div className="p-0">
-          {(adminStats?.recentActivities?.length ?? 0) === 0 ? (
-            <div className="p-8 text-center text-[var(--text-secondary)]">No activities yet.</div>
-          ) : (
-            <div className="divide-y divide-[var(--border)]">
-              {adminStats.recentActivities.slice(0, 10).map((act: any) => (
-                <div key={act.id} className="p-4 flex gap-4 hover:bg-[var(--sidebar-hover)] transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0">
-                    <Activity className="w-4 h-4" />
+
+        {/* RECENT ACTIVITY LIST (Takes 1 column) */}
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm flex flex-col h-[350px] overflow-hidden">
+          <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30 shrink-0">
+            <h3 className="font-bold text-[var(--text-primary)]">Recent Activity</h3>
+            <Link href="/email-agent" className="text-xs font-semibold text-[var(--primary)] hover:underline">View All</Link>
+          </div>
+          <div className="overflow-y-auto flex-1">
+            {(adminStats?.recentActivities?.length ?? 0) === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-[var(--text-secondary)] opacity-60 p-8 text-center">
+                <Timer className="w-8 h-8 mb-2" />
+                <p className="text-sm">No activities recorded yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--border)]">
+                {adminStats.recentActivities.slice(0, 10).map((act: any) => (
+                  <div key={act.id} className="p-4 flex gap-4 hover:bg-[var(--sidebar-hover)] transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center shrink-0 mt-0.5">
+                      <Activity className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[var(--text-primary)] leading-tight">{act.action}</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-2 leading-relaxed">{act.content}</p>
+                      <p className="text-[10px] text-[var(--text-secondary)]/60 mt-1.5 font-semibold uppercase tracking-wider">{act.createdAt ? new Date(act.createdAt).toLocaleString() : ""}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">{act.action}</p>
-                    <p className="text-xs text-[var(--text-secondary)] mt-0.5">{act.content}</p>
-                    <p className="text-[10px] text-[var(--text-secondary)]/70 mt-1 font-medium">{act.createdAt ? new Date(act.createdAt).toLocaleString() : ""}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </motion.div>
     </div>
