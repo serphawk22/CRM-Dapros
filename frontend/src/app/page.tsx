@@ -122,6 +122,14 @@ export default function HomePage() {
     return null;
   }
 
+  // Redirect Employee to Project Dashboard
+  if (role === "Employee") {
+    if (typeof window !== "undefined") {
+      router.replace("/projects");
+    }
+    return null;
+  }
+
   // Show dashboard if authenticated
   return <Dashboard />;
 }
@@ -131,7 +139,7 @@ function Dashboard() {
   const { t, language } = useLanguage();
   const [stats, setStats] = useState<StatsData>(null);
   const [loading, setLoading] = useState(true);
-  const isAdmin = role === "Admin" || role === "Employee";
+  const isAdmin = role === "Admin";
 
   const NAV_CARDS = [
     { href: "/clients", icon: Users, gradient: "from-indigo-500 to-indigo-600", title: language === 'es' ? "Centro de Clientes" : "Clients Hub", description: language === 'es' ? "La Fundación: Gestione cada perfil de cliente, realice un seguimiento de los protocolos de crecimiento, hitos y mantenga relaciones profesionales en un solo lugar." : "The Foundation: Manage every client profile, track growth protocols, milestones, and maintain professional relationships in one central hub.", roles: ["Admin", "Employee", "SalesManager"] },

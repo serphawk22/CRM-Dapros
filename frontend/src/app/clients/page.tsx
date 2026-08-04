@@ -494,7 +494,10 @@ export default function ClientsPage() {
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{t("clients.description")}</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => window.open(`${API_BASE_URL}/clients/export-csv`, '_blank')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
+            <button onClick={() => {
+              const tid = localStorage.getItem('tenant_id');
+              window.open(`${API_BASE_URL}/clients/export-csv${tid ? `?tenant_id=${tid}` : ''}`, '_blank');
+            }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
               <Download className="w-4 h-4" /> Export CSV
             </button>
             <button onClick={() => setIsExportModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">

@@ -1744,7 +1744,26 @@ def list_clients(
     if assigned_employee_id is not None:
         q = q.where(ClientProfile.assignedEmployeeId == assigned_employee_id)
 
-    total = session.exec(select(func.count()).select_from(q.subquery())).one()
+    tenant_id = current_tenant_id.get()
+    count_q = select(func.count()).select_from(ClientProfile)
+    if tenant_id and tenant_id != 1:
+        count_q = count_q.where(ClientProfile.tenant_id == tenant_id)
+        
+    if status and status != "All":
+        count_q = count_q.where(ClientProfile.status == status)
+    if query:
+        search_term = f"%{query}%"
+        cond = or_(
+            ClientProfile.companyName.ilike(search_term),
+            ClientProfile.projectName.ilike(search_term),
+            ClientProfile.websiteUrl.ilike(search_term),
+            ClientProfile.gmbName.ilike(search_term),
+        )
+        count_q = count_q.where(cond)
+    if assigned_employee_id is not None:
+        count_q = count_q.where(ClientProfile.assignedEmployeeId == assigned_employee_id)
+
+    total = session.exec(count_q).one()
     clients = session.exec(q.offset((page - 1) * per_page).limit(per_page)).all()
     return {
         "clients": [_client_dict(c, session) for c in clients],
@@ -1756,6 +1775,13 @@ def list_clients(
 
 @app.post("/clients")
 def create_client(body: ClientCreateRequest, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if tenant_id and tenant_id != 1:
+        tenant = session.get(Tenant, tenant_id)
+        if tenant:
+            current_count = session.exec(select(func.count(ClientProfile.id)).where(ClientProfile.tenant_id == tenant_id)).one()
+            if current_count >= tenant.limit_clients:
+                raise HTTPException(status_code=403, detail=f"Client limit reached. Maximum allowed: {tenant.limit_clients}")
     check_tenant_limit(session, "clients")
     user = None
     if body.email:
@@ -1881,6 +1907,13 @@ def dev_patch_invoices(session: Session = Depends(get_session)):
 
 @app.post("/clients/import-sheet")
 async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if tenant_id and tenant_id != 1:
+        tenant = session.get(Tenant, tenant_id)
+        if tenant:
+            current_count = session.exec(select(func.count(ClientProfile.id)).where(ClientProfile.tenant_id == tenant_id)).one()
+            if current_count >= tenant.limit_clients:
+                raise HTTPException(status_code=403, detail=f"Client limit reached. Maximum allowed: {tenant.limit_clients}")
     import httpx
 
     raw_csv = body.csv_text
@@ -1931,6 +1964,12 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
 
         # Store the entire row data for sheet_data
         raw_sheet_data = dict(row)
+
+        if tenant_id and tenant_id != 1 and tenant:
+            if current_count >= tenant.limit_clients:
+                skipped.append({"reason": f"limit reached (max {tenant.limit_clients})", "company": company})
+                continue
+            current_count += 1
 
         cp = ClientProfile(
             companyName=company,
@@ -2037,10 +2076,13 @@ async def _auto_research_client_bg(client_id: int, website: str):
 
 # ─── CSV Export ────────────────────────────────────────────────────────────────
 @app.get("/clients/export-csv")
-def export_clients_csv(session: Session = Depends(get_session)):
+def export_clients_csv(tenant_id: Optional[int] = None, session: Session = Depends(get_session)):
     from fastapi.responses import StreamingResponse
 
-    clients_list = session.exec(select(ClientProfile).order_by(ClientProfile.id.asc())).all()
+    q = select(ClientProfile)
+    if tenant_id and tenant_id != 1:
+        q = q.where(ClientProfile.tenant_id == tenant_id)
+    clients_list = session.exec(q.order_by(ClientProfile.id.asc())).all()
     output = _io.StringIO()
     writer = _csv.writer(output)
     writer.writerow(["Client Name", "Email", "Phone"])
@@ -7921,6 +7963,13 @@ def get_leads(owner_id: Optional[int] = None, session: Session = Depends(get_ses
 
 @app.post("/leads")
 def create_lead(body: LeadCreateRequest, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if tenant_id and tenant_id != 1:
+        tenant = session.get(Tenant, tenant_id)
+        if tenant:
+            current_count = session.exec(select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id)).one()
+            if current_count >= tenant.limit_clients:
+                raise HTTPException(status_code=403, detail=f"Lead limit reached. Maximum allowed: {tenant.limit_clients}")
     lead = Lead(**body.dict())
     session.add(lead)
     session.commit()
