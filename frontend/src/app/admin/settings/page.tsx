@@ -123,12 +123,12 @@ export default function SettingsPage() {
   const { user, logout } = useRole();
 
   // Profile
-  const [name, setName] = useState(user?.name || "Brajesh");
-  const [email] = useState(user?.email || "brajesh@serphawk.com");
-  const [phone, setPhone] = useState("+91 85199 90425");
-  const [location, setLocation] = useState("New Delhi, India");
-  const [company, setCompany] = useState("SERP Hawk");
-  const [bio, setBio] = useState("Admin & Growth Strategist at SERP Hawk. Passionate about SEO & SaaS.");
+  const [name, setName] = useState(user?.name || "");
+  const [email] = useState(user?.email || "");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
+  const [company, setCompany] = useState("");
+  const [bio, setBio] = useState("");
   const [avatar, setAvatar] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -164,7 +164,7 @@ export default function SettingsPage() {
     reader.readAsDataURL(file);
   };
 
-  const initial = name.charAt(0).toUpperCase();
+  const initial = (name || email || "?").charAt(0).toUpperCase();
 
   const saveProfile = async () => {
     setProfileSaving(true);

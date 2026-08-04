@@ -12,6 +12,10 @@ export default function SuperAdminPage() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
 
   useEffect(() => {
+    if (user && user.email !== "admin@serphawk.com") {
+      window.location.href = "/";
+      return;
+    }
     fetch(`${API_BASE_URL}/superadmin/tenants`)
       .then(res => res.json())
       .then(data => {
@@ -32,6 +36,8 @@ export default function SuperAdminPage() {
       setAnalyzing(null);
     }
   };
+
+  if (user && user.email !== "admin@serphawk.com") return null;
 
   if (loading) return <div className="p-8">Loading Telemetry Data...</div>;
 

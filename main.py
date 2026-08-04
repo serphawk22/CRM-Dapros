@@ -4586,7 +4586,13 @@ def dashboard_stats(
         select(ActivityLog).order_by(ActivityLog.createdAt.desc()).limit(10)
     ).all()
 
+    all_proposals = session.exec(select(Proposal)).all()
+    total_revenue = sum(inv.total or 0 for inv in all_invoices if inv.status == "Paid")
+    total_pipeline_value = sum(p.total_value or 0 for p in all_proposals if p.status not in ("Accepted", "Declined"))
+
     return {
+        "revenue": total_revenue,
+        "pipelineValue": total_pipeline_value,
         "total": total_clients,
         "active": active_clients,
         "pending": pending_clients,

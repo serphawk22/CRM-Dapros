@@ -7,21 +7,33 @@ from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/api-intelligence", tags=["API Intelligence"])
 
+from fastapi import Request
+
 @router.get("/overview")
-def get_overview(session: Session = Depends(get_session)):
+def get_overview(request: Request, session: Session = Depends(get_session)):
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    tenant_id = int(tenant_id_header) if tenant_id_header else None
+    
+    # Base query helpers
+    def base_query(model_attr):
+        q = select(model_attr)
+        if tenant_id and tenant_id != 1:
+            q = q.where(ApiRequest.tenant_id == tenant_id)
+        return q
+
     # Total API Calls
-    total_calls = session.exec(select(func.count(ApiRequest.id))).one()
+    total_calls = session.exec(base_query(func.count(ApiRequest.id))).one()
     
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = today_start - timedelta(days=7)
     month_start = today_start.replace(day=1)
     
-    today_calls = session.exec(select(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= today_start)).one()
-    week_calls = session.exec(select(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= week_start)).one()
-    month_calls = session.exec(select(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= month_start)).one()
+    today_calls = session.exec(base_query(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= today_start)).one()
+    week_calls = session.exec(base_query(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= week_start)).one()
+    month_calls = session.exec(base_query(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= month_start)).one()
     
     # Token & Cost
-    totals = session.exec(select(
+    totals = session.exec(base_query(ApiRequest.id).with_only_columns(
         func.sum(ApiRequest.input_tokens),
         func.sum(ApiRequest.output_tokens),
         func.sum(ApiRequest.reasoning_tokens),
@@ -35,9 +47,9 @@ def get_overview(session: Session = Depends(get_session)):
     total_tok = totals[3] or 0
     total_cost = totals[4] or 0.0
 
-    today_cost = session.exec(select(func.sum(ApiRequest.total_cost)).where(ApiRequest.timestamp >= today_start)).one() or 0.0
-    week_cost = session.exec(select(func.sum(ApiRequest.total_cost)).where(ApiRequest.timestamp >= week_start)).one() or 0.0
-    month_cost = session.exec(select(func.sum(ApiRequest.total_cost)).where(ApiRequest.timestamp >= month_start)).one() or 0.0
+    today_cost = session.exec(base_query(func.sum(ApiRequest.total_cost)).where(ApiRequest.timestamp >= today_start)).one() or 0.0
+    week_cost = session.exec(base_query(func.sum(ApiRequest.total_cost)).where(ApiRequest.timestamp >= week_start)).one() or 0.0
+    month_cost = session.exec(base_query(func.sum(ApiRequest.total_cost)).where(ApiRequest.timestamp >= month_start)).one() or 0.0
 
     return {
         "calls": {
@@ -62,7 +74,10 @@ def get_overview(session: Session = Depends(get_session)):
     }
 
 @router.get("/providers")
-def get_providers(session: Session = Depends(get_session)):
+def get_providers(request: Request, session: Session = Depends(get_session)):
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    tenant_id = int(tenant_id_header) if tenant_id_header else None
+
     query = select(
         ApiRequest.provider,
         func.count(ApiRequest.id).label("calls"),
@@ -71,6 +86,8 @@ def get_providers(session: Session = Depends(get_session)):
         func.avg(ApiRequest.response_time_ms).label("avg_latency"),
         func.sum(func.cast(~ApiRequest.success, Integer)).label("errors")
     ).group_by(ApiRequest.provider)
+    if tenant_id and tenant_id != 1:
+        query = query.where(ApiRequest.tenant_id == tenant_id)
     
     results = session.exec(query).all()
     out = []
@@ -88,7 +105,10 @@ def get_providers(session: Session = Depends(get_session)):
     return out
 
 @router.get("/salespersons")
-def get_salespersons(session: Session = Depends(get_session)):
+def get_salespersons(request: Request, session: Session = Depends(get_session)):
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    tenant_id = int(tenant_id_header) if tenant_id_header else None
+
     query = select(
         User.id,
         User.name,
@@ -96,12 +116,17 @@ def get_salespersons(session: Session = Depends(get_session)):
         func.sum(ApiRequest.total_tokens).label("tokens"),
         func.sum(ApiRequest.total_cost).label("cost")
     ).outerjoin(ApiRequest, User.id == ApiRequest.salesperson_id).where(User.role.in_(["Employee", "Admin", "SalesManager"])).group_by(User.id, User.name)
+    if tenant_id and tenant_id != 1:
+        query = query.where(User.tenant_id == tenant_id)
     
     results = session.exec(query).all()
     return [{"id": r[0], "name": r[1], "calls": r[2] or 0, "tokens": r[3] or 0, "cost": r[4] or 0.0} for r in results]
 
 @router.get("/clients")
-def get_clients(session: Session = Depends(get_session)):
+def get_clients(request: Request, session: Session = Depends(get_session)):
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    tenant_id = int(tenant_id_header) if tenant_id_header else None
+
     query = select(
         ClientProfile.id,
         ClientProfile.companyName,
@@ -110,12 +135,17 @@ def get_clients(session: Session = Depends(get_session)):
         func.sum(ApiRequest.total_cost).label("cost"),
         func.max(ApiRequest.timestamp).label("last_activity")
     ).outerjoin(ApiRequest, ClientProfile.id == ApiRequest.client_id).group_by(ClientProfile.id, ClientProfile.companyName)
+    if tenant_id and tenant_id != 1:
+        query = query.where(ClientProfile.tenant_id == tenant_id)
     
     results = session.exec(query).all()
     return [{"id": r[0], "companyName": r[1], "calls": r[2] or 0, "tokens": r[3] or 0, "cost": r[4] or 0.0, "last_activity": r[5]} for r in results]
 
 @router.get("/endpoints")
-def get_endpoints(session: Session = Depends(get_session)):
+def get_endpoints(request: Request, session: Session = Depends(get_session)):
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    tenant_id = int(tenant_id_header) if tenant_id_header else None
+
     query = select(
         ApiRequest.endpoint,
         func.count(ApiRequest.id).label("hits"),
@@ -124,13 +154,21 @@ def get_endpoints(session: Session = Depends(get_session)):
         func.sum(ApiRequest.total_cost).label("cost"),
         func.sum(func.cast(~ApiRequest.success, Integer)).label("errors")
     ).group_by(ApiRequest.endpoint)
+    if tenant_id and tenant_id != 1:
+        query = query.where(ApiRequest.tenant_id == tenant_id)
     
     results = session.exec(query).all()
     return [{"endpoint": r[0], "hits": r[1] or 0, "avg_latency": float(r[2] or 0.0), "tokens": r[3] or 0, "cost": r[4] or 0.0, "error_rate": ((r[5] or 0)/(r[1] or 1))*100} for r in results]
 
 @router.get("/requests")
-def get_requests(limit: int = 50, session: Session = Depends(get_session)):
-    reqs = session.exec(select(ApiRequest).order_by(ApiRequest.timestamp.desc()).limit(limit)).all()
+def get_requests(request: Request, limit: int = 50, session: Session = Depends(get_session)):
+    tenant_id_header = request.headers.get("X-Tenant-ID")
+    tenant_id = int(tenant_id_header) if tenant_id_header else None
+
+    query = select(ApiRequest).order_by(ApiRequest.timestamp.desc()).limit(limit)
+    if tenant_id and tenant_id != 1:
+        query = query.where(ApiRequest.tenant_id == tenant_id)
+    reqs = session.exec(query).all()
     
     # join salesperson and client names for ui
     out = []
