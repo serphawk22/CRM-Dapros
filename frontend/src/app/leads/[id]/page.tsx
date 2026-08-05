@@ -493,12 +493,6 @@ export default function AdminLeadDetailPage() {
   const [newUserForm, setNewUserForm] = useState({ name: '', email: '', role: 'SalesManager', password: 'password123' });
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
 
-  // Force light theme always — no dark mode on this page
-  useEffect(() => {
-    document.documentElement.classList.remove('dark');
-    localStorage.setItem('crm-dark-mode', 'false');
-    setDarkMode(false);
-  }, []);
 
   const toggleDarkMode = () => {
     // Light theme only — toggle is a no-op
