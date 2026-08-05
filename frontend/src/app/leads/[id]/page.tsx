@@ -202,7 +202,7 @@ export default function LeadDetailPage() {
 
   const fetchLeadData = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}`);
+      const res = await fetch(`${API_BASE_URL}/leads/${id}`);
       if (res.ok) {
         const data = await res.json();
         setLead(data);
@@ -239,7 +239,7 @@ export default function LeadDetailPage() {
 
   const fetchRemarks = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/remarks`);
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/remarks`);
       if (res.ok) {
         const data = await res.json();
         setRemarks(data.remarks || []);
@@ -251,7 +251,7 @@ export default function LeadDetailPage() {
 
   const fetchActivities = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/activities`);
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/activities`);
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -263,7 +263,7 @@ export default function LeadDetailPage() {
 
   const fetchEmails = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/emails`);
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/emails`);
       if (res.ok) {
         const data = await res.json();
         setEmails(data.emails || []);
@@ -287,7 +287,7 @@ export default function LeadDetailPage() {
 
   const fetchTimeline = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/timeline`);
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/timeline`);
       if (res.ok) {
         const data = await res.json();
         setTimeline(data.timeline || []);
@@ -299,7 +299,7 @@ export default function LeadDetailPage() {
 
   const handleAssignEmployee = async (employeeId: number) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/assign-employee`, {
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/assign-employee`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ employee_id: employeeId })
@@ -318,7 +318,7 @@ export default function LeadDetailPage() {
     if (!newKeyword.trim()) return;
     setLoading(true);
     try {
-      const res = await axios.post(`${API_BASE_URL}/clients/${id}/keywords`, { keyword: newKeyword });
+      const res = await axios.post(`${API_BASE_URL}/leads/${id}/keywords`, { keyword: newKeyword });
       if (res.data.success) {
         setNewKeyword('');
         setIsKeywordModalOpen(false);
@@ -335,7 +335,7 @@ export default function LeadDetailPage() {
   const handleRemoveKeyword = async (keyword: string) => {
     if (!confirm(`Remove keyword "${keyword}"?`)) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/keywords`, {
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/keywords`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword })
@@ -353,7 +353,7 @@ export default function LeadDetailPage() {
     const form = e.target as HTMLFormElement;
     const content = (form.elements.namedItem('content') as HTMLTextAreaElement).value;
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/remarks`, {
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/remarks`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, createdBy: 'Admin' })
@@ -377,7 +377,7 @@ export default function LeadDetailPage() {
       content: formData.get('content') as string
     };
     try {
-      const res = await axios.post(`${API_BASE_URL}/clients/${id}/activities`, data);
+      const res = await axios.post(`${API_BASE_URL}/leads/${id}/activities`, data);
       if (res.data.success) {
         fetchActivities();
         setIsActivityModalOpen(false);
@@ -393,7 +393,7 @@ export default function LeadDetailPage() {
 
   const updateProfile = async (updates: any) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/leads/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
@@ -409,7 +409,7 @@ export default function LeadDetailPage() {
   const handleSimulateCall = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${id}/simulate-call`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/leads/${id}/simulate-call`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         alert(`AI Pitch Generated:\n\n${data.pitch}`);
