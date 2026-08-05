@@ -1939,7 +1939,7 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
         def get_field(keys):
             for k in keys:
                 for rk in row.keys():
-                    if rk.strip().lower() == k.lower():
+                    if rk and rk.strip().lower() == k.lower():
                         v = row[rk]
                         return v.strip() if v else None
             return None
