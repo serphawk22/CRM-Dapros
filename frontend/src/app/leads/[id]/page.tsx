@@ -1,1234 +1,955 @@
-"use client";
+'use lead';
 
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Globe, 
-  User, 
-  MapPin, 
-  ShieldCheck, 
-  Hash, 
-  MessageSquare, 
-  Activity, 
-  Plus, 
-  Send,
-  Loader2,
-  Trash2,
-  CheckCircle,
-  Clock,
-  Briefcase,
-  Users,
-  Edit2,
-  Save,
-  X,
-  TrendingUp,
-  Zap,
-  ChevronRight,
-  Mail,
-  FolderKanban,
-  Target,
-  Eye
+import {
+  Activity, MessageSquare, StickyNote, CheckSquare, Building2, ChevronDown,
+  Target, FolderOpen, HeartPulse, LayoutDashboard, Users,
+  TrendingUp, DollarSign, Zap, Star, Mail, Clock, Ticket, Globe, Navigation, Store, Tag, Phone, X
 } from 'lucide-react';
+
 import { API_BASE_URL } from '@/config';
 import { useRole } from '@/context/RoleContext';
-import { cn } from '@/lib/utils';
-import PageGuide from '@/components/PageGuide';
-import axios from 'axios';
-import { DollarSign, XCircle } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
-// Framer Motion Variants
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } }
-};
+import LeadHeader from './components/LeadHeader';
+import LeadSidebarPanel from './components/LeadSidebarPanel';
+import LeadAiCopilotPanel from './components/LeadAiCopilotPanel';
+import TimelineTab from './components/tabs/TimelineTab';
+import ConversationsTab from './components/tabs/ConversationsTab';
+import NotesTab from './components/tabs/NotesTab';
+import TasksTab from './components/tabs/TasksTab';
+import OpportunitiesTab from './components/tabs/OpportunitiesTab';
+import FilesTab from './components/tabs/FilesTab';
+import HealthTab from './components/tabs/HealthTab';
+import TicketsTab from './components/tabs/TicketsTab';
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 100 } }
-};
+// ─── Tab definitions ───────────────────────────────────────────────────────────
+const TABS = [
+  { key: 'overview',       label: 'Overview',       icon: LayoutDashboard },
+  { key: 'timeline',       label: 'Timeline',        icon: Activity        },
+  { key: 'tasks',          label: 'Tasks',           icon: CheckSquare     },
+  { key: 'tickets',        label: 'Tickets',         icon: Ticket          },
+  { key: 'opportunities',  label: 'Opportunities',   icon: Target          },
+  { key: 'files',          label: 'Files',           icon: FolderOpen      },
+  { key: 'health',         label: 'Health',          icon: HeartPulse      },
+];
 
-const CommentSkeleton = () => (
-  <div className="p-5 bg-white dark:bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm animate-pulse">
-    <div className="flex justify-between mb-4">
-      <div className="h-4 w-24 bg-slate-300/50 rounded-full"></div>
-      <div className="h-4 w-32 bg-slate-300/50 rounded-full"></div>
-    </div>
-    <div className="space-y-3">
-      <div className="h-4 w-full bg-slate-300/50 rounded-full"></div>
-      <div className="h-4 w-2/3 bg-slate-300/50 rounded-full"></div>
-    </div>
-  </div>
-);
+// ─── Loading Skeleton ────────────────────────────────────────────────────────
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`animate-pulse bg-slate-200 dark:bg-zinc-700  rounded-xl ${className}`} />;
+}
 
-const ActivitySkeletonTab = () => (
-  <div className="flex gap-4 p-5 bg-white dark:bg-zinc-900/40 backdrop-blur-md border border-white/60 shadow-sm rounded-2xl animate-pulse relative overflow-hidden">
-    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-300/50"></div>
-    <div className="bg-indigo-100/50 p-3 rounded-xl h-12 w-12 flex-shrink-0"></div>
-    <div className="flex-1 space-y-3 py-1">
-      <div className="h-5 w-48 bg-slate-300/50 rounded-full"></div>
-      <div className="h-4 w-full bg-slate-300/50 rounded-full"></div>
-      <div className="h-3 w-24 bg-slate-300/50 rounded-full mt-3"></div>
-    </div>
-  </div>
-);
-
-// Payment Status Widget
-const paymentStatusColors = {
-  Paid: {
-    bg: 'bg-emerald-100',
-    text: 'text-emerald-700',
-    icon: <CheckCircle className="w-5 h-5 text-emerald-500" />,
-    label: 'Paid'
-  },
-  Pending: {
-    bg: 'bg-amber-100',
-    text: 'text-amber-700',
-    icon: <Clock className="w-5 h-5 text-amber-500" />,
-    label: 'Pending'
-  },
-  Failed: {
-    bg: 'bg-red-100',
-    text: 'text-red-700',
-    icon: <XCircle className="w-5 h-5 text-red-500" />,
-    label: 'Failed'
-  }
-};
-
-function PaymentStatusWidget({ status }: { status: string }) {
-  const validStatus = (status as keyof typeof paymentStatusColors) in paymentStatusColors 
-    ? status as keyof typeof paymentStatusColors 
-    : 'Pending';
-  const config = paymentStatusColors[validStatus];
+function PageSkeleton() {
   return (
-    <div className={`flex items-center gap-4 p-6 rounded-2xl border border-white/60 shadow-sm ${config.bg}`}> 
-      <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl shadow-sm">{config.icon}</div>
-      <div>
-        <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Payment Status</div>
-        <div className={`text-lg font-bold ${config.text}`}>{config.label}</div>
+    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 ">
+      <div className="h-36 bg-white dark:bg-zinc-900  border-b border-slate-200 dark:border-zinc-700  animate-pulse" />
+      <div className="w-full px-6 py-6 grid grid-cols-[280px_1fr_300px] gap-6">
+        <div className="space-y-4">
+          <Skeleton className="h-64" />
+          <Skeleton className="h-96" />
+        </div>
+        <div className="space-y-4">
+          <Skeleton className="h-12" />
+          <Skeleton className="h-64" />
+          <Skeleton className="h-48" />
+        </div>
+        <div>
+          <Skeleton className="h-[500px]" />
+        </div>
       </div>
     </div>
   );
 }
 
-export default function LeadDetailPage() {
-  const { id } = useParams();
-  const router = useRouter();
-  const [lead, setLead] = useState<any>(null);
-  const [remarks, setRemarks] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [emails, setEmails] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [statuses, setStatuses] = useState<any[]>([]);
-  const [timeline, setTimeline] = useState<any[]>([]);
-  const [timelineFilter, setTimelineFilter] = useState('all');
-  const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [isKeywordModalOpen, setIsKeywordModalOpen] = useState(false);
-  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
-  const [newKeyword, setNewKeyword] = useState('');
-  const [activeTab, setActiveTab] = useState('overview');
-  const { role } = useRole();
-  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
-  const [milestoneData, setMilestoneData] = useState({
-    nextMilestone: '',
-    nextMilestoneDate: ''
-  });
-  const [isEditingServices, setIsEditingServices] = useState(false);
-  const [editServicesForm, setEditServicesForm] = useState({
-    services_offered: '',
-    services_requested: ''
-  });
-  const [serviceRequests, setServiceRequests] = useState<any[]>([]);
-  const [isEditingMetrics, setIsEditingMetrics] = useState(false);
-  const [metricsForm, setMetricsForm] = useState<Record<string, string>>({
-    total_revenue: '', growth_rate: '',
-    monthly_revenue: '', revenue_growth_pct: '',
-    total_conversions: '', avg_conversion_value: '',
-    roi_multiple: '', roi_detail: '',
-    campaign_progress: '', campaign_phase_note: '',
-    untapped_revenue_note: '',
-    total_visitors: '', engagement_rate: '', avg_time_on_site: '',
-  });
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({ companyName: '', projectName: '', websiteUrl: '' });
-  const [selectedActivity, setSelectedActivity] = useState<any>(null);
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await updateProfile({
-      companyName: profileForm.companyName,
-      projectName: profileForm.projectName,
-      websiteUrl: profileForm.websiteUrl
-    });
-    setIsEditingProfile(false);
-  };
+// ─── Collapsible section — forced light ────────────────────────────────────
+function CollapsibleSection({ title, icon: Icon, count, defaultOpen = false, accentColor = '#6366f1', hexText = '#1e293b', children }: {
+  title: string; icon: any; count?: number; defaultOpen?: boolean; accentColor?: string; hexText?: string; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', marginTop: 0 }}>
+      <button
+        onClick={() => setOpen(p => !p)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 20px', background: 'transparent', border: 'none', cursor: 'pointer' }}
+        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ background: accentColor, borderRadius: 8, padding: '4px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon size={12} color="#fff" />
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' }}>{title}</span>
+          {count !== undefined && count > 0 && (
+            <span style={{ background: 'var(--accent-subtle)', color: 'var(--accent)', borderRadius: 999, padding: '1px 7px', fontSize: 10, fontWeight: 800 }}>{count}</span>
+          )}
+        </div>
+        <ChevronDown size={14} color="#94a3b8" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }} />
+      </button>
+      {open && (
+        <div style={{ padding: '0 20px 16px', borderTop: '1px solid var(--border)' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
-  useEffect(() => {
-    if (id) {
-      Promise.all([
-        fetchLeadData(),
-        fetchRemarks(),
-        fetchActivities(),
-        fetchEmails(),
-        fetchEmployees(),
-        fetchStatuses(),
-        fetchServiceRequests(),
-        fetchTimeline(),
-      ]).catch(console.error).finally(() => setPageLoading(false));
-    }
-  }, [id]);
+// ─── Overview Tab — premium light ──────────────────────────────────────────
+function OverviewTab({ lead, employees, serviceRequests, activities, timeline, research, notes, conversations, leadId, onNotesRefresh, onConversationsRefresh, emails }: any) {
+  const { t, language } = useLanguage();
+  const recentActivities = (activities || []).slice(0, 8);
 
-  const fetchStatuses = async () => {
+  // ── Add Note ────────────────────────────────────────────────────────────
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteFocus, setNoteFocus] = useState(false);
+
+  const submitNote = async () => {
+    const txt = noteText.trim();
+    if (!txt) return;
+    setSavingNote(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/client-statuses`);
-      const data = await res.json();
-      setStatuses(data.statuses || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/employees`);
-      const data = await res.json();
-      setEmployees(data.employees || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchLeadData = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLead(data);
-        const cf = data.customFields || {};
-        setMetricsForm({
-          total_revenue: cf.total_revenue || '',
-          growth_rate: cf.growth_rate || '',
-          monthly_revenue: cf.monthly_revenue || '',
-          revenue_growth_pct: cf.revenue_growth_pct || '',
-          total_conversions: cf.total_conversions || '',
-          avg_conversion_value: cf.avg_conversion_value || '',
-          roi_multiple: cf.roi_multiple || '',
-          roi_detail: cf.roi_detail || '',
-          campaign_progress: cf.campaign_progress || '',
-          campaign_phase_note: cf.campaign_phase_note || '',
-          untapped_revenue_note: cf.untapped_revenue_note || '',
-          total_visitors: cf.total_visitors || '',
-          engagement_rate: cf.engagement_rate || '',
-          avg_time_on_site: cf.avg_time_on_site || '',
-        });
-        setEditServicesForm({
-          services_offered: data.services_offered || '',
-          services_requested: data.services_requested || ''
-        });
-        setMilestoneData({
-          nextMilestone: data.nextMilestone || '',
-          nextMilestoneDate: data.nextMilestoneDate || ''
-        });
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchRemarks = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/remarks`);
-      if (res.ok) {
-        const data = await res.json();
-        setRemarks(data.remarks || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchActivities = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/activities`);
-      if (res.ok) {
-        const data = await res.json();
-        setActivities(data.activities || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchEmails = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/emails`);
-      if (res.ok) {
-        const data = await res.json();
-        setEmails(data.emails || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchServiceRequests = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/services/requests`);
-      if (res.ok) {
-        const data = await res.json();
-        setServiceRequests((data.requests || []).filter((r: any) => r.client_id === Number(id)));
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchTimeline = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/timeline`);
-      if (res.ok) {
-        const data = await res.json();
-        setTimeline(data.timeline || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleAssignEmployee = async (employeeId: number) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/assign-employee`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employee_id: employeeId })
-      });
-      if (res.ok) {
-        setIsAssignModalOpen(false);
-        fetchLeadData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleAddKeyword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newKeyword.trim()) return;
-    setLoading(true);
-    try {
-      const res = await axios.post(`${API_BASE_URL}/leads/${id}/keywords`, { keyword: newKeyword });
-      if (res.data.success) {
-        setNewKeyword('');
-        setIsKeywordModalOpen(false);
-        fetchLeadData();
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add keyword");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRemoveKeyword = async (keyword: string) => {
-    if (!confirm(`Remove keyword "${keyword}"?`)) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/keywords`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword })
-      });
-      if (res.ok) {
-        fetchLeadData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleAddRemark = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const content = (form.elements.namedItem('content') as HTMLTextAreaElement).value;
-    try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/remarks`, {
+      await fetch(`${API_BASE_URL}/leads/${leadId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, createdBy: 'Admin' })
+        body: JSON.stringify({ content: txt, author_name: 'Admin' }),
       });
-      if (res.ok) {
-        fetchRemarks();
-        form.reset();
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      setNoteText('');
+      onNotesRefresh?.();
+    } finally { setSavingNote(false); }
   };
 
-  const handleAddActivity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const data = {
-      method: formData.get('method') as string,
-      content: formData.get('content') as string
-    };
-    try {
-      const res = await axios.post(`${API_BASE_URL}/leads/${id}/activities`, data);
-      if (res.data.success) {
-        fetchActivities();
-        setIsActivityModalOpen(false);
-        form.reset();
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to add activity");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ── Log Conversation ─────────────────────────────────────────────────────
+  const CONV_TYPES = [
+    { key: 'call', label: '📞 Call', color: '#3b82f6' },
+    { key: 'email', label: '✉️ Email', color: '#6366f1' },
+    { key: 'meeting', label: '🗓 Meeting', color: '#8b5cf6' },
+    { key: 'whatsapp', label: '💬 WhatsApp', color: '#10b981' },
+    { key: 'chat', label: '⚡ Chat', color: '#0ea5e9' },
+    { key: 'other', label: '📝 Other', color: 'var(--text-secondary)' },
+  ];
+  const [convTitle, setConvTitle] = useState('');
+  const [convType, setConvType] = useState('call');
+  const [convBody, setConvBody] = useState('');
+  const [savingConv, setSavingConv] = useState(false);
 
-  const updateProfile = async (updates: any) => {
+  const submitConv = async () => {
+    const title = convTitle.trim();
+    if (!title) return;
+    setSavingConv(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}`, {
-        method: 'PUT',
+      await fetch(`${API_BASE_URL}/leads/${leadId}/conversations`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
+        body: JSON.stringify({ title, type: convType, description: convBody.trim(), author_name: 'Admin' }),
       });
-      if (res.ok) {
-        fetchLeadData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      setConvTitle(''); setConvBody(''); setConvType('call');
+      onConversationsRefresh?.();
+    } finally { setSavingConv(false); }
   };
 
-  const handleSimulateCall = async () => {
-    setLoading(true);
+  const activeConvType = CONV_TYPES.find(t => t.key === convType)!;
+
+  const card = { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', overflow: 'hidden' as const };
+  const input = { width: '100%', background: 'var(--bg-secondary)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '11px 14px', fontSize: 13.5, color: 'var(--text-primary)', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 14, background: 'var(--bg-secondary)', minHeight: '100%' }}>
+
+      {/* Company Overview */}
+      {research?.company_overview && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '16px 20px', backdropFilter: 'blur(16px)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ background: 'var(--accent)', borderRadius: 8, padding: '4px 7px', display: 'flex' }}><Building2 size={13} color="#fff" /></div>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-primary)' }}>Company Overview</span>
+          </div>
+          <p style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0 }}>{research.company_overview}</p>
+        </div>
+      )}
+      {/* Key Decision Makers */}
+      {(() => {
+        let people: any[] = [];
+        try {
+          if (research?.key_decision_makers) {
+            people = JSON.parse(research.key_decision_makers);
+          }
+        } catch {}
+        if (people && people.length > 0) {
+          return (
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '16px 20px', backdropFilter: 'blur(16px)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <div style={{ background: 'var(--accent)', borderRadius: 8, padding: '4px 7px', display: 'flex' }}><Users size={13} color="#fff" /></div>
+                <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-primary)' }}>Key Decision Makers</span>
+                <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>{people.length} extracted</span>
+              </div>
+              
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      <th style={{ padding: '8px 12px', fontWeight: 700 }}>Name & Role</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 700 }}>Contact</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 700 }}>Socials</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {people.map((p, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-primary)' }}>
+                        <td style={{ padding: '12px 12px' }}>
+                          <div style={{ fontWeight: 700 }}>{p.name || 'Unknown Name'}</div>
+                          {p.role && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{p.role}</div>}
+                        </td>
+                        <td style={{ padding: '12px 12px' }}>
+                          {p.email && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Mail size={12} color="var(--text-muted)"/> <a href={`mailto:${p.email}`} style={{ color: 'var(--accent)', textDecoration: 'none' }}>{p.email}</a></div>}
+                          {p.phone && <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}><Phone size={12} color="var(--text-muted)"/> <a href={`tel:${p.phone}`} style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>{p.phone}</a></div>}
+                          {!p.email && !p.phone && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Not found</span>}
+                        </td>
+                        <td style={{ padding: '12px 12px', display: 'flex', gap: 8 }}>
+                          {p.linkedin ? (
+                            <a href={p.linkedin} target="_blank" rel="noreferrer" style={{ padding: '4px 8px', background: '#e0f2fe', color: '#0284c7', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>LinkedIn</a>
+                          ) : null}
+                          {p.twitter ? (
+                            <a href={p.twitter} target="_blank" rel="noreferrer" style={{ padding: '4px 8px', background: '#f1f5f9', color: '#475569', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>X/Twitter</a>
+                          ) : null}
+                          {!p.linkedin && !p.twitter && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>-</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {/* ── Services Offered ──────────────────────────────────────────── */}
+      {(() => {
+        let parsedServices: any[] = [];
+        try {
+          if (lead?.services_offered) {
+            parsedServices = typeof lead.services_offered === 'string'
+              ? JSON.parse(lead.services_offered)
+              : lead.services_offered;
+          }
+        } catch {}
+        if (!parsedServices || parsedServices.length === 0) return null;
+        return (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '16px 20px', backdropFilter: 'blur(16px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div style={{ background: 'var(--accent)', borderRadius: 8, padding: '4px 7px', display: 'flex' }}><Store size={13} color="#fff" /></div>
+              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-primary)' }}>Services Offered</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>{parsedServices.length} services detected</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+              {parsedServices.map((svc: any, i: number) => (
+                <div key={i} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color: 'var(--text-primary)', background: 'var(--bg-hover)', borderRadius: 20, padding: '2px 7px' }}>{svc.category || 'Service'}</span>
+                    {svc.approx_cost > 0 && (
+                      <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text-primary)', background: 'var(--bg-hover)', borderRadius: 20, padding: '2px 7px', marginLeft: 'auto' }}>
+                        ~${Number(svc.approx_cost).toLocaleString()}{svc.cost_is_estimated ? ' est.' : ''}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px 0' }}>{svc.name}</p>
+                  {svc.brief && <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{svc.brief}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Sheet Data (Imported Fields) ────────────────────────── */}
+      {lead?.customFields?.sheet_data && Object.keys(lead.customFields.sheet_data).length > 0 && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '16px 20px', backdropFilter: 'blur(16px)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <div style={{ background: '#10b981', borderRadius: 8, padding: '4px 7px', display: 'flex' }}>
+              <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M3 3a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2H3zm0 2h14v1H3V5zm0 3h14v7H3V8z"/></svg>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'var(--text-primary)' }}>Sheet Data</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', fontWeight: 700 }}>{Object.keys(lead.customFields.sheet_data).length} fields</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+            {Object.entries(lead.customFields.sheet_data)
+              .filter(([k, v]) => {
+                if (!v || !String(v).trim()) return false;
+                const lowerK = k.toLowerCase().trim();
+                const ignored = [
+                  'team member',
+                  'research status (pending/in progress/completed)',
+                  'research status',
+                  'start date',
+                  'end date'
+                ];
+                return !ignored.includes(lowerK);
+              })
+              .map(([key, val]) => (
+                <div key={key} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' as const, color: 'var(--text-muted)', margin: '0 0 4px 0' }}>{key}</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: 0, wordBreak: 'break-word' }}>{String(val)}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)' }}>
+          <div style={{ background: 'var(--accent)', borderRadius: 9, padding: '5px 7px', display: 'flex' }}><StickyNote size={13} color="#fff" /></div>
+          <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color: 'var(--text-primary)' }}>Add Note</span>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>Ctrl+Enter to save</span>
+        </div>
+        <div style={{ padding: '14px 20px 16px' }}>
+          <textarea
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitNote(); }}
+            onFocus={() => setNoteFocus(true)}
+            onBlur={() => setNoteFocus(false)}
+            placeholder="What happened? Write your note here…"
+            rows={3}
+            style={{ ...input, resize: 'none', border: noteFocus ? '1.5px solid #059669' : '1.5px solid #e2e8f0', transition: 'border 0.15s', display: 'block' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+            <button
+              onClick={submitNote}
+              disabled={!noteText.trim() || savingNote}
+              style={{ background: noteText.trim() ? 'var(--accent)' : 'var(--bg-hover)', color: noteText.trim() ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 10, padding: '8px 20px', fontSize: 12.5, fontWeight: 700, cursor: noteText.trim() ? 'pointer' : 'default', transition: 'all 0.15s' }}
+            >
+              {savingNote ? 'Saving…' : '✓ Save Note'}
+            </button>
+          </div>
+        </div>
+
+        {/* Previous notes — collapsed */}
+        {notes && notes.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            <CollapsibleSection title="Previous Notes" icon={StickyNote} count={notes.length} accentColor="#059669">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10 }}>
+                {notes.slice(0, 10).map((n: any) => (
+                  <div key={n.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--accent)' }}>{n.type || 'Note'}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ''}</span>
+                    </div>
+                    <p style={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{n.content}</p>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleSection>
+          </div>
+        )}
+      </div>
+
+      {/* ── Log Conversation ───────────────────────────────────────────────── */}
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)' }}>
+          <div style={{ background: 'var(--accent)', borderRadius: 9, padding: '5px 7px', display: 'flex' }}><MessageSquare size={13} color="#fff" /></div>
+          <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color: 'var(--text-primary)' }}>Log Conversation</span>
+        </div>
+        <div style={{ padding: '14px 20px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Type pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 7 }}>
+            {CONV_TYPES.map(tp => (
+              <button
+                key={tp.key}
+                onClick={() => setConvType(tp.key)}
+                style={{
+                  padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                  border: convType === tp.key ? `2px solid ${tp.color}` : '1.5px solid var(--border)',
+                  background: convType === tp.key ? tp.color : 'var(--bg-secondary)',
+                  color: convType === tp.key ? '#fff' : 'var(--text-secondary)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                {tp.label}
+              </button>
+            ))}
+          </div>
+          <input
+            value={convTitle}
+            onChange={e => setConvTitle(e.target.value)}
+            placeholder={`${activeConvType.label} summary — what was discussed?`}
+            style={input}
+          />
+          <textarea
+            value={convBody}
+            onChange={e => setConvBody(e.target.value)}
+            placeholder="Additional details, action items, follow-ups… (optional)"
+            rows={2}
+            style={{ ...input, resize: 'none', display: 'block' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={submitConv}
+              disabled={!convTitle.trim() || savingConv}
+              style={{ background: convTitle.trim() ? activeConvType.color : 'var(--bg-hover)', color: convTitle.trim() ? '#fff' : 'var(--text-muted)', border: 'none', borderRadius: 10, padding: '8px 20px', fontSize: 12.5, fontWeight: 700, cursor: convTitle.trim() ? 'pointer' : 'default', transition: 'all 0.15s' }}
+            >
+              {savingConv ? 'Saving…' : `✓ Log ${activeConvType.label}`}
+            </button>
+          </div>
+        </div>
+
+        {/* Previous conversations — collapsed */}
+        {conversations && conversations.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            <CollapsibleSection title="Previous Conversations" icon={MessageSquare} count={conversations.length} accentColor="#0284c7">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 10 }}>
+                {conversations.slice(0, 10).map((c: any) => {
+                  const ct = CONV_TYPES.find(t => t.key === c.type) || CONV_TYPES[5];
+                  return (
+                    <div key={c.id} style={{ background: 'var(--bg-secondary)', border: '1px solid #e0f2fe', borderRadius: 12, padding: '10px 14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: ct.color, background: ct.color + '18', borderRadius: 999, padding: '2px 8px' }}>{c.type || 'Conversation'}</span>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''}</span>
+                      </div>
+                      <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', margin: '4px 0 2px' }}>{c.subject || c.title || '—'}</p>
+                      {c.body && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{c.body}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </CollapsibleSection>
+          </div>
+        )}
+      </div>
+
+      {/* Recent Activity */}
+      <CollapsibleSection title={t('lead_tabs.recent_activity')} icon={Activity} accentColor="#6366f1" defaultOpen={false}>
+        <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {recentActivities.length === 0 ? (
+            <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>{t('lead_tabs.no_activity')}</p>
+          ) : (
+            recentActivities.map((a: any) => (
+              <div 
+                key={a.id}
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 8px', borderBottom: '1px solid var(--border)', cursor: 'pointer', borderRadius: 8, transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <Clock size={12} color="#94a3b8" style={{ marginTop: 2, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 600, color: '#334155', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.action}</p>
+                  {a.method && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '1px 0 0' }}>via {a.method}</p>}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                  {a.createdAt ? new Date(a.createdAt).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'short', day: 'numeric' }) : ''}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Opportunities & AI Analysis */}
+      <CollapsibleSection title={language === 'es' ? 'Oportunidades y Análisis de IA' : 'Opportunities & AI Analysis'} icon={Target} accentColor="#8b5cf6" defaultOpen={false}>
+        <div style={{ paddingTop: 16 }}>
+          <OpportunitiesTab
+            lead={lead}
+            timeline={timeline}
+            serviceRequests={serviceRequests}
+            research={research}
+            emails={emails}
+          />
+        </div>
+      </CollapsibleSection>
+    </div>
+  );
+}
+
+
+
+// ─── MAIN PAGE ───────────────────────────────────────────────────────────────
+export default function AdminLeadDetailPage() {
+  const { id } = useParams() as { id: string };
+  const router = useRouter();
+  const { role, user, loading } = useRole();
+  const { t, language } = useLanguage();
+
+  // Data state
+  const [lead, setLead]               = useState<any>(null);
+  const [employees, setEmployees]         = useState<any[]>([]);
+  const [activities, setActivities]       = useState<any[]>([]);
+  const [emails, setEmails]               = useState<any[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<any[]>([]);
+  const [timeline, setTimeline]           = useState<any[]>([]);
+  const [notes, setNotes]                 = useState<any[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [tasks, setTasks]                 = useState<any[]>([]);
+  const [files, setFiles]                 = useState<any[]>([]);
+  const [research, setResearch]           = useState<any>(null);
+
+  // UI state
+  const [activeTab, setActiveTab]         = useState('overview');
+  const [timelineFilter, setTimelineFilter] = useState('all');
+  const [pageLoading, setPageLoading]     = useState(true);
+  const [darkMode, setDarkMode]           = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ name: '', email: '', role: 'SalesManager', password: 'password123' });
+  const [selectedActivity, setSelectedActivity] = useState<any>(null);
+
+  // Force light theme always — no dark mode on this page
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('crm-dark-mode', 'false');
+    setDarkMode(false);
+  }, []);
+
+  const toggleDarkMode = () => {
+    // Light theme only — toggle is a no-op
+  };
+
+
+  // ─── Fetch helpers ────────────────────────────────────────────────────────
+  const fetchLead = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/leads/${id}/simulate-call`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/leads/${id}`);
+      const data = await res.json();
+      setLead(data.lead || data);
+    } catch (e) { console.error(e); }
+  }, [id]);
+
+  const fetchAll = useCallback(async () => {
+    if (!id) return;
+    try {
+      const [leadRes, empRes, actRes, emailRes, svcRes, tlRes, notesRes, convRes, taskRes, filesRes, researchRes] = await Promise.allSettled([
+        fetch(`${API_BASE_URL}/leads/${id}`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/employees`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/activities`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/emails`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/services/requests`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/timeline`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/notes`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/conversations`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/tasks?lead_id=${id}`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/files`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads/${id}/research`).then(r => r.json()),
+      ]);
+
+      if (leadRes.status === 'fulfilled') setLead(leadRes.value.lead || leadRes.value);
+      if (empRes.status === 'fulfilled') setEmployees(empRes.value.employees || []);
+      if (actRes.status === 'fulfilled') setActivities(actRes.value.activities || []);
+      if (emailRes.status === 'fulfilled') setEmails(emailRes.value.emails || []);
+      if (svcRes.status === 'fulfilled') setServiceRequests((svcRes.value.requests || []).filter((r: any) => String(r.lead_id) === String(id)));
+      if (tlRes.status === 'fulfilled') setTimeline(tlRes.value.timeline || []);
+      if (notesRes.status === 'fulfilled') setNotes(notesRes.value.notes || []);
+      if (convRes.status === 'fulfilled') setConversations(convRes.value.conversations || []);
+      if (taskRes.status === 'fulfilled') setTasks((taskRes.value.tasks || taskRes.value || []).filter((t: any) => String(t.lead_id) === String(id)));
+      if (filesRes.status === 'fulfilled') setFiles(filesRes.value.files || filesRes.value || []);
+      if (researchRes.status === 'fulfilled') setResearch(researchRes.value.research || null);
+    } catch (e) { console.error(e); }
+    finally { setPageLoading(false); }
+  }, [id]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    const handleRefresh = () => fetchAll();
+    window.addEventListener('refresh-lead-data', handleRefresh);
+    return () => window.removeEventListener('refresh-lead-data', handleRefresh);
+  }, [fetchAll]);
+
+  // ─── Quick action stubs ───────────────────────────────────────────────────
+  const switchTab = (tab: string) => setActiveTab(tab);
+
+  const handleCreateSalesperson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUserForm),
+      });
       if (res.ok) {
         const data = await res.json();
-        alert(`AI Pitch Generated:\n\n${data.pitch}`);
-        fetchActivities();
+        // Automatically assign the newly created user to this lead
+        await fetch(`${API_BASE_URL}/leads/${id}/assign-employee`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employee_id: data.user.id }),
+        });
+        setNewUserForm({ name: '', email: '', role: 'SalesManager', password: 'password123' });
+        setIsCreateUserOpen(false);
+        fetchAll(); // Refresh employees and lead details
       } else {
-        alert('Failed to generate simulation');
+        alert('Failed to create user. Email might already exist.');
       }
     } catch (err) {
       console.error(err);
-      alert('Error connecting to AI');
-    } finally {
-      setLoading(false);
+      alert('Error creating salesperson');
     }
   };
 
-  const handleSaveMetrics = async () => {
-    setLoading(true);
-    try {
-      await updateProfile({ customFields: metricsForm });
-      setIsEditingMetrics(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ─── Loading & Auth Guards ────────────────────────────────────────────────
+  if (loading || pageLoading) return <PageSkeleton />;
 
-  const handleUpdateMilestone = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await updateProfile(milestoneData);
-      setIsMilestoneModalOpen(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (pageLoading) {
+  // Auth guard
+  if (role && role !== 'Admin' && role !== 'Employee' && role !== 'SalesManager') {
     return (
-      <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
-        <div className="relative w-24 h-24">
-          <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
-          <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950 ">
+        <div className="text-center">
+          <p className="text-2xl font-black text-red-500 mb-2">{language === 'es' ? 'No autorizado' : 'Unauthorized'}</p>
+          <p className="text-slate-500 dark:text-zinc-400">{language === 'es' ? 'No tienes acceso a esta página.' : 'You do not have access to this page.'}</p>
         </div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 animate-pulse mt-4">Pulling Intelligence Data...</h2>
       </div>
     );
   }
-  if (!lead) return <div className="p-8 text-red-500 font-bold text-center">Neural link failed. Lead not found.</div>;
 
-  // --- INTERACTIVE STORYTELLING DASHBOARD ---
+  // Enforce assignment for SalesManager
+  if (lead && role === 'SalesManager' && String(lead.assignedEmployeeId) !== String(user?.id)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950 ">
+        <div className="text-center">
+          <p className="text-2xl font-black text-red-500 mb-2">{language === 'es' ? 'No autorizado' : 'Unauthorized'}</p>
+          <p className="text-slate-500 dark:text-zinc-400">{language === 'es' ? 'Solo puedes ver leades que te han sido asignados.' : 'You can only view leads assigned to you.'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (pageLoading) return <PageSkeleton />;
+  if (!lead) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950 ">
+      <p className="text-red-500 font-bold">{language === 'es' ? 'Leade no encontrado.' : 'Lead not found.'}</p>
+    </div>
+  );
+
+  const tabBadges: Record<string, number> = {
+    conversations: conversations.length,
+    notes:         notes.length,
+    tasks:         tasks.filter(t => t.status !== 'Done').length,
+    files:         files.length,
+  };
+
   return (
-    <>
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* EPIC WELCOME HERO */}
-        <motion.div 
-          initial={{ opacity: 0, y: 40 }} 
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="relative mb-16 overflow-hidden rounded-3xl"
-        >
-          {/* Animated Background */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-90"></div>
-          <motion.div 
-            animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
-            transition={{ duration: 8, repeat: Infinity }}
-            className="absolute top-0 right-0 w-96 h-96 bg-white dark:bg-zinc-900/20 rounded-full blur-3xl"
-          ></motion.div>
-          <motion.div 
-            animate={{ scale: [1, 0.9, 1], opacity: [0.2, 0.4, 0.2] }}
-            transition={{ duration: 10, repeat: Infinity, delay: 1 }}
-            className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl"
-          ></motion.div>
-
-          {/* Content */}
-          <div className="relative z-10 p-12 text-white">
+    <div className={`min-h-screen bg-slate-50 dark:bg-zinc-950  transition-colors duration-300`}>
+      <AnimatePresence>
+        {isCreateUserOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-zinc-900  rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-zinc-700 "
             >
-              <p className="text-cyan-200 font-bold text-sm uppercase tracking-widest mb-3">Welcome Back To Your Growth Hub</p>
-              <h1 className="text-6xl md:text-7xl font-black mb-4 leading-tight">
-                {lead.companyName}
-              </h1>
-              <p className="text-xl text-white/90 font-medium max-w-2xl">
-                Your intelligent growth partner is ready to scale your business to new heights. Let's unlock extraordinary results together.
-              </p>
-            </motion.div>
-
-            {/* Stats Preview */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
-              className="grid grid-cols-3 gap-6 mt-8"
-            >
-              <div className="bg-white dark:bg-zinc-900/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <p className="text-white/70 text-sm font-bold uppercase tracking-wider mb-2">Active Services</p>
-                <p className="text-3xl font-black text-cyan-200">{serviceRequests.filter(r => r.status !== 'Pending').length || 0}</p>
+              <div className="p-4 border-b border-slate-100 dark:border-zinc-800  flex justify-between items-center">
+                <h2 className="font-bold text-slate-800 dark:text-zinc-100 ">{language === 'es' ? 'Crear Nuevo Vendedor' : 'Create New Salesperson'}</h2>
+                <button onClick={() => setIsCreateUserOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-zinc-300 ">
+                  <Activity size={20} className="opacity-0" /> {/* Spacer */}
+                  <span className="text-xl leading-none">&times;</span>
+                </button>
               </div>
-              <div className="bg-white dark:bg-zinc-900/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <p className="text-white/70 text-sm font-bold uppercase tracking-wider mb-2">Total Revenue</p>
-                <p className="text-3xl font-black text-cyan-200">{lead.customFields?.total_revenue || '—'}</p>
-              </div>
-              <div className="bg-white dark:bg-zinc-900/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <p className="text-white/70 text-sm font-bold uppercase tracking-wider mb-2">Growth Rate</p>
-                <p className="text-3xl font-black text-cyan-200">{lead.customFields?.growth_rate || '—'}</p>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
-
-        {/* STORYTELLING SECTION: Your Performance Journey */}
-        <PageGuide
-          pageKey="lead-detail"
-          title="Understanding Your Lead Dashboard"
-          description="This is the complete profile page for this lead — a 360° view of their business, services, and performance."
-          steps={[
-            { icon: '📊', text: 'Performance Story section shows growth metrics like traffic, revenue, and rankings over time.' },
-            { icon: '💼', text: 'Scroll down to see active services, recent activity, communications, and project timeline.' },
-            { icon: '✏️', text: 'Admins can click \"Edit Metrics\" to update this lead\'s financial and performance data.' },
-            { icon: '💬', text: 'The comments section lets you add internal notes and track all communication history.' },
-          ]}
-        />
-
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mb-16"
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Your Performance Story</h2>
-            {(role === 'Admin' || role === 'Employee') && (
-              <button onClick={() => setIsEditingMetrics(true)} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:bg-zinc-700 border border-slate-300 dark:border-zinc-600 text-slate-700 dark:text-zinc-200 text-xs font-bold rounded-lg transition-all">
-                <Edit2 size={12} /> Edit Metrics
-              </button>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Card 1: Growth Momentum */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.9, duration: 0.6 }}
-              whileHover={{ y: -8 }}
-              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 group overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-green-400/20 to-emerald-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-green-100 text-green-600 rounded-xl"><TrendingUp size={24} /></div>
-                  <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">Growth Momentum</h3>
+              <form onSubmit={handleCreateSalesperson} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 mb-1">{language === 'es' ? 'Nombre' : 'Name'}</label>
+                  <input required value={newUserForm.name} onChange={e => setNewUserForm(p => ({ ...p, name: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700  bg-slate-50 dark:bg-zinc-950  focus:outline-none focus:ring-2 focus:ring-indigo-500 " />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold mb-2">This Month's Revenue</p>
-                  <p className="text-4xl font-black text-green-600">{lead.customFields?.monthly_revenue || '—'}</p>
-                  <p className="text-sm text-green-700 mt-2 font-bold">{lead.customFields?.revenue_growth_pct || 'No data yet'}</p>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Card 2: Conversion Power */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1, duration: 0.6 }}
-              whileHover={{ y: -8 }}
-              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 group overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><Zap size={24} /></div>
-                  <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">Conversion Power</h3>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 mb-1">Email</label>
+                  <input required type="email" value={newUserForm.email} onChange={e => setNewUserForm(p => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700  bg-slate-50 dark:bg-zinc-950  focus:outline-none focus:ring-2 focus:ring-indigo-500 " />
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold mb-2">Total Conversions</p>
-                  <p className="text-4xl font-black text-blue-600">{lead.customFields?.total_conversions || '—'}</p>
-                  <p className="text-sm text-blue-700 mt-2 font-bold">{lead.customFields?.avg_conversion_value || 'No data yet'}</p>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-zinc-400 mb-1">{language === 'es' ? 'Rol' : 'Role'}</label>
+                  <select value={newUserForm.role} onChange={e => setNewUserForm(p => ({ ...p, role: e.target.value }))} className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700  bg-slate-50 dark:bg-zinc-950  focus:outline-none focus:ring-2 focus:ring-indigo-500 ">
+                    <option value="Employee">{language === 'es' ? 'Empleado' : 'Employee'}</option>
+                    <option value="SalesManager">{language === 'es' ? 'Gerente de Ventas' : 'Sales Manager'}</option>
+                  </select>
                 </div>
-              </div>
-            </motion.div>
-
-            {/* Card 3: ROI Victory */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 1.1, duration: 0.6 }}
-              whileHover={{ y: -8 }}
-              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 group overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
-              <div className="relative z-10">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-3 bg-purple-100 text-purple-600 rounded-xl"><DollarSign size={24} /></div>
-                  <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">ROI Victory</h3>
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold mb-2">Return on Investment</p>
-                  <p className="text-4xl font-black text-purple-600">{lead.customFields?.roi_multiple || '—'}</p>
-                  <p className="text-sm text-purple-700 mt-2 font-bold">{lead.customFields?.roi_detail || 'No data yet'}</p>
-                </div>
-              </div>
+                <button type="submit" className="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700">{language === 'es' ? 'Crear y Asignar' : 'Create & Assign'}</button>
+              </form>
             </motion.div>
           </div>
-        </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* PARTNERSHIP PROFILE HERO */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="mb-16"
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Your Partnership</h2>
-          </div>
+      {/* ── Sticky Header ────────────────────────────────────────────── */}
+      <LeadHeader
+        lead={lead}
+        employees={employees}
+        onBack={() => router.back()}
+        onAddNote={() => switchTab('notes')}
+        onAddConversation={() => switchTab('conversations')}
+        onCreateTask={() => switchTab('tasks')}
+        onScheduleMeeting={() => switchTab('conversations')}
+        onSendEmail={() => switchTab('conversations')}
+        onUploadFile={() => switchTab('files')}
+        onCreateOpportunity={() => switchTab('opportunities')}
+        darkMode={darkMode}
+        onToggleDarkMode={toggleDarkMode}
+      />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Profile Card - Modern Design */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 1.3, duration: 0.6 }}
-              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-10 overflow-hidden shadow-sm"
-            >
-              {/* Animated glow */}
-              <motion.div
-                className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100"
-                transition={{ duration: 0.5 }}
-              ></motion.div>
+      {/* ── Full-Width layout ──────────────────────────────────────── */}
+      <div className="w-full px-4 py-4">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-5">
 
-              <div className="relative z-10">
-                <div className="flex items-center gap-4 mb-8">
-                  <motion.div
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg"
+          {/* ── CENTER MAIN ──────────────────────────────────────────── */}
+          <main className="min-w-0">
+            {/* Tab Bar - Premium Pill Style */}
+            <div className="flex items-center gap-2 overflow-x-auto p-1.5 mb-6 bg-slate-100 dark:bg-zinc-800/80 rounded-2xl border border-slate-200 dark:border-zinc-700/60 scrollbar-thin w-fit max-w-full">
+              {TABS.map(({ key, label, icon: Icon }) => {
+                const badge = tabBadges[key];
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-bold
+                                whitespace-nowrap transition-all flex-shrink-0
+                      ${activeTab === key
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-600 shadow-[0_2px_10px_rgba(0,0,0,0.06)] border border-slate-200 dark:border-zinc-700/50'
+                        : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:text-zinc-200 hover:bg-slate-200 dark:bg-zinc-700/50'
+                      }`}
                   >
-                    <Briefcase size={32} className="text-white" />
-                  </motion.div>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-100">Company Profile</h3>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold">Your business details</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Editable Company Profile Fields */}
-                  {isEditingProfile ? (
-                    <form onSubmit={handleSaveProfile} className="space-y-4">
-                      <motion.div className="p-4 bg-cyan-50 border border-cyan-200 rounded-2xl">
-                        <label className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2 block">Company Name</label>
-                        <input className="w-full px-3 py-2 rounded-xl border border-cyan-200 font-black text-cyan-700 bg-white dark:bg-zinc-900" value={profileForm.companyName} onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })} />
-                      </motion.div>
-                      <motion.div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-                        <label className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2 block">Project Name</label>
-                        <input className="w-full px-3 py-2 rounded-xl border border-blue-200 font-black text-blue-700 bg-white dark:bg-zinc-900" value={profileForm.projectName} onChange={e => setProfileForm({ ...profileForm, projectName: e.target.value })} />
-                      </motion.div>
-                      <motion.div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl">
-                        <label className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2 block">Website</label>
-                        <input className="w-full px-3 py-2 rounded-xl border border-purple-200 font-black text-purple-700 bg-white dark:bg-zinc-900" value={profileForm.websiteUrl} onChange={e => setProfileForm({ ...profileForm, websiteUrl: e.target.value })} />
-                      </motion.div>
-                      <div className="flex gap-2 pt-2">
-                        <button type="button" onClick={() => setIsEditingProfile(false)} className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-bold">Cancel</button>
-                        <button type="submit" className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-bold">Save</button>
-                      </div>
-                    </form>
-                  ) : (
-                    <>
-                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.4 }} className="p-4 bg-cyan-50 border border-cyan-200 rounded-2xl hover:bg-cyan-100 transition-all flex justify-between items-center">
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2">Company Name</p>
-                          <p className="text-xl font-black text-cyan-700">{lead.companyName}</p>
-                        </div>
-                        <button onClick={() => { setIsEditingProfile(true); setProfileForm({ companyName: lead.companyName || '', projectName: lead.projectName || '', websiteUrl: lead.website || lead.websiteUrl || '' }); }} className="ml-4 p-2 rounded-full bg-cyan-100 hover:bg-cyan-200"><Edit2 className="w-4 h-4 text-cyan-700" /></button>
-                      </motion.div>
-                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.45 }} className="p-4 bg-blue-50 border border-blue-200 rounded-2xl hover:bg-blue-100 transition-all flex justify-between items-center">
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2">Project Name</p>
-                          <p className="text-xl font-black text-blue-700">{lead.projectName || 'Active Project'}</p>
-                        </div>
-                        <button onClick={() => { setIsEditingProfile(true); setProfileForm({ companyName: lead.companyName || '', projectName: lead.projectName || '', websiteUrl: lead.website || lead.websiteUrl || '' }); }} className="ml-4 p-2 rounded-full bg-blue-100 hover:bg-blue-200"><Edit2 className="w-4 h-4 text-blue-700" /></button>
-                      </motion.div>
-                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.5 }} className="p-4 bg-purple-50 border border-purple-200 rounded-2xl hover:bg-purple-100 transition-all flex justify-between items-center">
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2">Website</p>
-                          <p className="text-lg font-black text-purple-700 truncate">{lead.website || lead.websiteUrl || 'www.yourwebsite.com'}</p>
-                        </div>
-                        <button onClick={() => { setIsEditingProfile(true); setProfileForm({ companyName: lead.companyName || '', projectName: lead.projectName || '', websiteUrl: lead.website || lead.websiteUrl || '' }); }} className="ml-4 p-2 rounded-full bg-purple-100 hover:bg-purple-200"><Edit2 className="w-4 h-4 text-purple-700" /></button>
-                      </motion.div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Team & Services - Interactive */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 1.3, duration: 0.6 }}
-              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-10 overflow-hidden shadow-sm"
-            >
-              {/* Animated glow */}
-              <motion.div
-                className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100"
-                transition={{ duration: 0.5 }}
-              ></motion.div>
-
-              <div className="relative z-10">
-                <div className="flex items-center gap-4 mb-8">
-                  <motion.div
-                    whileHover={{ scale: 1.1, rotate: -5 }}
-                    className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg"
-                  >
-                    <Users size={32} className="text-white" />
-                  </motion.div>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-100">Active Services</h3>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold">What we're doing for you</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3 mb-6">
-                  {serviceRequests.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-zinc-400 italic py-2">No active services yet.</p>
-                  ) : (
-                    serviceRequests.map((svc: any, idx: number) => (
-                      <motion.div
-                        key={svc.id}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 1.4 + idx * 0.05 }}
-                        className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl border border-purple-200 hover:bg-purple-100 transition-all"
-                      >
-                        <motion.div
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ duration: 2, repeat: Infinity, delay: idx * 0.2 }}
-                          className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full shrink-0"
-                        />
-                        <span className="font-bold text-slate-800 dark:text-zinc-100 flex-1">{svc.service_name}</span>
-                        <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">{svc.status}</span>
-                        <CheckCircle size={14} className="text-green-400" />
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-black rounded-xl shadow-lg hover:shadow-purple-500/30 transition-all"
-                >
-                  Connect With Your Team
-                </motion.button>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-        {/* ENGAGEMENT OPPORTUNITIES */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.4 }}
-          className="mb-16"
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Next Steps Forward</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Strategy Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.5 }}
-              whileHover={{ y: -8 }}
-              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden cursor-pointer shadow-sm"
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <div className="flex items-start justify-between mb-6">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100 mb-2">{lead.nextMilestone || 'Next Campaign Phase'}</h3>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400">{lead.nextMilestoneDate || 'No deadline set'}</p>
-                  </div>
-                  <div className="p-3 bg-green-100 text-green-600 rounded-xl"><Zap size={24} /></div>
-                </div>
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(100, Number(lead.customFields?.campaign_progress) || 0)}%` }}
-                  transition={{ delay: 1.6, duration: 0.8 }}
-                  className="h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full mb-3"
-                />
-                <p className="text-sm font-bold text-slate-600 dark:text-zinc-300">
-                  {lead.customFields?.campaign_phase_note || (lead.nextMilestone ? `${lead.customFields?.campaign_progress || 0}% Complete` : 'Not yet configured')}
-                </p>
-              </div>
-            </motion.div>
-
-            {/* Opportunity Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.55 }}
-              whileHover={{ y: -8 }}
-              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10 flex flex-col h-full justify-between">
-                <div>
-                  <div className="flex items-start justify-between mb-6">
-                    <div>
-                      <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100 mb-2">Untapped Revenue</h3>
-                      <p className="text-sm text-slate-500 dark:text-zinc-400">Growth opportunities ahead</p>
-                    </div>
-                    <div className="p-3 bg-orange-100 text-orange-600 rounded-xl"><TrendingUp size={24} /></div>
-                  </div>
-                  <p className="text-lg font-bold text-slate-600 dark:text-zinc-300 mb-6">
-                    {lead.customFields?.untapped_revenue_note || 'No data yet — admin can set this'}
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  <Link href="/store" className="flex-1 py-3 text-center bg-orange-600/10 hover:bg-orange-600/20 text-orange-600 rounded-xl font-bold text-sm transition-all border border-orange-200">
-                    See Opportunities
-                  </Link>
-                  <button onClick={handleSimulateCall} disabled={loading} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50">
-                    {loading ? 'Thinking...' : 'AI Call Simulation'}
+                    <Icon size={14} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
+                    {(t(`lead_tabs.${key}`) as string) || label}
+                    {badge !== undefined && badge > 0 && (
+                      <span className={`ml-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center transition-colors
+                        ${activeTab === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400'}`}>
+                        {badge}
+                      </span>
+                    )}
                   </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* DETAILED INSIGHTS - Tabs with Content */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.6 }}
-          className="mb-16"
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Detailed Insights</h2>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Overview Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.7 }}
-              whileHover={{ y: -8 }}
-              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <h3 className="text-lg font-black text-slate-800 dark:text-zinc-100 mb-6 flex items-center gap-2">
-                  <Eye size={24} className="text-blue-600" />
-                  Performance Overview
-                </h3>
-                <div className="space-y-3">
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-1">Total Visitors</p>
-                    <p className="text-2xl font-black text-blue-700">{lead.customFields?.total_visitors || '—'}</p>
-                  </div>
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-1">Engagement Rate</p>
-                    <p className="text-2xl font-black text-blue-700">{lead.customFields?.engagement_rate || '—'}</p>
-                  </div>
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-1">Avg Time on Site</p>
-                    <p className="text-2xl font-black text-blue-700">{lead.customFields?.avg_time_on_site || '—'}</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Recent Activity Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.75 }}
-              whileHover={{ y: -8 }}
-              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <h3 className="text-lg font-black text-slate-800 dark:text-zinc-100 mb-6 flex items-center gap-2">
-                  <Activity size={24} className="text-purple-600" />
-                  Recent Activity
-                </h3>
-                <div className="space-y-3">
-                  {activities.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-zinc-400 italic">No activities recorded yet.</p>
-                  ) : (
-                    activities.slice(0, 3).map((item: any, idx: number) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 1.8 + idx * 0.05 }}
-                        onClick={() => setSelectedActivity(item)}
-                        className="p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl cursor-pointer transition-colors"
-                      >
-                        <p className="text-sm font-bold text-slate-800 dark:text-zinc-100">{item.action || item.content}</p>
-                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
-                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
-                          {item.method ? ` • via ${item.method}` : ''}
-                        </p>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Team Connection Card */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.8 }}
-              whileHover={{ y: -8 }}
-              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
-            >
-              <div className="absolute top-0 left-0 w-32 h-32 bg-pink-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="relative z-10">
-                <h3 className="text-lg font-black text-slate-800 dark:text-zinc-100 mb-6 flex items-center gap-2">
-                  <Users size={24} className="text-pink-600" />
-                  Your Team
-                </h3>
-                <div className="space-y-3">
-                  {(() => {
-                    const assignedEmp = employees.find((e: any) => e.id === lead.assignedEmployeeId);
-                    return assignedEmp ? (
-                      <div className="p-4 bg-pink-50 border border-pink-200 rounded-xl">
-                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-2">Account Manager</p>
-                        <p className="text-sm font-black text-pink-700">{assignedEmp.name}</p>
-                        <p className="text-xs text-slate-400 mt-1">{assignedEmp.email}</p>
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-pink-50 border border-pink-200 rounded-xl">
-                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-2">Account Manager</p>
-                        <p className="text-sm font-medium text-slate-400 italic">Not assigned yet</p>
-                      </div>
-                    );
-                  })()}
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    className="w-full py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-pink-500/30 transition-all"
-                  >
-                    Message Your Team
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* ─── UNIFIED ACTIVITY TIMELINE ─── */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.9 }} className="mb-16">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Activity Timeline</h2>
-          </div>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            {[
-              { key: 'all', label: 'All' },
-              { key: 'email', label: 'Emails' },
-              { key: 'call', label: 'Calls' },
-              { key: 'invoice', label: 'Invoices' },
-              { key: 'milestone', label: 'Milestones' },
-              { key: 'file', label: 'Files' },
-              { key: 'activity', label: 'Activities' },
-            ].map(f => (
-              <button key={f.key} onClick={() => setTimelineFilter(f.key)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${timelineFilter === f.key ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:bg-zinc-950'}`}>
-                {f.label}
-              </button>
-            ))}
-          </div>
-          {/* Timeline List */}
-          <div className="relative">
-            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-transparent"></div>
-            <div className="space-y-4">
-              {timeline.filter(e => timelineFilter === 'all' || e.type === timelineFilter).length === 0 ? (
-                <p className="text-sm text-slate-400 italic pl-14">No events found.</p>
-              ) : (
-                timeline.filter(e => timelineFilter === 'all' || e.type === timelineFilter).slice(0, 30).map((ev: any, idx: number) => {
-                  const colors: Record<string, { bg: string; ring: string; icon: string }> = {
-                    email: { bg: 'bg-violet-100', ring: 'ring-violet-300', icon: '✉️' },
-                    call: { bg: 'bg-amber-100', ring: 'ring-amber-300', icon: '📞' },
-                    invoice: { bg: 'bg-emerald-100', ring: 'ring-emerald-300', icon: '💰' },
-                    milestone: { bg: 'bg-pink-100', ring: 'ring-pink-300', icon: '🎯' },
-                    file: { bg: 'bg-sky-100', ring: 'ring-sky-300', icon: '📁' },
-                    activity: { bg: 'bg-slate-100 dark:bg-zinc-800', ring: 'ring-slate-300', icon: '⚡' },
-                  };
-                  const c = colors[ev.type] || colors.activity;
-                  return (
-                    <motion.div key={`${ev.type}-${ev.id}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }}
-                      className="relative flex items-start gap-4 pl-14">
-                      <div className={`absolute left-3.5 w-5 h-5 rounded-full ${c.bg} ring-2 ${c.ring} flex items-center justify-center text-[10px]`}>{c.icon}</div>
-                      <div onClick={() => setSelectedActivity(ev)} className="flex-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ev.type}</span>
-                            <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 mt-0.5">{ev.title}</p>
-                            {ev.detail && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">{ev.detail}</p>}
-                          </div>
-                          <span className="text-[10px] text-slate-400 font-medium shrink-0">{ev.date ? new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</span>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })
-              )}
+                );
+              })}
             </div>
-          </div>
-        </motion.div>
 
-        {/* Activity Detail Modal */}
-        <AnimatePresence>
-          {selectedActivity && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={{
-                position: 'fixed', inset: 0, zIndex: 9999,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)'
-              }}
-              onClick={() => setSelectedActivity(null)}
-            >
+            {/* Tab Content */}
+            <AnimatePresence mode="wait">
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                onClick={e => e.stopPropagation()}
-                style={{
-                  background: 'white', border: '1px solid #e2e8f0',
-                  borderRadius: 24, padding: 32, width: '90%', maxWidth: 700,
-                  maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
-                }}
-                className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700"
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-100 m-0">{selectedActivity.title || selectedActivity.action}</h3>
-                    <p className="text-sm text-slate-500 dark:text-zinc-400 m-0 mt-1">
-                      {selectedActivity.date || selectedActivity.createdAt ? new Date(selectedActivity.date || selectedActivity.createdAt).toLocaleString() : ''}
-                      {selectedActivity.method ? ` • via ${selectedActivity.method}` : ''}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => setSelectedActivity(null)}
-                    className="bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-none rounded-full w-9 h-9 flex items-center justify-center cursor-pointer text-slate-500 dark:text-zinc-400 transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-                
-                {(selectedActivity.detail || selectedActivity.content) && (
-                  <div style={{ marginBottom: 20 }}>
-                    <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 m-0 mb-2">Summary</p>
-                    <div className="bg-slate-50 dark:bg-zinc-800/50 p-4 rounded-xl text-sm text-slate-600 dark:text-zinc-300">
-                      {selectedActivity.content || selectedActivity.detail}
-                    </div>
-                  </div>
+                {activeTab === 'overview' && (
+                  <OverviewTab
+                    lead={lead}
+                    employees={employees}
+                    serviceRequests={serviceRequests}
+                    activities={activities}
+                    timeline={timeline}
+                    research={research}
+                    notes={notes}
+                    conversations={conversations}
+                    emails={emails}
+                    leadId={id}
+                    onNotesRefresh={() => fetch(`${API_BASE_URL}/leads/${id}/notes`).then(r => r.json()).then(d => setNotes(d.notes || []))}
+                    onConversationsRefresh={() => fetch(`${API_BASE_URL}/leads/${id}/conversations`).then(r => r.json()).then(d => setConversations(d.conversations || []))}
+                  />
                 )}
-
-                {selectedActivity.details && (
-                  <div>
-                    <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 m-0 mb-2">Details</p>
-                    <div className="bg-slate-100 dark:bg-zinc-950 p-4 rounded-xl text-sm text-slate-800 dark:text-zinc-200 whitespace-pre-wrap font-mono border border-slate-200 dark:border-zinc-800">
-                      {selectedActivity.details}
-                    </div>
-                  </div>
+                {activeTab === 'timeline' && (
+                  <TimelineTab
+                    timeline={timeline}
+                    timelineFilter={timelineFilter}
+                    onFilterChange={setTimelineFilter}
+                  />
+                )}
+                {activeTab === 'conversations' && (
+                  <ConversationsTab
+                    leadId={id}
+                    conversations={conversations}
+                    employees={employees}
+                    currentUser="Admin"
+                    onRefresh={() => fetch(`${API_BASE_URL}/leads/${id}/conversations`).then(r => r.json()).then(d => setConversations(d.conversations || []))}
+                  />
+                )}
+                {activeTab === 'notes' && (
+                  <NotesTab
+                    leadId={id}
+                    notes={notes}
+                    onRefresh={() => fetch(`${API_BASE_URL}/leads/${id}/notes`).then(r => r.json()).then(d => setNotes(d.notes || []))}
+                  />
+                )}
+                {activeTab === 'tasks' && (
+                  <TasksTab
+                    leadId={id}
+                    tasks={tasks}
+                    employees={employees}
+                    onRefresh={() => fetch(`${API_BASE_URL}/tasks?lead_id=${id}`).then(r => r.json()).then(d => {
+                      const all = d.tasks || d || [];
+                      setTasks(all.filter((t: any) => String(t.lead_id) === String(id)));
+                    })}
+                  />
+                )}
+                {activeTab === 'opportunities' && (
+                  <OpportunitiesTab
+                    lead={lead}
+                    timeline={timeline}
+                    serviceRequests={serviceRequests}
+                    research={research}
+                    emails={emails}
+                  />
+                )}
+                {activeTab === 'files' && (
+                  <FilesTab
+                    leadId={id}
+                    files={files}
+                    onRefresh={() => fetch(`${API_BASE_URL}/leads/${id}/files`).then(r => r.json()).then(d => setFiles(d.files || d || []))}
+                  />
+                )}
+                {activeTab === 'health' && (
+                  <HealthTab
+                    lead={lead}
+                    activities={activities}
+                    emails={emails}
+                    timeline={timeline}
+                    serviceRequests={serviceRequests}
+                  />
                 )}
                 
-                {!selectedActivity.detail && !selectedActivity.content && !selectedActivity.details && (
-                  <p className="text-center text-slate-400 italic p-5">No additional details available.</p>
+                {activeTab === 'tickets' && (
+                  <TicketsTab leadId={id} />
                 )}
               </motion.div>
+            </AnimatePresence>
+          </main>
+
+          {/* ── RIGHT AI PANEL ──────────────────────────────────────── */}
+          <aside className="space-y-4">
+            <LeadAiCopilotPanel leadId={id} lead={lead} />
+
+            {/* Assign Salesperson Card */}
+            {role === 'Admin' && (
+              <div className="rounded-2xl border border-slate-200 dark:border-zinc-700  bg-white dark:bg-zinc-900  p-4 shadow-sm">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-400  mb-3">{language === 'es' ? 'Asignar Vendedor' : 'Assign Salesperson'}</p>
+                <select
+                  value={lead?.assignedEmployeeId || ''}
+                  onChange={async (e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    if (val === 'create_new') {
+                      setIsCreateUserOpen(true);
+                      // Reset to original value visually so 'create_new' doesn't stay selected
+                      e.target.value = lead?.assignedEmployeeId || '';
+                      return;
+                    }
+                    await fetch(`${API_BASE_URL}/leads/${id}/assign-employee`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ employee_id: Number(val) }),
+                    });
+                    fetchLead();
+                  }}
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-zinc-700 
+                             bg-slate-50 dark:bg-zinc-950  text-slate-800 dark:text-zinc-100 
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">{language === 'es' ? 'Seleccionar vendedor' : 'Select salesperson'}</option>
+                  <option value="create_new" className="font-bold text-indigo-600">➕ {language === 'es' ? 'Crear Nuevo Vendedor' : 'Create New Salesperson'}</option>
+                  {employees.map((e: any) => (
+                    <option key={e.id} value={e.id}>{e.name} — {e.role}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Next Follow-up */}
+            <div className="rounded-2xl border border-slate-200 dark:border-zinc-700  bg-white dark:bg-zinc-900 p-4 shadow-sm">
+              <div className="flex gap-2 mb-4">
+                {lead?.website && (
+                  <a href={lead.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors">
+                    <Globe className="w-3.5 h-3.5" /> Visit Site
+                  </a>
+                )}
+                <button 
+                  onClick={() => router.push(`/admin/leads/${lead.id}/competitors`)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 px-4 py-1.5 rounded-lg shadow-md hover:shadow-lg transition-all"
+                >
+                  <Navigation className="w-3.5 h-3.5" /> Radar Scan
+                </button>
+              </div>
+              <p className="text-xs font-black uppercase tracking-wider text-slate-400  mb-2">{language === 'es' ? 'Fechas de Seguimiento' : 'Follow-up Dates'}</p>
+              <div className="space-y-2">
+                <div>
+                  <p className="text-[10px] text-slate-400 ">{language === 'es' ? 'Último Contacto' : 'Last Contact'}</p>
+                  <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 ">
+                    {lead?.last_contact_date ? new Date(lead.last_contact_date).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-400 ">{language === 'es' ? 'Próximo Seguimiento' : 'Next Follow-up'}</p>
+                  <p className="text-sm font-bold text-amber-600 ">
+                    {lead?.next_followup_date ? new Date(lead.next_followup_date).toLocaleDateString(language === 'es' ? 'es-ES' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      {/* Activity Detail Modal */}
+      <AnimatePresence>
+        {selectedActivity && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 9999,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)'
+            }}
+            onClick={() => setSelectedActivity(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)',
+                borderRadius: 24, padding: 32, width: '90%', maxWidth: 700,
+                maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div>
+                  <h3 style={{ fontSize: 20, fontWeight: 900, color: 'var(--text-primary)', margin: 0 }}>{selectedActivity.action}</h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                    {selectedActivity.createdAt ? new Date(selectedActivity.createdAt).toLocaleString(language === 'es' ? 'es-ES' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''}
+                    {selectedActivity.method ? ` • via ${selectedActivity.method}` : ''}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setSelectedActivity(null)}
+                  style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              {selectedActivity.content && (
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>{language === 'es' ? 'Resumen' : 'Summary'}</p>
+                  <div style={{ background: 'var(--bg-secondary)', padding: 16, borderRadius: 12, fontSize: 14, color: 'var(--text-secondary)' }}>
+                    {selectedActivity.content}
+                  </div>
+                </div>
+              )}
+              
+              {selectedActivity.details && (
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px 0' }}>{language === 'es' ? 'Detalles' : 'Details'}</p>
+                  <div style={{ background: 'var(--bg-hover)', padding: 16, borderRadius: 12, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', fontFamily: 'monospace', border: '1px solid var(--border)' }}>
+                    {selectedActivity.details}
+                  </div>
+                </div>
+              )}
+              
+              {!selectedActivity.content && !selectedActivity.details && (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: 20 }}>{language === 'es' ? 'No hay detalles adicionales.' : 'No additional details available.'}</p>
+              )}
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      </div>
-    </motion.div>
-
-    {/* ── Edit Metrics Modal ── */}
-    {isEditingMetrics && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">Edit Performance Metrics</h3>
-            <button onClick={() => setIsEditingMetrics(false)} className="p-2 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 transition-colors">
-              <X size={20} />
-            </button>
-          </div>
-
-          {/* Hero Stats */}
-          <p className="text-xs font-black text-cyan-400 uppercase tracking-widest mb-3">Hero Stats</p>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {([['total_revenue', 'Total Revenue (e.g. $152K)'], ['growth_rate', 'Growth Rate (e.g. +34%)']] as [string, string][]).map(([key, label]) => (
-              <div key={key}>
-                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">{label}</label>
-                <input
-                  value={metricsForm[key] || ''}
-                  onChange={e => setMetricsForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Performance Story */}
-          <p className="text-xs font-black text-green-400 uppercase tracking-widest mb-3">Performance Story</p>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            {([
-              ['monthly_revenue', 'Monthly Revenue (e.g. $34,560)'],
-              ['revenue_growth_pct', 'Revenue Growth % (e.g. +28%)'],
-              ['total_conversions', 'Total Conversions (e.g. 1,247)'],
-              ['avg_conversion_value', 'Avg Conversion Value (e.g. $27.66)'],
-              ['roi_multiple', 'ROI Multiple (e.g. 7.2x)'],
-              ['roi_detail', 'ROI Detail (e.g. $720 back per $100)'],
-            ] as [string, string][]).map(([key, label]) => (
-              <div key={key}>
-                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">{label}</label>
-                <input
-                  value={metricsForm[key] || ''}
-                  onChange={e => setMetricsForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-green-500"
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Next Steps */}
-          <p className="text-xs font-black text-orange-400 uppercase tracking-widest mb-3">Next Steps Forward</p>
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div>
-              <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Campaign Progress (0–100)</label>
-              <input
-                type="number" min="0" max="100"
-                value={metricsForm.campaign_progress || ''}
-                onChange={e => setMetricsForm(p => ({ ...p, campaign_progress: e.target.value }))}
-                className="w-full bg-white dark:bg-zinc-900/10 border border-white/20 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-orange-400"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Phase Note (e.g. Expansion Phase Ready)</label>
-              <input
-                value={metricsForm.campaign_phase_note || ''}
-                onChange={e => setMetricsForm(p => ({ ...p, campaign_phase_note: e.target.value }))}
-                className="w-full bg-white dark:bg-zinc-900/10 border border-white/20 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-orange-400"
-              />
-            </div>
-            <div className="col-span-2">
-              <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Untapped Revenue Note (e.g. Potential +$84K annually)</label>
-              <input
-                value={metricsForm.untapped_revenue_note || ''}
-                onChange={e => setMetricsForm(p => ({ ...p, untapped_revenue_note: e.target.value }))}
-                className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-orange-500"
-              />
-            </div>
-          </div>
-
-          {/* Detailed Insights */}
-          <p className="text-xs font-black text-purple-400 uppercase tracking-widest mb-3">Detailed Insights</p>
-          <div className="grid grid-cols-3 gap-3 mb-8">
-            {([
-              ['total_visitors', 'Total Visitors (e.g. 24.5K)'],
-              ['engagement_rate', 'Engagement Rate (e.g. 68%)'],
-              ['avg_time_on_site', 'Avg Time on Site (e.g. 4m 28s)'],
-            ] as [string, string][]).map(([key, label]) => (
-              <div key={key}>
-                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">{label}</label>
-                <input
-                  value={metricsForm[key] || ''}
-                  onChange={e => setMetricsForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-purple-500"
-                />
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setIsEditingMetrics(false)}
-              className="flex-1 py-3 border border-slate-300 dark:border-zinc-600 text-slate-600 dark:text-zinc-300 rounded-xl font-bold text-sm hover:bg-slate-100 dark:bg-zinc-800 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveMetrics}
-              disabled={loading}
-              className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50"
-            >
-              {loading ? 'Saving…' : 'Save Metrics'}
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    )}
-    </>
+    </div>
   );
 }
