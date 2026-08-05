@@ -386,11 +386,13 @@ allowed_origins = [
     "http://127.0.0.1:3000",
     "https://web-production-6cd72.up.railway.app",
     "https://web-production-80e20.up.railway.app",
+    "https://web-production-d6daf.up.railway.app",
     "https://crm-seo.allytechcourses.com",
     "https://crm-seo.serphawk.in",
     "https://crm.serphawk.in",
     "https://dapros-crm.serphawk.in",
     "https://crm.dapros.serphawk.in",
+    "https://crm-dapros.vercel.app",
 ]
 
 
