@@ -485,9 +485,9 @@ export default function ClientsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a]">
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-black overflow-hidden relative">
       {/* Header */}
-      <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e293b]">
+      <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-black">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{t("clients.title")}</h1>
@@ -535,7 +535,7 @@ export default function ClientsPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-800 flex-wrap gap-3">
+      <div className="flex items-center justify-between px-6 py-3 bg-white dark:bg-black border-b border-slate-200 dark:border-slate-800 flex-wrap gap-3">
         <div className="relative w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
@@ -557,7 +557,7 @@ export default function ClientsPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content Area */}
-        <div className="flex-1 overflow-auto bg-white dark:bg-[#1e293b]">
+        <div className="flex-1 overflow-auto bg-white dark:bg-black">
           {loading && clients.length === 0 ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="animate-spin w-8 h-8 text-blue-600" />
@@ -756,14 +756,14 @@ export default function ClientsPage() {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="bg-slate-50 dark:bg-[#1e293b] border-y border-slate-200 dark:border-slate-700 overflow-hidden"
+                            className="bg-slate-50 dark:bg-black border-y border-slate-200 dark:border-slate-700 overflow-hidden"
                           >
                             <td colSpan={6} className="p-0">
                               <div className="px-6 py-4 flex items-center gap-3">
                                 <button
                                   onClick={() => handleQuickAction(client.id, 'analyse')}
                                   disabled={!!actionLoading[client.id]}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
+                                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
                                 >
                                   {actionLoading[client.id] === 'analyse' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4 text-slate-500" />}
                                   Analyse Client
@@ -771,7 +771,7 @@ export default function ClientsPage() {
                                 <button
                                   onClick={() => handleQuickAction(client.id, 'extract')}
                                   disabled={!!actionLoading[client.id]}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
+                                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm"
                                 >
                                   {actionLoading[client.id] === 'extract' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4 text-slate-500" />}
                                   Extract Services
@@ -787,7 +787,7 @@ export default function ClientsPage() {
                                 <button
                                   onClick={() => handleQuickAction(client.id, 'opportunity')}
                                   disabled={!!actionLoading[client.id]}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-auto shadow-sm"
+                                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-auto shadow-sm"
                                 >
                                   <Briefcase className="w-4 h-4 text-slate-500" />
                                   View Opportunity
@@ -813,14 +813,14 @@ export default function ClientsPage() {
                 <button 
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="px-4 py-2 text-sm font-semibold bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-semibold bg-white dark:bg-black border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
                 >
                   <ChevronLeft className="w-4 h-4" /> Previous
                 </button>
                 <button 
                   onClick={() => setPage(p => p + 1)}
                   disabled={page * perPage >= totalCount}
-                  className="px-4 py-2 text-sm font-semibold bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-semibold bg-white dark:bg-black border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm flex items-center gap-2"
                 >
                   Next <ChevronRight className="w-4 h-4" />
                 </button>

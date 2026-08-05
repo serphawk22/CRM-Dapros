@@ -1,632 +1,1234 @@
 "use client";
-import { API_BASE_URL } from "@/config";
 
-import React, { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Building2, Globe, Mail, Phone, MapPin, CheckCircle, Clock, 
-  ArrowLeft, ArrowRightLeft, Edit, MoreVertical, FileText, 
-  MessageSquare, History, UserPlus, Plus, Bot, Radar, BarChart2, Zap, Loader2,
-  PhoneCall, ShieldCheck, AlertTriangle, Lightbulb, Play
-} from "lucide-react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+  Globe, 
+  User, 
+  MapPin, 
+  ShieldCheck, 
+  Hash, 
+  MessageSquare, 
+  Activity, 
+  Plus, 
+  Send,
+  Loader2,
+  Trash2,
+  CheckCircle,
+  Clock,
+  Briefcase,
+  Users,
+  Edit2,
+  Save,
+  X,
+  TrendingUp,
+  Zap,
+  ChevronRight,
+  Mail,
+  FolderKanban,
+  Target,
+  Eye
+} from 'lucide-react';
+import { API_BASE_URL } from '@/config';
+import { useRole } from '@/context/RoleContext';
+import { cn } from '@/lib/utils';
+import PageGuide from '@/components/PageGuide';
+import axios from 'axios';
+import { DollarSign, XCircle } from 'lucide-react';
 
-function ScoreRing({ score }: { score: number }) {
-  const radius = 42;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (score / 100) * circumference;
-  const color = score >= 80 ? "#10b981" : score >= 50 ? "#f59e0b" : "#ef4444";
+// Framer Motion Variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.1 } }
+};
 
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 100 } }
+};
+
+const CommentSkeleton = () => (
+  <div className="p-5 bg-white dark:bg-zinc-900/40 backdrop-blur-md rounded-2xl border border-white/60 shadow-sm animate-pulse">
+    <div className="flex justify-between mb-4">
+      <div className="h-4 w-24 bg-slate-300/50 rounded-full"></div>
+      <div className="h-4 w-32 bg-slate-300/50 rounded-full"></div>
+    </div>
+    <div className="space-y-3">
+      <div className="h-4 w-full bg-slate-300/50 rounded-full"></div>
+      <div className="h-4 w-2/3 bg-slate-300/50 rounded-full"></div>
+    </div>
+  </div>
+);
+
+const ActivitySkeletonTab = () => (
+  <div className="flex gap-4 p-5 bg-white dark:bg-zinc-900/40 backdrop-blur-md border border-white/60 shadow-sm rounded-2xl animate-pulse relative overflow-hidden">
+    <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-300/50"></div>
+    <div className="bg-indigo-100/50 p-3 rounded-xl h-12 w-12 flex-shrink-0"></div>
+    <div className="flex-1 space-y-3 py-1">
+      <div className="h-5 w-48 bg-slate-300/50 rounded-full"></div>
+      <div className="h-4 w-full bg-slate-300/50 rounded-full"></div>
+      <div className="h-3 w-24 bg-slate-300/50 rounded-full mt-3"></div>
+    </div>
+  </div>
+);
+
+// Payment Status Widget
+const paymentStatusColors = {
+  Paid: {
+    bg: 'bg-emerald-100',
+    text: 'text-emerald-700',
+    icon: <CheckCircle className="w-5 h-5 text-emerald-500" />,
+    label: 'Paid'
+  },
+  Pending: {
+    bg: 'bg-amber-100',
+    text: 'text-amber-700',
+    icon: <Clock className="w-5 h-5 text-amber-500" />,
+    label: 'Pending'
+  },
+  Failed: {
+    bg: 'bg-red-100',
+    text: 'text-red-700',
+    icon: <XCircle className="w-5 h-5 text-red-500" />,
+    label: 'Failed'
+  }
+};
+
+function PaymentStatusWidget({ status }: { status: string }) {
+  const validStatus = (status as keyof typeof paymentStatusColors) in paymentStatusColors 
+    ? status as keyof typeof paymentStatusColors 
+    : 'Pending';
+  const config = paymentStatusColors[validStatus];
   return (
-    <div className="relative flex items-center justify-center w-32 h-32">
-      <svg width="128" height="128" className="-rotate-90">
-        <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" className="text-slate-200 dark:text-slate-800" strokeWidth="12" />
-        <motion.circle
-          cx="64"
-          cy="64"
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="12"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: circumference - progress }}
-          transition={{ duration: 1.5, ease: "easeOut" }}
-          style={{ dropShadow: `0 0 10px ${color}40` }}
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        <motion.span
-          className="text-3xl font-extrabold tracking-tighter"
-          style={{ color }}
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.8, type: "spring" }}
-        >
-          {score}
-        </motion.span>
+    <div className={`flex items-center gap-4 p-6 rounded-2xl border border-white/60 shadow-sm ${config.bg}`}> 
+      <div className="bg-white dark:bg-zinc-900 p-3 rounded-xl shadow-sm">{config.icon}</div>
+      <div>
+        <div className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Payment Status</div>
+        <div className={`text-lg font-bold ${config.text}`}>{config.label}</div>
       </div>
     </div>
   );
 }
 
-export default function LeadDetailsPage() {
-  const params = useParams();
+export default function LeadDetailPage() {
+  const { id } = useParams();
   const router = useRouter();
-  const leadId = params.id as string;
-  
   const [lead, setLead] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [converting, setConverting] = useState(false);
-  const [activeTab, setActiveTab] = useState("ai-agents");
-  const [loadingAgent, setLoadingAgent] = useState<string | null>(null);
+  const [remarks, setRemarks] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [emails, setEmails] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
+  const [timeline, setTimeline] = useState<any[]>([]);
+  const [timelineFilter, setTimelineFilter] = useState('all');
+  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isKeywordModalOpen, setIsKeywordModalOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [newKeyword, setNewKeyword] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
+  const { role } = useRole();
+  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+  const [milestoneData, setMilestoneData] = useState({
+    nextMilestone: '',
+    nextMilestoneDate: ''
+  });
+  const [isEditingServices, setIsEditingServices] = useState(false);
+  const [editServicesForm, setEditServicesForm] = useState({
+    services_offered: '',
+    services_requested: ''
+  });
+  const [serviceRequests, setServiceRequests] = useState<any[]>([]);
+  const [isEditingMetrics, setIsEditingMetrics] = useState(false);
+  const [metricsForm, setMetricsForm] = useState<Record<string, string>>({
+    total_revenue: '', growth_rate: '',
+    monthly_revenue: '', revenue_growth_pct: '',
+    total_conversions: '', avg_conversion_value: '',
+    roi_multiple: '', roi_detail: '',
+    campaign_progress: '', campaign_phase_note: '',
+    untapped_revenue_note: '',
+    total_visitors: '', engagement_rate: '', avg_time_on_site: '',
+  });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ companyName: '', projectName: '', websiteUrl: '' });
+  const [selectedActivity, setSelectedActivity] = useState<any>(null);
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await updateProfile({
+      companyName: profileForm.companyName,
+      projectName: profileForm.projectName,
+      websiteUrl: profileForm.websiteUrl
+    });
+    setIsEditingProfile(false);
+  };
 
   useEffect(() => {
-    if (leadId) fetchLeadDetails();
-  }, [leadId]);
+    if (id) {
+      Promise.all([
+        fetchLeadData(),
+        fetchRemarks(),
+        fetchActivities(),
+        fetchEmails(),
+        fetchEmployees(),
+        fetchStatuses(),
+        fetchServiceRequests(),
+        fetchTimeline(),
+      ]).catch(console.error).finally(() => setPageLoading(false));
+    }
+  }, [id]);
 
-  const fetchLeadDetails = async () => {
+  const fetchStatuses = async () => {
     try {
-      setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/leads/${leadId}`);
+      const res = await fetch(`${API_BASE_URL}/client-statuses`);
+      const data = await res.json();
+      setStatuses(data.statuses || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/employees`);
+      const data = await res.json();
+      setEmployees(data.employees || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchLeadData = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}`);
       if (res.ok) {
         const data = await res.json();
         setLead(data);
+        const cf = data.customFields || {};
+        setMetricsForm({
+          total_revenue: cf.total_revenue || '',
+          growth_rate: cf.growth_rate || '',
+          monthly_revenue: cf.monthly_revenue || '',
+          revenue_growth_pct: cf.revenue_growth_pct || '',
+          total_conversions: cf.total_conversions || '',
+          avg_conversion_value: cf.avg_conversion_value || '',
+          roi_multiple: cf.roi_multiple || '',
+          roi_detail: cf.roi_detail || '',
+          campaign_progress: cf.campaign_progress || '',
+          campaign_phase_note: cf.campaign_phase_note || '',
+          untapped_revenue_note: cf.untapped_revenue_note || '',
+          total_visitors: cf.total_visitors || '',
+          engagement_rate: cf.engagement_rate || '',
+          avg_time_on_site: cf.avg_time_on_site || '',
+        });
+        setEditServicesForm({
+          services_offered: data.services_offered || '',
+          services_requested: data.services_requested || ''
+        });
+        setMilestoneData({
+          nextMilestone: data.nextMilestone || '',
+          nextMilestoneDate: data.nextMilestoneDate || ''
+        });
       }
-    } catch (error) {
-      console.error("Error fetching lead:", error);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchRemarks = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/remarks`);
+      if (res.ok) {
+        const data = await res.json();
+        setRemarks(data.remarks || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchActivities = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/activities`);
+      if (res.ok) {
+        const data = await res.json();
+        setActivities(data.activities || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchEmails = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/emails`);
+      if (res.ok) {
+        const data = await res.json();
+        setEmails(data.emails || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchServiceRequests = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/services/requests`);
+      if (res.ok) {
+        const data = await res.json();
+        setServiceRequests((data.requests || []).filter((r: any) => r.client_id === Number(id)));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchTimeline = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/timeline`);
+      if (res.ok) {
+        const data = await res.json();
+        setTimeline(data.timeline || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAssignEmployee = async (employeeId: number) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/assign-employee`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: employeeId })
+      });
+      if (res.ok) {
+        setIsAssignModalOpen(false);
+        fetchLeadData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddKeyword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newKeyword.trim()) return;
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_BASE_URL}/clients/${id}/keywords`, { keyword: newKeyword });
+      if (res.data.success) {
+        setNewKeyword('');
+        setIsKeywordModalOpen(false);
+        fetchLeadData();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add keyword");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConvert = async () => {
-    if (!confirm("Are you sure you want to convert this lead to a Client?")) return;
-    
+  const handleRemoveKeyword = async (keyword: string) => {
+    if (!confirm(`Remove keyword "${keyword}"?`)) return;
     try {
-      setConverting(true);
-      const res = await fetch(`${API_BASE_URL}/leads/${leadId}/convert`, {
-        method: "POST"
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/keywords`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword })
       });
-      
+      if (res.ok) {
+        fetchLeadData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddRemark = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const content = (form.elements.namedItem('content') as HTMLTextAreaElement).value;
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/remarks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, createdBy: 'Admin' })
+      });
+      if (res.ok) {
+        fetchRemarks();
+        form.reset();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const data = {
+      method: formData.get('method') as string,
+      content: formData.get('content') as string
+    };
+    try {
+      const res = await axios.post(`${API_BASE_URL}/clients/${id}/activities`, data);
+      if (res.data.success) {
+        fetchActivities();
+        setIsActivityModalOpen(false);
+        form.reset();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to add activity");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfile = async (updates: any) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        fetchLeadData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSimulateCall = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/clients/${id}/simulate-call`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
-        alert("Lead successfully converted to Client!");
-        router.push(`/clients/${data.client_id}`);
+        alert(`AI Pitch Generated:\n\n${data.pitch}`);
+        fetchActivities();
       } else {
-        const err = await res.json();
-        alert(err.detail || "Failed to convert lead");
+        alert('Failed to generate simulation');
       }
-    } catch (error) {
-      console.error("Conversion error:", error);
-      alert("Error converting lead");
+    } catch (err) {
+      console.error(err);
+      alert('Error connecting to AI');
     } finally {
-      setConverting(false);
+      setLoading(false);
     }
   };
 
-  const handleRunAgent = async (agentType: string) => {
-    setLoadingAgent(agentType);
+  const handleSaveMetrics = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/leads/${leadId}/ai/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agent_type: agentType })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setLead(data.lead);
-      }
-    } catch (error) {
-      console.error("Failed to run agent", error);
+      await updateProfile({ customFields: metricsForm });
+      setIsEditingMetrics(false);
     } finally {
-      setLoadingAgent(null);
+      setLoading(false);
     }
   };
 
-  if (loading) {
+  const handleUpdateMilestone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await updateProfile(milestoneData);
+      setIsMilestoneModalOpen(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (pageLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#f8fafc] dark:bg-[#0f172a]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+        <div className="relative w-24 h-24">
+          <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
+          <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+        </div>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-zinc-100 animate-pulse mt-4">Pulling Intelligence Data...</h2>
       </div>
     );
   }
+  if (!lead) return <div className="p-8 text-red-500 font-bold text-center">Neural link failed. Lead not found.</div>;
 
-  if (!lead) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-[#f8fafc] dark:bg-[#0f172a]">
-        <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Lead Not Found</h2>
-        <button onClick={() => router.push('/leads')} className="text-blue-600 hover:underline">
-          Return to Leads
-        </button>
-      </div>
-    );
-  }
-
-  const aiResults = lead.ai_analysis_results || {};
-
+  // --- INTERACTIVE STORYTELLING DASHBOARD ---
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a] overflow-hidden">
-      {/* Top Banner */}
-      <div className="flex items-center justify-between px-6 py-4 bg-white dark:bg-[#1e293b] border-b border-slate-200 dark:border-slate-800 shrink-0">
-        <div className="flex items-center gap-4">
-          <Link href="/leads" className="p-2 -ml-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-slate-900 dark:text-white">{lead.company_name}</h1>
-              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-                lead.is_converted 
-                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400" 
-                  : "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400"
-              }`}>
-                {lead.is_converted ? "Converted" : lead.status}
-              </span>
-            </div>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-2">
-              <Globe className="w-3.5 h-3.5" />
-              {lead.website || "No website"}
-              <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-              {lead.industry || "No industry specified"}
-            </p>
-          </div>
-        </div>
+    <>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 p-8">
+      <div className="max-w-7xl mx-auto">
+        {/* EPIC WELCOME HERO */}
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }} 
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="relative mb-16 overflow-hidden rounded-3xl"
+        >
+          {/* Animated Background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 opacity-90"></div>
+          <motion.div 
+            animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.5, 0.3] }}
+            transition={{ duration: 8, repeat: Infinity }}
+            className="absolute top-0 right-0 w-96 h-96 bg-white dark:bg-zinc-900/20 rounded-full blur-3xl"
+          ></motion.div>
+          <motion.div 
+            animate={{ scale: [1, 0.9, 1], opacity: [0.2, 0.4, 0.2] }}
+            transition={{ duration: 10, repeat: Infinity, delay: 1 }}
+            className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl"
+          ></motion.div>
 
-        <div className="flex items-center gap-3">
-          {!lead.is_converted && (
-            <button 
-              onClick={handleConvert}
-              disabled={converting}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-50"
+          {/* Content */}
+          <div className="relative z-10 p-12 text-white">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.6 }}
             >
-              <ArrowRightLeft className="w-4 h-4" />
-              {converting ? "Converting..." : "Convert to Client"}
-            </button>
-          )}
-          <button className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
-            <Edit className="w-4 h-4" />
-          </button>
-          <button className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors">
-            <MoreVertical className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+              <p className="text-cyan-200 font-bold text-sm uppercase tracking-widest mb-3">Welcome Back To Your Growth Hub</p>
+              <h1 className="text-6xl md:text-7xl font-black mb-4 leading-tight">
+                {lead.companyName}
+              </h1>
+              <p className="text-xl text-white/90 font-medium max-w-2xl">
+                Your intelligent growth partner is ready to scale your business to new heights. Let's unlock extraordinary results together.
+              </p>
+            </motion.div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar (Profile) */}
-        <div className="w-80 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e293b] overflow-y-auto">
-          <div className="p-6">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4">Lead Details</h3>
-            
-            <div className="space-y-5">
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Email</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Mail className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm font-medium text-slate-900 dark:text-white">{lead.email || "—"}</span>
-                </div>
+            {/* Stats Preview */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4, duration: 0.6 }}
+              className="grid grid-cols-3 gap-6 mt-8"
+            >
+              <div className="bg-white dark:bg-zinc-900/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <p className="text-white/70 text-sm font-bold uppercase tracking-wider mb-2">Active Services</p>
+                <p className="text-3xl font-black text-cyan-200">{serviceRequests.filter(r => r.status !== 'Pending').length || 0}</p>
               </div>
-              
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Phone</label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Phone className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm font-medium text-slate-900 dark:text-white">{lead.phone || "—"}</span>
-                </div>
+              <div className="bg-white dark:bg-zinc-900/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <p className="text-white/70 text-sm font-bold uppercase tracking-wider mb-2">Total Revenue</p>
+                <p className="text-3xl font-black text-cyan-200">{lead.customFields?.total_revenue || '—'}</p>
               </div>
-              
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Address</label>
-                <div className="flex items-start gap-2 mt-1">
-                  <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
-                  <span className="text-sm font-medium text-slate-900 dark:text-white leading-relaxed">
-                    {lead.address || "—"}
-                  </span>
-                </div>
+              <div className="bg-white dark:bg-zinc-900/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                <p className="text-white/70 text-sm font-bold uppercase tracking-wider mb-2">Growth Rate</p>
+                <p className="text-3xl font-black text-cyan-200">{lead.customFields?.growth_rate || '—'}</p>
               </div>
-
-              <div>
-                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Source</label>
-                <div className="mt-1">
-                  <span className="inline-flex items-center px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300">
-                    {lead.source || "Unknown"}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <hr className="my-6 border-slate-200 dark:border-slate-800" />
-            
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4">System Info</h3>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-xs text-slate-500">Created</span>
-                <span className="text-xs font-medium text-slate-900 dark:text-white">
-                  {new Date(lead.created_at).toLocaleDateString()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-xs text-slate-500">Lead Owner</span>
-                <span className="text-xs font-medium text-slate-900 dark:text-white">Admin User</span>
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-[#0f172a]">
-          {/* Tabs */}
-          <div className="flex items-center gap-1 px-6 pt-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e293b] shrink-0">
+
+        {/* STORYTELLING SECTION: Your Performance Journey */}
+        <PageGuide
+          pageKey="lead-detail"
+          title="Understanding Your Lead Dashboard"
+          description="This is the complete profile page for this lead — a 360° view of their business, services, and performance."
+          steps={[
+            { icon: '📊', text: 'Performance Story section shows growth metrics like traffic, revenue, and rankings over time.' },
+            { icon: '💼', text: 'Scroll down to see active services, recent activity, communications, and project timeline.' },
+            { icon: '✏️', text: 'Admins can click \"Edit Metrics\" to update this lead\'s financial and performance data.' },
+            { icon: '💬', text: 'The comments section lets you add internal notes and track all communication history.' },
+          ]}
+        />
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.8 }}
+          className="mb-16"
+        >
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Your Performance Story</h2>
+            {(role === 'Admin' || role === 'Employee') && (
+              <button onClick={() => setIsEditingMetrics(true)} className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:bg-zinc-700 border border-slate-300 dark:border-zinc-600 text-slate-700 dark:text-zinc-200 text-xs font-bold rounded-lg transition-all">
+                <Edit2 size={12} /> Edit Metrics
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Card 1: Growth Momentum */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.9, duration: 0.6 }}
+              whileHover={{ y: -8 }}
+              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 group overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-green-400/20 to-emerald-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-green-100 text-green-600 rounded-xl"><TrendingUp size={24} /></div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">Growth Momentum</h3>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold mb-2">This Month's Revenue</p>
+                  <p className="text-4xl font-black text-green-600">{lead.customFields?.monthly_revenue || '—'}</p>
+                  <p className="text-sm text-green-700 mt-2 font-bold">{lead.customFields?.revenue_growth_pct || 'No data yet'}</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 2: Conversion Power */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1, duration: 0.6 }}
+              whileHover={{ y: -8 }}
+              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 group overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-cyan-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-blue-100 text-blue-600 rounded-xl"><Zap size={24} /></div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">Conversion Power</h3>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold mb-2">Total Conversions</p>
+                  <p className="text-4xl font-black text-blue-600">{lead.customFields?.total_conversions || '—'}</p>
+                  <p className="text-sm text-blue-700 mt-2 font-bold">{lead.customFields?.avg_conversion_value || 'No data yet'}</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Card 3: ROI Victory */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1.1, duration: 0.6 }}
+              whileHover={{ y: -8 }}
+              className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 group overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500"></div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 bg-purple-100 text-purple-600 rounded-xl"><DollarSign size={24} /></div>
+                  <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">ROI Victory</h3>
+                </div>
+                <div>
+                  <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold mb-2">Return on Investment</p>
+                  <p className="text-4xl font-black text-purple-600">{lead.customFields?.roi_multiple || '—'}</p>
+                  <p className="text-sm text-purple-700 mt-2 font-bold">{lead.customFields?.roi_detail || 'No data yet'}</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* PARTNERSHIP PROFILE HERO */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2 }}
+          className="mb-16"
+        >
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Your Partnership</h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Profile Card - Modern Design */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1.3, duration: 0.6 }}
+              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-10 overflow-hidden shadow-sm"
+            >
+              {/* Animated glow */}
+              <motion.div
+                className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100"
+                transition={{ duration: 0.5 }}
+              ></motion.div>
+
+              <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-8">
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg"
+                  >
+                    <Briefcase size={32} className="text-white" />
+                  </motion.div>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-100">Company Profile</h3>
+                    <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold">Your business details</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Editable Company Profile Fields */}
+                  {isEditingProfile ? (
+                    <form onSubmit={handleSaveProfile} className="space-y-4">
+                      <motion.div className="p-4 bg-cyan-50 border border-cyan-200 rounded-2xl">
+                        <label className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2 block">Company Name</label>
+                        <input className="w-full px-3 py-2 rounded-xl border border-cyan-200 font-black text-cyan-700 bg-white dark:bg-zinc-900" value={profileForm.companyName} onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })} />
+                      </motion.div>
+                      <motion.div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                        <label className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2 block">Project Name</label>
+                        <input className="w-full px-3 py-2 rounded-xl border border-blue-200 font-black text-blue-700 bg-white dark:bg-zinc-900" value={profileForm.projectName} onChange={e => setProfileForm({ ...profileForm, projectName: e.target.value })} />
+                      </motion.div>
+                      <motion.div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl">
+                        <label className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2 block">Website</label>
+                        <input className="w-full px-3 py-2 rounded-xl border border-purple-200 font-black text-purple-700 bg-white dark:bg-zinc-900" value={profileForm.websiteUrl} onChange={e => setProfileForm({ ...profileForm, websiteUrl: e.target.value })} />
+                      </motion.div>
+                      <div className="flex gap-2 pt-2">
+                        <button type="button" onClick={() => setIsEditingProfile(false)} className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-bold">Cancel</button>
+                        <button type="submit" className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 text-white font-bold">Save</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <>
+                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.4 }} className="p-4 bg-cyan-50 border border-cyan-200 rounded-2xl hover:bg-cyan-100 transition-all flex justify-between items-center">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2">Company Name</p>
+                          <p className="text-xl font-black text-cyan-700">{lead.companyName}</p>
+                        </div>
+                        <button onClick={() => { setIsEditingProfile(true); setProfileForm({ companyName: lead.companyName || '', projectName: lead.projectName || '', websiteUrl: lead.website || lead.websiteUrl || '' }); }} className="ml-4 p-2 rounded-full bg-cyan-100 hover:bg-cyan-200"><Edit2 className="w-4 h-4 text-cyan-700" /></button>
+                      </motion.div>
+                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.45 }} className="p-4 bg-blue-50 border border-blue-200 rounded-2xl hover:bg-blue-100 transition-all flex justify-between items-center">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2">Project Name</p>
+                          <p className="text-xl font-black text-blue-700">{lead.projectName || 'Active Project'}</p>
+                        </div>
+                        <button onClick={() => { setIsEditingProfile(true); setProfileForm({ companyName: lead.companyName || '', projectName: lead.projectName || '', websiteUrl: lead.website || lead.websiteUrl || '' }); }} className="ml-4 p-2 rounded-full bg-blue-100 hover:bg-blue-200"><Edit2 className="w-4 h-4 text-blue-700" /></button>
+                      </motion.div>
+                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 1.5 }} className="p-4 bg-purple-50 border border-purple-200 rounded-2xl hover:bg-purple-100 transition-all flex justify-between items-center">
+                        <div>
+                          <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold uppercase tracking-wider mb-2">Website</p>
+                          <p className="text-lg font-black text-purple-700 truncate">{lead.website || lead.websiteUrl || 'www.yourwebsite.com'}</p>
+                        </div>
+                        <button onClick={() => { setIsEditingProfile(true); setProfileForm({ companyName: lead.companyName || '', projectName: lead.projectName || '', websiteUrl: lead.website || lead.websiteUrl || '' }); }} className="ml-4 p-2 rounded-full bg-purple-100 hover:bg-purple-200"><Edit2 className="w-4 h-4 text-purple-700" /></button>
+                      </motion.div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Team & Services - Interactive */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 1.3, duration: 0.6 }}
+              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-10 overflow-hidden shadow-sm"
+            >
+              {/* Animated glow */}
+              <motion.div
+                className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100"
+                transition={{ duration: 0.5 }}
+              ></motion.div>
+
+              <div className="relative z-10">
+                <div className="flex items-center gap-4 mb-8">
+                  <motion.div
+                    whileHover={{ scale: 1.1, rotate: -5 }}
+                    className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg"
+                  >
+                    <Users size={32} className="text-white" />
+                  </motion.div>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-100">Active Services</h3>
+                    <p className="text-sm text-slate-500 dark:text-zinc-400 font-bold">What we're doing for you</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  {serviceRequests.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-zinc-400 italic py-2">No active services yet.</p>
+                  ) : (
+                    serviceRequests.map((svc: any, idx: number) => (
+                      <motion.div
+                        key={svc.id}
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1.4 + idx * 0.05 }}
+                        className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl border border-purple-200 hover:bg-purple-100 transition-all"
+                      >
+                        <motion.div
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 2, repeat: Infinity, delay: idx * 0.2 }}
+                          className="w-3 h-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full shrink-0"
+                        />
+                        <span className="font-bold text-slate-800 dark:text-zinc-100 flex-1">{svc.service_name}</span>
+                        <span className="text-xs text-slate-500 dark:text-zinc-400 font-medium">{svc.status}</span>
+                        <CheckCircle size={14} className="text-green-400" />
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-black rounded-xl shadow-lg hover:shadow-purple-500/30 transition-all"
+                >
+                  Connect With Your Team
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+        {/* ENGAGEMENT OPPORTUNITIES */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.4 }}
+          className="mb-16"
+        >
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Next Steps Forward</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Strategy Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.5 }}
+              whileHover={{ y: -8 }}
+              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden cursor-pointer shadow-sm"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <div className="flex items-start justify-between mb-6">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100 mb-2">{lead.nextMilestone || 'Next Campaign Phase'}</h3>
+                    <p className="text-sm text-slate-500 dark:text-zinc-400">{lead.nextMilestoneDate || 'No deadline set'}</p>
+                  </div>
+                  <div className="p-3 bg-green-100 text-green-600 rounded-xl"><Zap size={24} /></div>
+                </div>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Number(lead.customFields?.campaign_progress) || 0)}%` }}
+                  transition={{ delay: 1.6, duration: 0.8 }}
+                  className="h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full mb-3"
+                />
+                <p className="text-sm font-bold text-slate-600 dark:text-zinc-300">
+                  {lead.customFields?.campaign_phase_note || (lead.nextMilestone ? `${lead.customFields?.campaign_progress || 0}% Complete` : 'Not yet configured')}
+                </p>
+              </div>
+            </motion.div>
+
+            {/* Opportunity Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.55 }}
+              whileHover={{ y: -8 }}
+              className="group relative bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div>
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100 mb-2">Untapped Revenue</h3>
+                      <p className="text-sm text-slate-500 dark:text-zinc-400">Growth opportunities ahead</p>
+                    </div>
+                    <div className="p-3 bg-orange-100 text-orange-600 rounded-xl"><TrendingUp size={24} /></div>
+                  </div>
+                  <p className="text-lg font-bold text-slate-600 dark:text-zinc-300 mb-6">
+                    {lead.customFields?.untapped_revenue_note || 'No data yet — admin can set this'}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Link href="/store" className="flex-1 py-3 text-center bg-orange-600/10 hover:bg-orange-600/20 text-orange-600 rounded-xl font-bold text-sm transition-all border border-orange-200">
+                    See Opportunities
+                  </Link>
+                  <button onClick={handleSimulateCall} disabled={loading} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm shadow-lg shadow-orange-500/20 transition-all disabled:opacity-50">
+                    {loading ? 'Thinking...' : 'AI Call Simulation'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* DETAILED INSIGHTS - Tabs with Content */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.6 }}
+          className="mb-16"
+        >
+          <div className="flex items-center gap-3 mb-8">
+            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Detailed Insights</h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Overview Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.7 }}
+              whileHover={{ y: -8 }}
+              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <h3 className="text-lg font-black text-slate-800 dark:text-zinc-100 mb-6 flex items-center gap-2">
+                  <Eye size={24} className="text-blue-600" />
+                  Performance Overview
+                </h3>
+                <div className="space-y-3">
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-1">Total Visitors</p>
+                    <p className="text-2xl font-black text-blue-700">{lead.customFields?.total_visitors || '—'}</p>
+                  </div>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-1">Engagement Rate</p>
+                    <p className="text-2xl font-black text-blue-700">{lead.customFields?.engagement_rate || '—'}</p>
+                  </div>
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-1">Avg Time on Site</p>
+                    <p className="text-2xl font-black text-blue-700">{lead.customFields?.avg_time_on_site || '—'}</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Recent Activity Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.75 }}
+              whileHover={{ y: -8 }}
+              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <h3 className="text-lg font-black text-slate-800 dark:text-zinc-100 mb-6 flex items-center gap-2">
+                  <Activity size={24} className="text-purple-600" />
+                  Recent Activity
+                </h3>
+                <div className="space-y-3">
+                  {activities.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-zinc-400 italic">No activities recorded yet.</p>
+                  ) : (
+                    activities.slice(0, 3).map((item: any, idx: number) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1.8 + idx * 0.05 }}
+                        onClick={() => setSelectedActivity(item)}
+                        className="p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-xl cursor-pointer transition-colors"
+                      >
+                        <p className="text-sm font-bold text-slate-800 dark:text-zinc-100">{item.action || item.content}</p>
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-medium">
+                          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '—'}
+                          {item.method ? ` • via ${item.method}` : ''}
+                        </p>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Team Connection Card */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.8 }}
+              whileHover={{ y: -8 }}
+              className="group bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 overflow-hidden shadow-sm"
+            >
+              <div className="absolute top-0 left-0 w-32 h-32 bg-pink-500/20 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <div className="relative z-10">
+                <h3 className="text-lg font-black text-slate-800 dark:text-zinc-100 mb-6 flex items-center gap-2">
+                  <Users size={24} className="text-pink-600" />
+                  Your Team
+                </h3>
+                <div className="space-y-3">
+                  {(() => {
+                    const assignedEmp = employees.find((e: any) => e.id === lead.assignedEmployeeId);
+                    return assignedEmp ? (
+                      <div className="p-4 bg-pink-50 border border-pink-200 rounded-xl">
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-2">Account Manager</p>
+                        <p className="text-sm font-black text-pink-700">{assignedEmp.name}</p>
+                        <p className="text-xs text-slate-400 mt-1">{assignedEmp.email}</p>
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-pink-50 border border-pink-200 rounded-xl">
+                        <p className="text-xs text-slate-500 dark:text-zinc-400 font-bold mb-2">Account Manager</p>
+                        <p className="text-sm font-medium text-slate-400 italic">Not assigned yet</p>
+                      </div>
+                    );
+                  })()}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    className="w-full py-3 bg-gradient-to-r from-pink-600 to-rose-600 text-white rounded-xl font-bold text-sm shadow-lg hover:shadow-pink-500/30 transition-all"
+                  >
+                    Message Your Team
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* ─── UNIFIED ACTIVITY TIMELINE ─── */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.9 }} className="mb-16">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-1 w-12 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"></div>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-zinc-100 uppercase tracking-wider">Activity Timeline</h2>
+          </div>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2 mb-6">
             {[
-              { id: 'ai-agents', icon: Bot, label: 'AI Agents' },
-              { id: 'timeline', icon: History, label: 'Timeline' },
-              { id: 'notes', icon: FileText, label: 'Notes' },
-              { id: 'contacts', icon: UserPlus, label: 'Contacts' },
-              { id: 'emails', icon: Mail, label: 'Emails' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id 
-                    ? "border-blue-600 text-blue-600 dark:text-blue-400" 
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
+              { key: 'all', label: 'All' },
+              { key: 'email', label: 'Emails' },
+              { key: 'call', label: 'Calls' },
+              { key: 'invoice', label: 'Invoices' },
+              { key: 'milestone', label: 'Milestones' },
+              { key: 'file', label: 'Files' },
+              { key: 'activity', label: 'Activities' },
+            ].map(f => (
+              <button key={f.key} onClick={() => setTimelineFilter(f.key)}
+                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${timelineFilter === f.key ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white dark:bg-zinc-900 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:bg-zinc-950'}`}>
+                {f.label}
               </button>
             ))}
           </div>
+          {/* Timeline List */}
+          <div className="relative">
+            <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-indigo-300 via-purple-300 to-transparent"></div>
+            <div className="space-y-4">
+              {timeline.filter(e => timelineFilter === 'all' || e.type === timelineFilter).length === 0 ? (
+                <p className="text-sm text-slate-400 italic pl-14">No events found.</p>
+              ) : (
+                timeline.filter(e => timelineFilter === 'all' || e.type === timelineFilter).slice(0, 30).map((ev: any, idx: number) => {
+                  const colors: Record<string, { bg: string; ring: string; icon: string }> = {
+                    email: { bg: 'bg-violet-100', ring: 'ring-violet-300', icon: '✉️' },
+                    call: { bg: 'bg-amber-100', ring: 'ring-amber-300', icon: '📞' },
+                    invoice: { bg: 'bg-emerald-100', ring: 'ring-emerald-300', icon: '💰' },
+                    milestone: { bg: 'bg-pink-100', ring: 'ring-pink-300', icon: '🎯' },
+                    file: { bg: 'bg-sky-100', ring: 'ring-sky-300', icon: '📁' },
+                    activity: { bg: 'bg-slate-100 dark:bg-zinc-800', ring: 'ring-slate-300', icon: '⚡' },
+                  };
+                  const c = colors[ev.type] || colors.activity;
+                  return (
+                    <motion.div key={`${ev.type}-${ev.id}`} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.03 }}
+                      className="relative flex items-start gap-4 pl-14">
+                      <div className={`absolute left-3.5 w-5 h-5 rounded-full ${c.bg} ring-2 ${c.ring} flex items-center justify-center text-[10px]`}>{c.icon}</div>
+                      <div onClick={() => setSelectedActivity(ev)} className="flex-1 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-pointer">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ev.type}</span>
+                            <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 mt-0.5">{ev.title}</p>
+                            {ev.detail && <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">{ev.detail}</p>}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-medium shrink-0">{ev.date ? new Date(ev.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </motion.div>
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto p-6 relative">
-            
-            {activeTab === 'ai-agents' && (
-              <div className="max-w-[1200px] flex flex-col gap-8 pb-12">
-                <div>
-                  <h3 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6 flex items-center gap-3">
-                    <Bot className="w-6 h-6 text-blue-500" />
-                    AI Intelligence Suite
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    
-                    <button 
-                      onClick={() => handleRunAgent("calling")}
-                      disabled={loadingAgent !== null}
-                      className="text-left p-5 bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-pink-500 hover:shadow-lg hover:shadow-pink-500/10 transition-all group disabled:opacity-50 relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-900/40 flex items-center justify-center mb-4 relative z-10">
-                        {loadingAgent === "calling" ? <Loader2 className="w-6 h-6 text-pink-600 animate-spin" /> : <PhoneCall className="w-6 h-6 text-pink-600 dark:text-pink-400 group-hover:scale-110 transition-transform" />}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white mb-1 relative z-10">Calling Pitch</h4>
-                      <p className="text-xs text-slate-500 relative z-10">Generate a structured teleprompter script.</p>
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                        <PhoneCall className="w-24 h-24 text-pink-500" />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => handleRunAgent("email")}
-                      disabled={loadingAgent !== null}
-                      className="text-left p-5 bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10 transition-all group disabled:opacity-50 relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center mb-4 relative z-10">
-                        {loadingAgent === "email" ? <Loader2 className="w-6 h-6 text-blue-600 animate-spin" /> : <Mail className="w-6 h-6 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white mb-1 relative z-10">Email Agent</h4>
-                      <p className="text-xs text-slate-500 relative z-10">Draft highly personalized outreach emails.</p>
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                        <Mail className="w-24 h-24 text-blue-500" />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => handleRunAgent("radar")}
-                      disabled={loadingAgent !== null}
-                      className="text-left p-5 bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all group disabled:opacity-50 relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mb-4 relative z-10">
-                        {loadingAgent === "radar" ? <Loader2 className="w-6 h-6 text-purple-600 animate-spin" /> : <Radar className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform" />}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white mb-1 relative z-10">Radar Analysis</h4>
-                      <p className="text-xs text-slate-500 relative z-10">Deep dive into social presence and news.</p>
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                        <Radar className="w-24 h-24 text-purple-500" />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => handleRunAgent("competitor")}
-                      disabled={loadingAgent !== null}
-                      className="text-left p-5 bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/10 transition-all group disabled:opacity-50 relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center mb-4 relative z-10">
-                        {loadingAgent === "competitor" ? <Loader2 className="w-6 h-6 text-orange-600 animate-spin" /> : <BarChart2 className="w-6 h-6 text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform" />}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white mb-1 relative z-10">Competitor Analysis</h4>
-                      <p className="text-xs text-slate-500 relative z-10">Map out their top industry rivals instantly.</p>
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                        <BarChart2 className="w-24 h-24 text-orange-500" />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => handleRunAgent("scanner")}
-                      disabled={loadingAgent !== null}
-                      className="text-left p-5 bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/10 transition-all group disabled:opacity-50 relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center mb-4 relative z-10">
-                        {loadingAgent === "scanner" ? <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" /> : <Globe className="w-6 h-6 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white mb-1 relative z-10">Website Scanner</h4>
-                      <p className="text-xs text-slate-500 relative z-10">Score their digital footprint and find gaps.</p>
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                        <Globe className="w-24 h-24 text-emerald-500" />
-                      </div>
-                    </button>
-
-                    <button 
-                      onClick={() => handleRunAgent("automations")}
-                      disabled={loadingAgent !== null}
-                      className="text-left p-5 bg-white dark:bg-[#1e293b] rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-amber-500 hover:shadow-lg hover:shadow-amber-500/10 transition-all group disabled:opacity-50 relative overflow-hidden"
-                    >
-                      <div className="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center mb-4 relative z-10">
-                        {loadingAgent === "automations" ? <Loader2 className="w-6 h-6 text-amber-600 animate-spin" /> : <Zap className="w-6 h-6 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform" />}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white mb-1 relative z-10">AI Automations</h4>
-                      <p className="text-xs text-slate-500 relative z-10">Create triggers and auto-follow ups.</p>
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-10 transition-opacity">
-                        <Zap className="w-24 h-24 text-amber-500" />
-                      </div>
-                    </button>
+        {/* Activity Detail Modal */}
+        <AnimatePresence>
+          {selectedActivity && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: 'fixed', inset: 0, zIndex: 9999,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)'
+              }}
+              onClick={() => setSelectedActivity(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  background: 'white', border: '1px solid #e2e8f0',
+                  borderRadius: 24, padding: 32, width: '90%', maxWidth: 700,
+                  maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 40px rgba(0,0,0,0.1)'
+                }}
+                className="bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-700"
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-zinc-100 m-0">{selectedActivity.title || selectedActivity.action}</h3>
+                    <p className="text-sm text-slate-500 dark:text-zinc-400 m-0 mt-1">
+                      {selectedActivity.date || selectedActivity.createdAt ? new Date(selectedActivity.date || selectedActivity.createdAt).toLocaleString() : ''}
+                      {selectedActivity.method ? ` • via ${selectedActivity.method}` : ''}
+                    </p>
                   </div>
+                  <button 
+                    onClick={() => setSelectedActivity(null)}
+                    className="bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 border-none rounded-full w-9 h-9 flex items-center justify-center cursor-pointer text-slate-500 dark:text-zinc-400 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
                 
-                {/* INLINE AI RESULTS RENDERED HERE */}
-                <AnimatePresence>
-                  {Object.keys(aiResults).length > 0 && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex flex-col gap-8"
-                    >
-                      
-                      {aiResults.calling && (
-                        <div className="bg-gradient-to-b from-white to-slate-50 dark:from-[#1e293b] dark:to-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-8 shadow-xl relative overflow-hidden">
-                          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-rose-500"></div>
-                          <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-4">
-                              <div className="p-3 bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-400 rounded-xl">
-                                <PhoneCall className="w-6 h-6" />
-                              </div>
-                              <div>
-                                <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Sales Teleprompter</h3>
-                                <p className="text-sm text-slate-500">Live script generated by GPT-4o for {lead.company_name}</p>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                               <button className="px-4 py-2 bg-pink-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-pink-700 flex items-center gap-2">
-                                <Play className="w-4 h-4 fill-current" /> Start Call
-                               </button>
-                            </div>
-                          </div>
+                {(selectedActivity.detail || selectedActivity.content) && (
+                  <div style={{ marginBottom: 20 }}>
+                    <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 m-0 mb-2">Summary</p>
+                    <div className="bg-slate-50 dark:bg-zinc-800/50 p-4 rounded-xl text-sm text-slate-600 dark:text-zinc-300">
+                      {selectedActivity.content || selectedActivity.detail}
+                    </div>
+                  </div>
+                )}
 
-                          <div className="space-y-6">
-                            <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative">
-                              <span className="absolute -top-3 left-6 px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 rounded-full text-xs font-black uppercase tracking-widest border border-blue-200 dark:border-blue-800">1. Introduction</span>
-                              <p className="text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-medium">{aiResults.calling.intro}</p>
-                            </div>
+                {selectedActivity.details && (
+                  <div>
+                    <p className="text-sm font-bold text-slate-800 dark:text-zinc-100 m-0 mb-2">Details</p>
+                    <div className="bg-slate-100 dark:bg-zinc-950 p-4 rounded-xl text-sm text-slate-800 dark:text-zinc-200 whitespace-pre-wrap font-mono border border-slate-200 dark:border-zinc-800">
+                      {selectedActivity.details}
+                    </div>
+                  </div>
+                )}
+                
+                {!selectedActivity.detail && !selectedActivity.content && !selectedActivity.details && (
+                  <p className="text-center text-slate-400 italic p-5">No additional details available.</p>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                            <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative">
-                              <span className="absolute -top-3 left-6 px-3 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 rounded-full text-xs font-black uppercase tracking-widest border border-emerald-200 dark:border-emerald-800">2. Value Proposition</span>
-                              <p className="text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-medium">{aiResults.calling.value_prop}</p>
-                            </div>
-
-                            <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative">
-                              <span className="absolute -top-3 left-6 px-3 py-1 bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 rounded-full text-xs font-black uppercase tracking-widest border border-orange-200 dark:border-orange-800">3. Objection Handling</span>
-                              <ul className="space-y-3 mt-2">
-                                {aiResults.calling.objections?.map((obj: string, i: number) => (
-                                  <li key={i} className="flex items-start gap-3 p-3 rounded-lg bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800/30">
-                                    <ShieldCheck className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
-                                    <span className="text-base text-slate-700 dark:text-slate-300 font-medium">{obj}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-
-                            <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm relative">
-                              <span className="absolute -top-3 left-6 px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 rounded-full text-xs font-black uppercase tracking-widest border border-purple-200 dark:border-purple-800">4. Closing</span>
-                              <p className="text-lg text-slate-700 dark:text-slate-300 leading-relaxed font-bold">{aiResults.calling.closing}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {aiResults.email && (
-                        <div className="bg-white dark:bg-[#1e293b] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-lg overflow-hidden">
-                          <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                               <div className="flex gap-1.5">
-                                 <div className="w-3 h-3 rounded-full bg-red-400"></div>
-                                 <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-                                 <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                               </div>
-                               <span className="text-sm font-semibold text-slate-500 ml-2">New Message — GPT-4o Draft</span>
-                            </div>
-                            <button className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-500/20">Send Email</button>
-                          </div>
-                          <div className="p-8">
-                            <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-                              <div className="flex items-center gap-4 mb-3">
-                                <span className="text-sm font-bold text-slate-400 w-16">To:</span>
-                                <span className="text-sm font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-lg text-slate-700 dark:text-slate-300">{lead.email || "ceo@" + lead.website?.replace('https://', '').split('/')[0] || "Unknown"}</span>
-                              </div>
-                              <div className="flex items-center gap-4">
-                                <span className="text-sm font-bold text-slate-400 w-16">Subject:</span>
-                                <span className="text-lg font-bold text-slate-900 dark:text-white">{aiResults.email.subject}</span>
-                              </div>
-                            </div>
-                            <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 text-base leading-relaxed whitespace-pre-wrap">
-                              {aiResults.email.body}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {aiResults.scanner && (
-                        <div className="bg-gradient-to-br from-white to-slate-50 dark:from-[#1e293b] dark:to-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-8 shadow-xl">
-                          <div className="flex items-center gap-4 mb-8">
-                            <div className="p-3 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 rounded-xl">
-                              <Globe className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Website Scan Report</h3>
-                              <p className="text-sm text-slate-500">Deep technical analysis of {aiResults.scanner.url || lead.website}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col lg:flex-row gap-10">
-                            <div className="flex flex-col items-center justify-center p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm min-w-[280px]">
-                              <ScoreRing score={aiResults.scanner.score} />
-                              <h4 className="mt-6 text-lg font-black text-slate-900 dark:text-white">Health Score</h4>
-                              <p className="text-sm text-slate-500 text-center mt-2 px-4">{aiResults.scanner.description}</p>
-                            </div>
-
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
-                              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-red-100 dark:border-red-900/30">
-                                <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                                  <AlertTriangle className="w-5 h-5 text-red-500" /> Critical Issues
-                                </h4>
-                                <ul className="space-y-3">
-                                  {aiResults.scanner.issues.map((i: string, idx: number) => (
-                                    <li key={idx} className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0"></span> {i}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                              
-                              <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-emerald-100 dark:border-emerald-900/30">
-                                <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                                  <Lightbulb className="w-5 h-5 text-emerald-500" /> Opportunities
-                                </h4>
-                                <ul className="space-y-3">
-                                  {aiResults.scanner.opportunities.map((o: string, idx: number) => (
-                                    <li key={idx} className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-start gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0"></span> {o}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {aiResults.scanner.tech && (
-                            <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex items-center gap-4 flex-wrap">
-                               <span className="text-sm font-bold text-slate-500">Tech Stack:</span>
-                               {aiResults.scanner.tech.map((t: string, idx: number) => (
-                                 <span key={idx} className="px-3 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-semibold">{t}</span>
-                               ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {aiResults.competitor && aiResults.competitor.length > 0 && (
-                        <div className="bg-white dark:bg-[#1e293b] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
-                           <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                            <div className="p-3 bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 rounded-xl">
-                              <BarChart2 className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Competitor Landscape</h3>
-                              <p className="text-sm text-slate-500">Market analysis for {lead.industry}</p>
-                            </div>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                              <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-900/50">
-                                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Competitor</th>
-                                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Overlap</th>
-                                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Key Strengths</th>
-                                  <th className="px-8 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">Weaknesses</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {aiResults.competitor.map((comp: any, idx: number) => (
-                                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/20 transition-colors">
-                                    <td className="px-8 py-6">
-                                      <div className="font-bold text-slate-900 dark:text-white text-base">{comp.name}</div>
-                                      <a href={`https://${comp.url}`} target="_blank" className="text-sm text-blue-500 hover:underline">{comp.url}</a>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400">
-                                        {comp.overlap}
-                                      </span>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                      <ul className="space-y-1">
-                                        {comp.strengths?.map((s: string, i: number) => (
-                                          <li key={i} className="text-sm font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5" />{s}</li>
-                                        ))}
-                                      </ul>
-                                    </td>
-                                    <td className="px-8 py-6">
-                                      <ul className="space-y-1">
-                                        {comp.weaknesses?.map((w: string, i: number) => (
-                                          <li key={i} className="text-sm font-medium text-red-700 dark:text-red-400 flex items-center gap-2"><AlertTriangle className="w-3.5 h-3.5" />{w}</li>
-                                        ))}
-                                      </ul>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-
-                      {aiResults.radar && (
-                        <div className="bg-white dark:bg-[#1e293b] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl p-8">
-                           <div className="flex items-center gap-4 mb-8">
-                            <div className="p-3 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 rounded-xl">
-                              <Radar className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">Radar Intelligence Feed</h3>
-                              <p className="text-sm text-slate-500">Real-time market signals</p>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {aiResults.radar.insights.map((insight: string, idx: number) => (
-                              <div key={idx} className="p-5 bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/10 dark:to-slate-900 border border-purple-100 dark:border-purple-800/30 rounded-2xl flex items-start gap-4">
-                                <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0">
-                                  <Globe className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                                </div>
-                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200 leading-relaxed pt-1.5">{insight}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-              </div>
-            )}
-            
-            {/* OTHER TABS OMITTED FOR BREVITY, BUT KEPT IN COMPONENT CODE FOR FUNCTIONALITY */}
-          </div>
-        </div>
       </div>
-    </div>
+    </motion.div>
+
+    {/* ── Edit Metrics Modal ── */}
+    {isEditingMetrics && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-3xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-black text-slate-800 dark:text-zinc-100">Edit Performance Metrics</h3>
+            <button onClick={() => setIsEditingMetrics(false)} className="p-2 text-slate-500 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Hero Stats */}
+          <p className="text-xs font-black text-cyan-400 uppercase tracking-widest mb-3">Hero Stats</p>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            {([['total_revenue', 'Total Revenue (e.g. $152K)'], ['growth_rate', 'Growth Rate (e.g. +34%)']] as [string, string][]).map(([key, label]) => (
+              <div key={key}>
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">{label}</label>
+                <input
+                  value={metricsForm[key] || ''}
+                  onChange={e => setMetricsForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Performance Story */}
+          <p className="text-xs font-black text-green-400 uppercase tracking-widest mb-3">Performance Story</p>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            {([
+              ['monthly_revenue', 'Monthly Revenue (e.g. $34,560)'],
+              ['revenue_growth_pct', 'Revenue Growth % (e.g. +28%)'],
+              ['total_conversions', 'Total Conversions (e.g. 1,247)'],
+              ['avg_conversion_value', 'Avg Conversion Value (e.g. $27.66)'],
+              ['roi_multiple', 'ROI Multiple (e.g. 7.2x)'],
+              ['roi_detail', 'ROI Detail (e.g. $720 back per $100)'],
+            ] as [string, string][]).map(([key, label]) => (
+              <div key={key}>
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">{label}</label>
+                <input
+                  value={metricsForm[key] || ''}
+                  onChange={e => setMetricsForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Next Steps */}
+          <p className="text-xs font-black text-orange-400 uppercase tracking-widest mb-3">Next Steps Forward</p>
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div>
+              <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Campaign Progress (0–100)</label>
+              <input
+                type="number" min="0" max="100"
+                value={metricsForm.campaign_progress || ''}
+                onChange={e => setMetricsForm(p => ({ ...p, campaign_progress: e.target.value }))}
+                className="w-full bg-white dark:bg-zinc-900/10 border border-white/20 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-orange-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Phase Note (e.g. Expansion Phase Ready)</label>
+              <input
+                value={metricsForm.campaign_phase_note || ''}
+                onChange={e => setMetricsForm(p => ({ ...p, campaign_phase_note: e.target.value }))}
+                className="w-full bg-white dark:bg-zinc-900/10 border border-white/20 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-orange-400"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">Untapped Revenue Note (e.g. Potential +$84K annually)</label>
+              <input
+                value={metricsForm.untapped_revenue_note || ''}
+                onChange={e => setMetricsForm(p => ({ ...p, untapped_revenue_note: e.target.value }))}
+                className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-orange-500"
+              />
+            </div>
+          </div>
+
+          {/* Detailed Insights */}
+          <p className="text-xs font-black text-purple-400 uppercase tracking-widest mb-3">Detailed Insights</p>
+          <div className="grid grid-cols-3 gap-3 mb-8">
+            {([
+              ['total_visitors', 'Total Visitors (e.g. 24.5K)'],
+              ['engagement_rate', 'Engagement Rate (e.g. 68%)'],
+              ['avg_time_on_site', 'Avg Time on Site (e.g. 4m 28s)'],
+            ] as [string, string][]).map(([key, label]) => (
+              <div key={key}>
+                <label className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1 block">{label}</label>
+                <input
+                  value={metricsForm[key] || ''}
+                  onChange={e => setMetricsForm(p => ({ ...p, [key]: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-300 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-slate-800 dark:text-zinc-100 text-sm focus:outline-none focus:border-purple-500"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setIsEditingMetrics(false)}
+              className="flex-1 py-3 border border-slate-300 dark:border-zinc-600 text-slate-600 dark:text-zinc-300 rounded-xl font-bold text-sm hover:bg-slate-100 dark:bg-zinc-800 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveMetrics}
+              disabled={loading}
+              className="flex-1 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl font-bold text-sm hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              {loading ? 'Saving…' : 'Save Metrics'}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    )}
+    </>
   );
 }

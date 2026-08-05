@@ -58,8 +58,8 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a] rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
-      <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1e293b]">
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-black rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-black">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Contacts</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage individual decision makers and stakeholders</p>
@@ -72,7 +72,7 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white dark:bg-[#1e293b]">
+      <div className="flex-1 overflow-auto bg-white dark:bg-black">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -152,7 +152,7 @@ export default function ContactsPage() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 16 }}
-              className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+              className="bg-white dark:bg-black rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
               <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Contact</h2>
                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><UsersIcon className="w-5 h-5"/></button>
