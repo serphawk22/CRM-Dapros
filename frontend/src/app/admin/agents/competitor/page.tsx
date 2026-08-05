@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart2,
@@ -86,6 +86,19 @@ export default function CompetitorAnalysisPage() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<CompetitorResult[] | null>(null);
   const [addedDomains, setAddedDomains] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const saved = localStorage.getItem("competitorResults");
+    if (saved) {
+      try { setResults(JSON.parse(saved)); } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (results) {
+      localStorage.setItem("competitorResults", JSON.stringify(results));
+    }
+  }, [results]);
 
   const addUrl = () => setUrls((prev) => [...prev, ""]);
   const removeUrl = (i: number) => setUrls((prev) => prev.filter((_, idx) => idx !== i));

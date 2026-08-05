@@ -122,7 +122,7 @@ export default function ProposalsPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 dark:bg-black rounded-3xl p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-gray-900 dark:text-zinc-50 tracking-tight">{isClient ? "My Proposals" : "Proposals"}</h1>

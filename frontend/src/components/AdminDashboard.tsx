@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Users, Send, Briefcase, Target, Activity, Phone, GraduationCap, ArrowUpRight, CheckCircle2, TrendingUp, DollarSign, Timer, AlertTriangle, Sparkles, Loader2 } from "lucide-react";
+import { Users, Send, Briefcase, Target, Activity, Phone, GraduationCap, ArrowUpRight, CheckCircle2, TrendingUp, DollarSign, Timer, AlertTriangle, Sparkles, Loader2, Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 import { cn } from "@/lib/utils";
@@ -51,11 +51,11 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
           </p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => window.print()} className="px-4 py-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] rounded-md shadow-sm text-sm font-semibold hover:bg-[var(--sidebar-hover)] transition-colors">
-            Generate Report
+          <button onClick={() => window.print()} className="px-4 py-2 bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 rounded-xl shadow-sm text-sm font-bold hover:bg-slate-50 dark:hover:bg-zinc-700 transition-all flex items-center gap-2">
+            <Download className="w-4 h-4" /> Generate Report
           </button>
-          <Link href="/clients" className="px-4 py-2 bg-[var(--primary)] text-white rounded-md shadow-sm text-sm font-semibold hover:bg-[var(--primary-hover)] transition-colors">
-            Add New Client
+          <Link href="/clients" className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl shadow-sm text-sm font-bold hover:from-blue-700 hover:to-indigo-700 transition-all flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add New Client
           </Link>
         </div>
       </motion.div>
@@ -68,14 +68,14 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
           { title: "Pipeline Value", value: adminStats?.pipelineValue != null ? `$${adminStats.pipelineValue.toLocaleString()}` : "$0", trend: "12 active deals", icon: Target, color: "text-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-500/10" },
           { title: "Pending Tasks", value: adminStats?.pending || 0, trend: "Requires attention", icon: Timer, color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10" },
         ].map((kpi, idx) => (
-          <motion.div key={idx} variants={itemVariants} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 shadow-sm flex items-center gap-4">
+          <motion.div key={idx} variants={itemVariants} className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl p-5 shadow-sm flex items-center gap-4">
             <div className={`p-3 rounded-xl ${kpi.bg}`}>
               <kpi.icon className={`w-6 h-6 ${kpi.color}`} />
             </div>
             <div>
-              <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-1">{kpi.title}</p>
-              <h3 className="text-2xl font-bold text-[var(--text-primary)] leading-none">{kpi.value}</h3>
-              <p className="text-[11px] font-medium text-[var(--text-secondary)] mt-2">{kpi.trend}</p>
+              <p className="text-xs font-semibold text-slate-500 dark:text-zinc-400 uppercase tracking-wider mb-1">{kpi.title}</p>
+              <h3 className="text-2xl font-bold text-slate-900 dark:text-white leading-none">{kpi.value}</h3>
+              <p className="text-[11px] font-medium text-slate-400 dark:text-zinc-500 mt-2">{kpi.trend}</p>
             </div>
           </motion.div>
         ))}

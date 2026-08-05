@@ -216,12 +216,15 @@ export default function RadarAnalysisPage() {
             />
           </div>
           <div>
-            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-500 dark:text-zinc-400 uppercase tracking-widest mb-1 block">City / Region</label>
+            <label className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-widest mb-1">
+              <span>City / Region <span className="text-red-500">*</span></span>
+              <span className="text-[9px] lowercase text-slate-400 dark:text-zinc-500">(Required for Google Maps)</span>
+            </label>
             <input
               value={locationHint}
               onChange={e => setLocationHint(e.target.value)}
               placeholder="e.g. Guadalajara, Mexico"
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-gray-300 dark:border-zinc-700 text-slate-800 dark:text-slate-900 dark:text-zinc-100 text-sm placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-800 dark:text-zinc-100 text-sm placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
@@ -237,7 +240,7 @@ export default function RadarAnalysisPage() {
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleSearch}
-            disabled={searchLoading || !searchQuery.trim()}
+            disabled={searchLoading || !searchQuery.trim() || !locationHint.trim()}
             className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md active:scale-95">
             {searchLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
             Find on Google Maps

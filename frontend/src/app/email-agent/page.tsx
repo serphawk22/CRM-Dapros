@@ -746,12 +746,33 @@ export default function EmailAgentPage() {
   const [inputValue, setInputValue] = useState("");
   
   const [chatStep, setChatStep] = useState<"website_url" | "loading" | "idle">("website_url");
-  
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: "msg-1", role: "ai", type: "text", content: "Hello! Enter a company website URL to generate an outreach strategy and email draft." }
-  ]);
-  
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [resultsHistory, setResultsHistory] = useState<ResearchResult[]>([]);
+
+  useEffect(() => {
+    const savedMessages = localStorage.getItem("emailAgentMessages");
+    const savedResults = localStorage.getItem("emailAgentResults");
+    
+    if (savedMessages) {
+      try { setMessages(JSON.parse(savedMessages)); } catch (e) {}
+    } else {
+      setMessages([{ id: "msg-1", role: "ai", type: "text", content: "Hello! Enter a company website URL to generate an outreach strategy and email draft." }]);
+    }
+    
+    if (savedResults) {
+      try { setResultsHistory(JSON.parse(savedResults)); } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem("emailAgentMessages", JSON.stringify(messages));
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    localStorage.setItem("emailAgentResults", JSON.stringify(resultsHistory));
+  }, [resultsHistory]);
 
   const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
   const [emailTotals, setEmailTotals] = useState({ totalSent: 0, autoCount: 0, manualCount: 0 });

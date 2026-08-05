@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Send, Loader2, Sparkles, RefreshCw, Copy, Check } from "lucide-react";
 
@@ -40,13 +40,28 @@ Best,
 };
 
 export default function SalesCopilotPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "👋 Hi! I'm your **Sales Copilot**. I can help you write cold emails, handle objections, draft proposals, and craft follow-up sequences. What would you like help with today?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("salesCopilotMessages");
+    if (saved) {
+      try { setMessages(JSON.parse(saved)); } catch (e) {}
+    } else {
+      setMessages([
+        {
+          role: "assistant",
+          content:
+            "👋 Hi! I'm your **Sales Copilot**. I can help you write cold emails, handle objections, draft proposals, and craft follow-up sequences. What would you like help with today?",
+        },
+      ]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem("salesCopilotMessages", JSON.stringify(messages));
+    }
+  }, [messages]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<number | null>(null);

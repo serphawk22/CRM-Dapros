@@ -128,7 +128,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-[#0f172a] p-6 lg:p-8 space-y-6">
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-black p-6 lg:p-8 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

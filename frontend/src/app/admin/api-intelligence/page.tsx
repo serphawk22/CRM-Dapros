@@ -182,26 +182,36 @@ export default function ApiIntelligencePage() {
   const fetchData = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
+    
+    const safeFetch = async (url: string) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch (e) {
+        console.error(`Failed to fetch ${url}`, e);
+        return null;
+      }
+    };
+
     try {
       const [ov, prov, sales, cli, endp, req, trn] = await Promise.all([
-        fetch(`${API_BASE_URL}/api-intelligence/overview`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api-intelligence/providers`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api-intelligence/salespersons`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api-intelligence/clients`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api-intelligence/endpoints`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api-intelligence/requests?limit=100`).then((r) => r.json()),
-        fetch(`${API_BASE_URL}/api-intelligence/charts/trend`).then((r) => r.json()),
+        safeFetch(`${API_BASE_URL}/api-intelligence/overview`),
+        safeFetch(`${API_BASE_URL}/api-intelligence/providers`),
+        safeFetch(`${API_BASE_URL}/api-intelligence/salespersons`),
+        safeFetch(`${API_BASE_URL}/api-intelligence/clients`),
+        safeFetch(`${API_BASE_URL}/api-intelligence/endpoints`),
+        safeFetch(`${API_BASE_URL}/api-intelligence/requests?limit=100`),
+        safeFetch(`${API_BASE_URL}/api-intelligence/charts/trend`),
       ]);
       setOverview(ov);
-      setProviders(prov);
-      setSalespersons(sales);
-      setClients(cli);
-      setEndpoints(endp);
-      setRequests(req);
+      setProviders(prov || []);
+      setSalespersons(sales || []);
+      setClients(cli || []);
+      setEndpoints(endp || []);
+      setRequests(req || []);
       setTrend(trn);
       setLastUpdated(new Date());
-    } catch (e) {
-      console.error("Failed to load API data", e);
     } finally {
       setLoading(false);
       setRefreshing(false);

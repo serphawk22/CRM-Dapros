@@ -33,14 +33,20 @@ def get_overview(request: Request, session: Session = Depends(get_session)):
     month_calls = session.exec(base_query(func.count(ApiRequest.id)).where(ApiRequest.timestamp >= month_start)).one()
     
     # Token & Cost
-    totals = session.exec(base_query(ApiRequest.id).with_only_columns(
+    query_totals = select(
         func.sum(ApiRequest.input_tokens),
         func.sum(ApiRequest.output_tokens),
         func.sum(ApiRequest.reasoning_tokens),
         func.sum(ApiRequest.total_tokens),
         func.sum(ApiRequest.total_cost)
-    )).one()
+    )
+    if tenant_id and tenant_id != 1:
+        query_totals = query_totals.where(ApiRequest.tenant_id == tenant_id)
+        
+    totals = session.exec(query_totals).first()
     
+    if not totals:
+        totals = (0, 0, 0, 0, 0.0)
     in_tok = totals[0] or 0
     out_tok = totals[1] or 0
     reason_tok = totals[2] or 0

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Globe,
@@ -261,6 +261,23 @@ export default function WebsiteScannerPage() {
   const [showModal, setShowModal] = useState(false);
   const [addedUrls, setAddedUrls] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const savedUrl = localStorage.getItem("websiteScannerUrl");
+    const savedData = localStorage.getItem("websiteScannerData");
+    if (savedUrl) setUrl(savedUrl);
+    if (savedData) {
+      try { setSiteData(JSON.parse(savedData)); } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("websiteScannerUrl", url);
+  }, [url]);
+
+  useEffect(() => {
+    localStorage.setItem("websiteScannerData", JSON.stringify(siteData));
+  }, [siteData]);
 
   const handleScan = async (e?: React.FormEvent) => {
     e?.preventDefault();

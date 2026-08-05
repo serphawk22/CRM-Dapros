@@ -75,7 +75,7 @@ export default function SuperAdminPage() {
               </div>
               <div className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
                 <span className="text-gray-500">Clients (Usage/Limit)</span>
-                <span className="font-medium">{t.usage_clients} / {t.limit_clients}</span>
+                <span className="font-medium">{t.clients} / {t.limit_clients}</span>
               </div>
               <div className="flex justify-between text-sm border-b border-gray-100 dark:border-gray-800 pb-2">
                 <span className="text-gray-500">AI Emails Gen</span>

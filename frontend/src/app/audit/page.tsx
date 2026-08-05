@@ -43,7 +43,7 @@ export default function AuditPage() {
     score >= 80 ? 'bg-emerald-50' : score >= 50 ? 'bg-amber-50' : 'bg-red-50';
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 dark:bg-black rounded-3xl p-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-black text-gray-900 dark:text-zinc-50 tracking-tight flex items-center gap-3">
