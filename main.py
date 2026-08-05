@@ -390,6 +390,7 @@ allowed_origins = [
     "https://crm-seo.serphawk.in",
     "https://crm.serphawk.in",
     "https://dapros-crm.serphawk.in",
+    "https://crm.dapros.serphawk.in",
 ]
 
 
