@@ -85,7 +85,7 @@ export default function LeadHeader({
   // Brief description from research or tagline
   const description = lead?.description || lead?.tagline || lead?.seoStrategy || lead?.gmbName || null;
   const services = lead?.services_offered || null;
-  const companyName = lead?.companyName || lead?.projectName || (lead?.customFields?.sheet_data?.['Lead Name']) || null;
+  const companyName = lead?.company_name || lead?.companyName || lead?.projectName || (lead?.customFields?.sheet_data?.['Lead Name']) || null;
 
   return (
     <div className="sticky top-0 z-40 bg-white dark:bg-zinc-900 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border-b border-slate-200 dark:border-zinc-700">

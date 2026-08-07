@@ -420,10 +420,10 @@ function OverviewTab({ lead, employees, serviceRequests, activities, timeline, r
       </div>
 
       {/* Recent Activity */}
-      <CollapsibleSection title={t('lead_tabs.recent_activity')} icon={Activity} accentColor="#6366f1" defaultOpen={false}>
+      <CollapsibleSection title={t('lead_tabs.recent_activity') !== 'lead_tabs.recent_activity' ? t('lead_tabs.recent_activity') : 'Recent Activity'} icon={Activity} accentColor="#6366f1" defaultOpen={false}>
         <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
           {recentActivities.length === 0 ? (
-            <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>{t('lead_tabs.no_activity')}</p>
+            <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>{t('lead_tabs.no_activity') !== 'lead_tabs.no_activity' ? t('lead_tabs.no_activity') : 'No recent activity.'}</p>
           ) : (
             recentActivities.map((a: any) => (
               <div 
@@ -705,7 +705,7 @@ export default function AdminLeadDetailPage() {
                       }`}
                   >
                     <Icon size={14} className={activeTab === key ? 'text-indigo-500' : 'text-slate-400'} />
-                    {(t(`lead_tabs.${key}`) as string) || label}
+                    {t(`lead_tabs.${key}`) !== `lead_tabs.${key}` ? (t(`lead_tabs.${key}`) as string) : label}
                     {badge !== undefined && badge > 0 && (
                       <span className={`ml-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black flex items-center justify-center transition-colors
                         ${activeTab === key ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400'}`}>
