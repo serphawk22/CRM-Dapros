@@ -8023,7 +8023,6 @@ def purge_leads_debug(session: Session = Depends(get_session)):
         "DELETE FROM sales_orders WHERE lead_id IS NOT NULL",
         "DELETE FROM cases WHERE lead_id IS NOT NULL",
         "DELETE FROM client_research WHERE lead_id IS NOT NULL",
-        "DELETE FROM project_tickets WHERE \"leadId\" IS NOT NULL",
         "DELETE FROM leads"
     ]
     for q in queries:
@@ -8051,7 +8050,6 @@ def delete_lead(lead_id: int, session: Session = Depends(get_session)):
             "DELETE FROM sales_orders WHERE lead_id = :lead_id",
             "DELETE FROM cases WHERE lead_id = :lead_id",
             "DELETE FROM client_research WHERE lead_id = :lead_id",
-            "DELETE FROM project_tickets WHERE \"leadId\" = :lead_id",
         ]
         for q in queries:
             session.execute(text(q), {"lead_id": lead_id})
