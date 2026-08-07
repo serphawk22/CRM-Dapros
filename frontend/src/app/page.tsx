@@ -235,13 +235,20 @@ function Dashboard() {
   const clientStats = !isAdmin ? (stats as ClientStats) : null;
   const visibleNavCards = NAV_CARDS.filter(c => c.roles.includes(role));
 
+  if (role === "Supplier") {
+    if (typeof window !== 'undefined') {
+      window.location.href = '/supplier';
+    }
+    return null;
+  }
+
   return (
     <motion.div initial="hidden" animate="show" variants={containerVariants} className={cn(isAdmin || role === 'ProjectMember' ? "space-y-6" : "")}>
       {role === "ProjectMember" && <DeveloperDashboard />}
       {role === "SalesManager" && <SalesManagerDashboard />}
       {isAdmin && adminStats && <AdminDashboard adminStats={adminStats} NAV_CARDS={NAV_CARDS} language={language} />}
       {/* ── CLIENT VIEW — EDITORIAL CHAPTERS ────────────────────────── */}
-      {!isAdmin && role !== "ProjectMember" && role !== "SalesManager" && (
+      {!isAdmin && role !== "ProjectMember" && role !== "SalesManager" && role !== "Supplier" && (
         <div className="client-editorial">
 
           <div className="mb-6 px-4">

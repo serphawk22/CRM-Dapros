@@ -61,6 +61,14 @@ import { useRole } from "@/context/RoleContext";
 export default function LeadsPage() {
   const { role, user } = useRole();
   const router = useRouter();
+
+  // Protect route
+  useEffect(() => {
+    if (role && role !== 'Admin' && role !== 'Employee' && role !== 'Intern' && role !== 'SalesManager') {
+      router.replace('/');
+    }
+  }, [role, router]);
+
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

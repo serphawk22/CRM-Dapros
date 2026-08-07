@@ -69,7 +69,17 @@ export function RoleProvider({ children }: { children: ReactNode }) {
             return new Response(JSON.stringify({ id: -1, status: "offline", message: "Saved offline" }), { status: 200, statusText: "OK" });
           } catch(err) {}
         }
-        return originalFetch(resource, config);
+        const response = await originalFetch(resource, config);
+        
+        // If we get a 401 from an internal API (other than the login endpoint itself)
+        if (response.status === 401 && isInternalApi && typeof resource === 'string' && !resource.endsWith('/login')) {
+          localStorage.removeItem('crm_user');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
+        }
+        
+        return response;
       };
       (window as any)._fetchPatched = true;
     }
