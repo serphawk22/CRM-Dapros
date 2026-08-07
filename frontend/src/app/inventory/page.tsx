@@ -1,0 +1,695 @@
+"use client";
+import { API_BASE_URL } from "@/config";
+import React, { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Package, Plus, Search, Trash2, Edit2, X, ChevronDown, ChevronUp,
+  Loader2, Tag, Building2, DollarSign, Clock, ShoppingCart, Send,
+  CheckCircle, AlertTriangle, Upload, Star, StarOff, MoreHorizontal
+} from "lucide-react";
+
+interface Supplier {
+  id: number;
+  supplier_name: string;
+  supplier_brand?: string;
+  supplier_email?: string;
+  lot_number?: string;
+  unit_cost?: number;
+  currency: string;
+  lead_time_days?: number;
+  min_order_qty?: number;
+  is_preferred: boolean;
+  notes?: string;
+}
+
+interface InventoryItem {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  category?: string;
+  tags: string[];
+  photo_url?: string;
+  unit?: string;
+  min_stock: number;
+  current_stock: number;
+  created_at: string;
+  suppliers: Supplier[];
+}
+
+const emptyItem = {
+  code: "", name: "", description: "", category: "",
+  tags: [] as string[], photo_url: "", unit: "", min_stock: 0, current_stock: 0
+};
+const emptySupplier = {
+  supplier_name: "", supplier_brand: "", supplier_email: "", lot_number: "",
+  unit_cost: 0, currency: "USD", lead_time_days: 0, min_order_qty: 0,
+  is_preferred: false, notes: ""
+};
+
+const CATEGORIES = ["Electronics", "Raw Materials", "Packaging", "Tools", "Office Supplies", "Chemical", "Food & Beverage", "Textile", "Machinery", "Other"];
+const UNITS = ["pcs", "kg", "g", "L", "mL", "m", "cm", "box", "pack", "pair", "roll", "set"];
+const CURRENCIES = ["USD", "EUR", "GBP", "INR", "AED", "SGD"];
+
+export default function InventoryPage() {
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [showSupplierModal, setShowSupplierModal] = useState<{ itemId: number } | null>(null);
+  const [showRFQModal, setShowRFQModal] = useState<{ item: InventoryItem } | null>(null);
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
+  const [itemForm, setItemForm] = useState({ ...emptyItem });
+  const [supplierForm, setSupplierForm] = useState({ ...emptySupplier });
+  const [rfqForm, setRfqForm] = useState({ supplier_name: "", supplier_email: "", quantity: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (msg: string, type: "ok" | "err" = "ok") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const fetchItems = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/inventory`);
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.items || []);
+      }
+    } finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchItems(); }, []);
+
+  const filtered = items.filter(item => {
+    const q = search.toLowerCase();
+    const matchSearch = !q || item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q)
+      || (item.category || "").toLowerCase().includes(q) || item.tags.some(t => t.toLowerCase().includes(q));
+    const matchCat = categoryFilter === "All" || item.category === categoryFilter;
+    return matchSearch && matchCat;
+  });
+
+  const openCreate = () => {
+    setEditItem(null);
+    setItemForm({ ...emptyItem });
+    setTagInput("");
+    setShowItemModal(true);
+  };
+
+  const openEdit = (item: InventoryItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditItem(item);
+    setItemForm({
+      code: item.code, name: item.name, description: item.description || "",
+      category: item.category || "", tags: item.tags || [], photo_url: item.photo_url || "",
+      unit: item.unit || "", min_stock: item.min_stock, current_stock: item.current_stock
+    });
+    setTagInput("");
+    setShowItemModal(true);
+  };
+
+  const handleSaveItem = async () => {
+    if (!itemForm.name.trim() || !itemForm.code.trim()) return;
+    setSaving(true);
+    try {
+      const url = editItem ? `${API_BASE_URL}/inventory/${editItem.id}` : `${API_BASE_URL}/inventory`;
+      const method = editItem ? "PUT" : "POST";
+      const res = await fetch(url, {
+        method, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(itemForm)
+      });
+      if (res.ok) {
+        setShowItemModal(false);
+        fetchItems();
+        showToast(editItem ? "Item updated!" : "Item created!");
+      }
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteItem = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Delete this inventory item?")) return;
+    await fetch(`${API_BASE_URL}/inventory/${id}`, { method: "DELETE" });
+    fetchItems();
+    showToast("Deleted.");
+  };
+
+  const handleAddSupplier = async () => {
+    if (!showSupplierModal || !supplierForm.supplier_name.trim()) return;
+    setSaving(true);
+    try {
+      await fetch(`${API_BASE_URL}/inventory/${showSupplierModal.itemId}/suppliers`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(supplierForm)
+      });
+      setShowSupplierModal(null);
+      fetchItems();
+      showToast("Supplier added!");
+    } finally { setSaving(false); }
+  };
+
+  const handleDeleteSupplier = async (supplierId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    await fetch(`${API_BASE_URL}/inventory/suppliers/${supplierId}`, { method: "DELETE" });
+    fetchItems();
+  };
+
+  const handleSendRFQ = async () => {
+    if (!showRFQModal || !rfqForm.supplier_email.trim()) return;
+    setSaving(true);
+    try {
+      await fetch(`${API_BASE_URL}/rfq`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          item_id: showRFQModal.item.id,
+          supplier_name: rfqForm.supplier_name,
+          supplier_email: rfqForm.supplier_email,
+          quantity: rfqForm.quantity ? parseFloat(rfqForm.quantity) : null,
+          notes: rfqForm.notes
+        })
+      });
+      setShowRFQModal(null);
+      showToast("RFQ sent to supplier!");
+    } finally { setSaving(false); }
+  };
+
+  const handleTagAdd = () => {
+    const t = tagInput.trim();
+    if (t && !itemForm.tags.includes(t)) {
+      setItemForm(f => ({ ...f, tags: [...f.tags, t] }));
+    }
+    setTagInput("");
+  };
+
+  const stockStatus = (item: InventoryItem) => {
+    if (item.current_stock === 0) return { label: "Out of Stock", color: "text-red-500 bg-red-50 dark:bg-red-900/20" };
+    if (item.current_stock <= item.min_stock) return { label: "Low Stock", color: "text-amber-600 bg-amber-50 dark:bg-amber-900/20" };
+    return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20" };
+  };
+
+  const categories = ["All", ...Array.from(new Set(items.map(i => i.category || "Other")))];
+
+  return (
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-black min-h-screen">
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-4 right-4 z-[200] flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold ${toast.type === "ok" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+            {toast.type === "ok" ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+            {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Header */}
+      <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-black">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Inventory</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {items.length} items · {items.reduce((a, b) => a + b.suppliers.length, 0)} supplier links
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all hover:shadow-md active:scale-95">
+              <Plus className="w-4 h-4" /> Add Item
+            </button>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+          {[
+            { label: "Total Items", value: items.length, color: "text-blue-600", bg: "bg-blue-500/10" },
+            { label: "In Stock", value: items.filter(i => i.current_stock > i.min_stock).length, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+            { label: "Low / Out", value: items.filter(i => i.current_stock <= i.min_stock).length, color: "text-amber-600", bg: "bg-amber-500/10" },
+            { label: "Suppliers", value: items.reduce((a, b) => a + b.suppliers.length, 0), color: "text-violet-600", bg: "bg-violet-500/10" },
+          ].map(s => (
+            <div key={s.label} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${s.bg}`}>
+              <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-6 py-3 bg-white dark:bg-black border-b border-slate-200 dark:border-slate-800 flex-wrap gap-3">
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input type="text" placeholder="Search items..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-900 dark:text-white placeholder:text-slate-400" />
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {categories.map(cat => (
+            <button key={cat} onClick={() => setCategoryFilter(cat)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${categoryFilter === cat ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"}`}>
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Item List */}
+      <div className="flex-1 overflow-auto p-6">
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="animate-spin w-8 h-8 text-blue-600" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-4">
+              <Package className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No inventory items</h3>
+            <p className="text-sm text-slate-500 mt-1">Click "Add Item" to get started.</p>
+            <button onClick={openCreate} className="mt-4 flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700">
+              <Plus className="w-4 h-4" /> Add your first item
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map(item => {
+              const stock = stockStatus(item);
+              const isExpanded = expandedId === item.id;
+              const preferredSupplier = item.suppliers.find(s => s.is_preferred) || item.suppliers[0];
+              return (
+                <motion.div key={item.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-[#111] rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                  
+                  {/* Item Header Row */}
+                  <div className="flex items-center gap-4 p-4 cursor-pointer select-none" onClick={() => setExpandedId(isExpanded ? null : item.id)}>
+                    {/* Photo */}
+                    <div className="w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
+                      {item.photo_url ? (
+                        <img src={item.photo_url} alt={item.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Package className="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+
+                    {/* Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-slate-900 dark:text-white text-sm">{item.name}</span>
+                        <span className="text-[11px] font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">{item.code}</span>
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${stock.color}`}>{stock.label}</span>
+                      </div>
+                      <div className="flex items-center gap-4 text-[12px] text-slate-500 dark:text-slate-400 flex-wrap">
+                        {item.category && <span className="flex items-center gap-1"><Tag className="w-3 h-3" />{item.category}</span>}
+                        <span>Stock: <b className="text-slate-700 dark:text-slate-200">{item.current_stock} {item.unit || "units"}</b></span>
+                        <span>Min: <b className="text-slate-700 dark:text-slate-200">{item.min_stock} {item.unit || "units"}</b></span>
+                        {preferredSupplier && (
+                          <span className="flex items-center gap-1 text-violet-600 dark:text-violet-400">
+                            <Building2 className="w-3 h-3" />
+                            {preferredSupplier.supplier_name}
+                            {preferredSupplier.unit_cost ? ` · ${preferredSupplier.currency} ${preferredSupplier.unit_cost}` : ""}
+                          </span>
+                        )}
+                      </div>
+                      {item.tags.length > 0 && (
+                        <div className="flex gap-1 mt-1.5 flex-wrap">
+                          {item.tags.map(t => (
+                            <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium">{t}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs font-medium text-slate-400">{item.suppliers.length} supplier{item.suppliers.length !== 1 ? "s" : ""}</span>
+                      <button onClick={e => { e.stopPropagation(); setShowRFQModal({ item }); setRfqForm({ supplier_name: "", supplier_email: "", quantity: "", notes: "" }); }}
+                        title="Send RFQ" className="p-1.5 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/30 text-slate-400 hover:text-violet-600 transition-colors">
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={e => openEdit(item, e)} title="Edit" className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={e => handleDeleteItem(item.id, e)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                      {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                    </div>
+                  </div>
+
+                  {/* Expanded: Supplier Breakdown */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                        className="border-t border-slate-100 dark:border-slate-800 overflow-hidden">
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Suppliers & Lot-wise Cost</h4>
+                            <button onClick={() => { setShowSupplierModal({ itemId: item.id }); setSupplierForm({ ...emptySupplier }); }}
+                              className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700">
+                              <Plus className="w-3 h-3" /> Add Supplier
+                            </button>
+                          </div>
+                          {item.suppliers.length === 0 ? (
+                            <p className="text-sm text-slate-400 text-center py-4">No suppliers added yet.</p>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {item.suppliers.map(s => (
+                                <div key={s.id} className={`p-3 rounded-xl border ${s.is_preferred ? "border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/10" : "border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"}`}>
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div>
+                                      <div className="flex items-center gap-1">
+                                        {s.is_preferred && <Star className="w-3 h-3 text-violet-500 fill-violet-500" />}
+                                        <span className="text-sm font-bold text-slate-800 dark:text-white">{s.supplier_name}</span>
+                                      </div>
+                                      {s.supplier_brand && <span className="text-[11px] text-slate-500">{s.supplier_brand}</span>}
+                                    </div>
+                                    <button onClick={e => handleDeleteSupplier(s.id, e)}
+                                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-300 hover:text-red-500 transition-colors">
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <div className="space-y-1 text-[12px] text-slate-600 dark:text-slate-400">
+                                    {s.unit_cost != null && <div className="flex items-center gap-1"><DollarSign className="w-3 h-3" />{s.currency} {s.unit_cost} / unit</div>}
+                                    {s.lead_time_days != null && <div className="flex items-center gap-1"><Clock className="w-3 h-3" />{s.lead_time_days} day lead time</div>}
+                                    {s.lot_number && <div className="flex items-center gap-1"><ShoppingCart className="w-3 h-3" />Lot: {s.lot_number}</div>}
+                                    {s.supplier_email && <div className="text-blue-500 truncate">{s.supplier_email}</div>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ─── ADD/EDIT ITEM MODAL ─── */}
+      <AnimatePresence>
+        {showItemModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowItemModal(false); }}>
+            <motion.div initial={{ scale: 0.94, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.94, opacity: 0 }}
+              className="bg-white dark:bg-black rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
+                    <Package className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">{editItem ? "Edit Item" : "Add Inventory Item"}</h2>
+                    <p className="text-xs text-slate-500">Including photo, code, tags, and supplier details</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowItemModal(false)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                {/* Photo URL */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Photo URL</label>
+                  <div className="flex gap-2">
+                    <input value={itemForm.photo_url} onChange={e => setItemForm(f => ({ ...f, photo_url: e.target.value }))}
+                      placeholder="https://example.com/photo.jpg"
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    {itemForm.photo_url && (
+                      <div className="w-10 h-10 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                        <img src={itemForm.photo_url} alt="preview" className="w-full h-full object-cover" onError={e => { (e.target as any).style.display = "none"; }} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Item Code <span className="text-red-500">*</span></label>
+                    <input autoFocus value={itemForm.code} onChange={e => setItemForm(f => ({ ...f, code: e.target.value }))} placeholder="SKU-001"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Item Name <span className="text-red-500">*</span></label>
+                    <input value={itemForm.name} onChange={e => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Industrial Pump"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Category</label>
+                    <select value={itemForm.category} onChange={e => setItemForm(f => ({ ...f, category: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Select category...</option>
+                      {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Unit</label>
+                    <select value={itemForm.unit} onChange={e => setItemForm(f => ({ ...f, unit: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">Select unit...</option>
+                      {UNITS.map(u => <option key={u}>{u}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Current Stock</label>
+                    <input type="number" value={itemForm.current_stock} onChange={e => setItemForm(f => ({ ...f, current_stock: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Min Stock Alert</label>
+                    <input type="number" value={itemForm.min_stock} onChange={e => setItemForm(f => ({ ...f, min_stock: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Tags</label>
+                  <div className="flex gap-2">
+                    <input value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleTagAdd(); } }}
+                      placeholder="Add tag and press Enter"
+                      className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <button onClick={handleTagAdd} className="px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 transition-colors">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {itemForm.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {itemForm.tags.map(t => (
+                        <span key={t} className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
+                          {t}
+                          <button onClick={() => setItemForm(f => ({ ...f, tags: f.tags.filter(tt => tt !== t) }))}>
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Description</label>
+                  <textarea value={itemForm.description} onChange={e => setItemForm(f => ({ ...f, description: e.target.value }))} rows={2}
+                    placeholder="Brief description of this item..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
+                <button onClick={() => setShowItemModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-100 transition-all">
+                  Cancel
+                </button>
+                <button onClick={handleSaveItem} disabled={saving || !itemForm.name.trim() || !itemForm.code.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-500/20">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {editItem ? "Save Changes" : "Add Item"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── ADD SUPPLIER MODAL ─── */}
+      <AnimatePresence>
+        {showSupplierModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowSupplierModal(null); }}>
+            <motion.div initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }}
+              className="bg-white dark:bg-black rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Add Supplier</h2>
+                </div>
+                <button onClick={() => setShowSupplierModal(null)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Supplier Name <span className="text-red-500">*</span></label>
+                    <input autoFocus value={supplierForm.supplier_name} onChange={e => setSupplierForm(f => ({ ...f, supplier_name: e.target.value }))} placeholder="Supplier Co."
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Brand</label>
+                    <input value={supplierForm.supplier_brand} onChange={e => setSupplierForm(f => ({ ...f, supplier_brand: e.target.value }))} placeholder="Brand name"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Supplier Email</label>
+                  <input type="email" value={supplierForm.supplier_email} onChange={e => setSupplierForm(f => ({ ...f, supplier_email: e.target.value }))} placeholder="orders@supplier.com"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Unit Cost</label>
+                    <input type="number" value={supplierForm.unit_cost} onChange={e => setSupplierForm(f => ({ ...f, unit_cost: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Currency</label>
+                    <select value={supplierForm.currency} onChange={e => setSupplierForm(f => ({ ...f, currency: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Lead Time (days)</label>
+                    <input type="number" value={supplierForm.lead_time_days} onChange={e => setSupplierForm(f => ({ ...f, lead_time_days: parseInt(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Lot Number</label>
+                    <input value={supplierForm.lot_number} onChange={e => setSupplierForm(f => ({ ...f, lot_number: e.target.value }))} placeholder="LOT-2024-001"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Min Order Qty</label>
+                    <input type="number" value={supplierForm.min_order_qty} onChange={e => setSupplierForm(f => ({ ...f, min_order_qty: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input type="checkbox" id="is-preferred" checked={supplierForm.is_preferred} onChange={e => setSupplierForm(f => ({ ...f, is_preferred: e.target.checked }))}
+                    className="w-4 h-4 rounded text-violet-600 focus:ring-violet-500" />
+                  <label htmlFor="is-preferred" className="text-sm font-medium text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                    <Star className="w-3.5 h-3.5 text-violet-500" /> Mark as preferred supplier
+                  </label>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Notes</label>
+                  <textarea value={supplierForm.notes} onChange={e => setSupplierForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                </div>
+              </div>
+
+              <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
+                <button onClick={() => setShowSupplierModal(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-100 transition-all">
+                  Cancel
+                </button>
+                <button onClick={handleAddSupplier} disabled={saving || !supplierForm.supplier_name.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />} Add Supplier
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ─── SEND RFQ MODAL ─── */}
+      <AnimatePresence>
+        {showRFQModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowRFQModal(null); }}>
+            <motion.div initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }}
+              className="bg-white dark:bg-black rounded-2xl shadow-2xl w-full max-w-lg">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center">
+                    <Send className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900 dark:text-white">Send RFQ</h2>
+                    <p className="text-xs text-slate-500">{showRFQModal.item.name} · {showRFQModal.item.code}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowRFQModal(null)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-6 py-5 space-y-4">
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-700 dark:text-amber-400 font-medium">
+                  This will create an RFQ request. The supplier will be notified to fill in pricing and delivery timelines.
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Supplier Name</label>
+                    <input autoFocus value={rfqForm.supplier_name} onChange={e => setRfqForm(f => ({ ...f, supplier_name: e.target.value }))} placeholder="Supplier Co."
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Supplier Email <span className="text-red-500">*</span></label>
+                    <input type="email" value={rfqForm.supplier_email} onChange={e => setRfqForm(f => ({ ...f, supplier_email: e.target.value }))} placeholder="orders@supplier.com"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Quantity Required</label>
+                  <input type="number" value={rfqForm.quantity} onChange={e => setRfqForm(f => ({ ...f, quantity: e.target.value }))} placeholder="e.g. 100"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Notes to Supplier</label>
+                  <textarea value={rfqForm.notes} onChange={e => setRfqForm(f => ({ ...f, notes: e.target.value }))} rows={3}
+                    placeholder="Any specific requirements, delivery location, specs..."
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                </div>
+              </div>
+              <div className="flex gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 rounded-b-2xl">
+                <button onClick={() => setShowRFQModal(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-100 transition-all">
+                  Cancel
+                </button>
+                <button onClick={handleSendRFQ} disabled={saving || !rfqForm.supplier_email.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Send className="w-4 h-4" /> Send RFQ
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

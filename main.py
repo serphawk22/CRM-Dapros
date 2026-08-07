@@ -117,6 +117,11 @@ from database import (
     User,
     create_db_and_tables,
     engine,
+    InventoryItem,
+    InventorySupplier,
+    RFQRequest,
+    RFQResponse,
+    APIKey,
 )
 
 
@@ -10231,3 +10236,283 @@ def export_db_table(table_name: str, session: Session = Depends(get_session)):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={table_name}_export.csv"}
     )
+
+# ═══════════════════════════════════════════════════════════════
+# INVENTORY MODULE ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+class InventoryItemCreate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = []
+    photo_url: Optional[str] = None
+    unit: Optional[str] = None
+    min_stock: Optional[float] = 0
+    current_stock: Optional[float] = 0
+
+class InventorySupplierCreate(BaseModel):
+    supplier_name: str
+    supplier_brand: Optional[str] = None
+    supplier_email: Optional[str] = None
+    lot_number: Optional[str] = None
+    unit_cost: Optional[float] = None
+    currency: str = "USD"
+    lead_time_days: Optional[int] = None
+    min_order_qty: Optional[float] = None
+    is_preferred: bool = False
+    notes: Optional[str] = None
+
+@app.get("/inventory")
+def get_inventory(session: Session = Depends(get_session)):
+    items = session.exec(select(InventoryItem).order_by(InventoryItem.created_at.desc())).all()
+    result = []
+    for item in items:
+        suppliers = session.exec(select(InventorySupplier).where(InventorySupplier.item_id == item.id)).all()
+        result.append({
+            "id": item.id, "code": item.code, "name": item.name,
+            "description": item.description, "category": item.category,
+            "tags": item.tags or [], "photo_url": item.photo_url,
+            "unit": item.unit, "min_stock": item.min_stock,
+            "current_stock": item.current_stock, "created_at": item.created_at.isoformat(),
+            "suppliers": [
+                {"id": s.id, "supplier_name": s.supplier_name, "supplier_brand": s.supplier_brand,
+                 "supplier_email": s.supplier_email, "lot_number": s.lot_number,
+                 "unit_cost": s.unit_cost, "currency": s.currency,
+                 "lead_time_days": s.lead_time_days, "min_order_qty": s.min_order_qty,
+                 "is_preferred": s.is_preferred, "notes": s.notes}
+                for s in suppliers
+            ]
+        })
+    return {"items": result, "total": len(result)}
+
+@app.post("/inventory")
+def create_inventory_item(data: InventoryItemCreate, session: Session = Depends(get_session)):
+    item = InventoryItem(**data.dict())
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+@app.put("/inventory/{item_id}")
+def update_inventory_item(item_id: int, data: InventoryItemCreate, session: Session = Depends(get_session)):
+    item = session.get(InventoryItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    for k, v in data.dict(exclude_unset=True).items():
+        setattr(item, k, v)
+    item.updated_at = datetime.utcnow()
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+@app.delete("/inventory/{item_id}")
+def delete_inventory_item(item_id: int, session: Session = Depends(get_session)):
+    item = session.get(InventoryItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    # delete related
+    session.exec(text("DELETE FROM inventory_suppliers WHERE item_id = :id"), {"id": item_id})
+    session.exec(text("DELETE FROM rfq_requests WHERE item_id = :id"), {"id": item_id})
+    session.delete(item)
+    session.commit()
+    return {"ok": True}
+
+@app.post("/inventory/{item_id}/suppliers")
+def add_supplier(item_id: int, data: InventorySupplierCreate, session: Session = Depends(get_session)):
+    item = session.get(InventoryItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    supplier = InventorySupplier(item_id=item_id, **data.dict())
+    session.add(supplier)
+    session.commit()
+    session.refresh(supplier)
+    return supplier
+
+@app.delete("/inventory/suppliers/{supplier_id}")
+def delete_supplier(supplier_id: int, session: Session = Depends(get_session)):
+    s = session.get(InventorySupplier, supplier_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    session.delete(s)
+    session.commit()
+    return {"ok": True}
+
+# ═══════════════════════════════════════════════════════════════
+# RFQ ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+import secrets
+
+class RFQCreate(BaseModel):
+    item_id: int
+    supplier_name: str
+    supplier_email: str
+    quantity: Optional[float] = None
+    notes: Optional[str] = None
+
+class RFQResponseCreate(BaseModel):
+    unit_price: float
+    currency: str = "USD"
+    lead_time_days: Optional[int] = None
+    valid_until: Optional[str] = None
+    notes: Optional[str] = None
+
+@app.get("/rfq")
+def get_rfqs(session: Session = Depends(get_session)):
+    rfqs = session.exec(select(RFQRequest).order_by(RFQRequest.created_at.desc())).all()
+    result = []
+    for r in rfqs:
+        item = session.get(InventoryItem, r.item_id)
+        responses = session.exec(select(RFQResponse).where(RFQResponse.rfq_id == r.id)).all()
+        result.append({
+            "id": r.id, "item_id": r.item_id,
+            "item_name": item.name if item else "—", "item_code": item.code if item else "—",
+            "supplier_name": r.supplier_name, "supplier_email": r.supplier_email,
+            "quantity": r.quantity, "notes": r.notes, "status": r.status,
+            "token": r.token, "created_at": r.created_at.isoformat(),
+            "responses": [
+                {"id": res.id, "unit_price": res.unit_price, "currency": res.currency,
+                 "lead_time_days": res.lead_time_days, "valid_until": res.valid_until,
+                 "notes": res.notes, "submitted_at": res.submitted_at.isoformat()}
+                for res in responses
+            ]
+        })
+    return {"rfqs": result, "total": len(result)}
+
+@app.post("/rfq")
+def create_rfq(data: RFQCreate, session: Session = Depends(get_session)):
+    token = secrets.token_urlsafe(32)
+    rfq = RFQRequest(**data.dict(), token=token)
+    session.add(rfq)
+    session.commit()
+    session.refresh(rfq)
+    return {"id": rfq.id, "token": token, "status": rfq.status}
+
+@app.post("/rfq/{rfq_id}/respond")
+def respond_to_rfq(rfq_id: int, data: RFQResponseCreate, token: str = None, session: Session = Depends(get_session)):
+    rfq = session.get(RFQRequest, rfq_id)
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+    response = RFQResponse(rfq_id=rfq_id, **data.dict())
+    session.add(response)
+    rfq.status = "Responded"
+    session.add(rfq)
+    session.commit()
+    return {"ok": True}
+
+@app.put("/rfq/{rfq_id}/status")
+def update_rfq_status(rfq_id: int, status: str, session: Session = Depends(get_session)):
+    rfq = session.get(RFQRequest, rfq_id)
+    if not rfq:
+        raise HTTPException(status_code=404, detail="RFQ not found")
+    rfq.status = status
+    session.add(rfq)
+    session.commit()
+    return {"ok": True}
+
+# ═══════════════════════════════════════════════════════════════
+# API KEYS ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api-keys")
+def list_api_keys(session: Session = Depends(get_session)):
+    keys = session.exec(select(APIKey).where(APIKey.is_active == True).order_by(APIKey.created_at.desc())).all()
+    return {"keys": [
+        {"id": k.id, "name": k.name, "key_prefix": k.key_prefix,
+         "scopes": k.scopes or [], "created_at": k.created_at.isoformat(),
+         "last_used_at": k.last_used_at.isoformat() if k.last_used_at else None}
+        for k in keys
+    ]}
+
+class APIKeyCreate(BaseModel):
+    name: str
+    scopes: Optional[List[str]] = ["read", "write"]
+
+@app.post("/api-keys")
+def create_api_key(data: APIKeyCreate, session: Session = Depends(get_session)):
+    raw_key = "sk_live_" + secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    prefix = raw_key[:12]
+    key = APIKey(name=data.name, key_hash=key_hash, key_prefix=prefix, scopes=data.scopes)
+    session.add(key)
+    session.commit()
+    session.refresh(key)
+    # Return full key ONCE - never shown again
+    return {"id": key.id, "name": key.name, "key": raw_key, "key_prefix": prefix, "scopes": key.scopes}
+
+@app.delete("/api-keys/{key_id}")
+def revoke_api_key(key_id: int, session: Session = Depends(get_session)):
+    key = session.get(APIKey, key_id)
+    if not key:
+        raise HTTPException(status_code=404, detail="Key not found")
+    key.is_active = False
+    session.add(key)
+    session.commit()
+    return {"ok": True}
+
+# ═══════════════════════════════════════════════════════════════
+# IMPORT: CSV/Excel bulk upload for leads
+# ═══════════════════════════════════════════════════════════════
+
+import io, csv
+
+@app.post("/import/leads/csv")
+async def import_leads_csv(file: UploadFile = File(...), session: Session = Depends(get_session)):
+    content = await file.read()
+    try:
+        decoded = content.decode("utf-8-sig")
+    except Exception:
+        decoded = content.decode("latin-1")
+    
+    reader = csv.DictReader(io.StringIO(decoded))
+    created, skipped = 0, 0
+    errors = []
+    
+    FIELD_MAP = {
+        "company": "company_name", "company name": "company_name", "companyname": "company_name",
+        "name": "company_name",
+        "website": "website", "url": "website", "web": "website",
+        "email": "email", "e-mail": "email",
+        "phone": "phone", "mobile": "phone", "tel": "phone",
+        "industry": "industry", "sector": "industry",
+        "source": "source", "lead source": "source",
+        "status": "status",
+        "address": "address", "location": "address",
+        "notes": "notes", "note": "notes", "comments": "notes",
+    }
+    
+    for i, row in enumerate(reader):
+        try:
+            mapped = {}
+            for col, val in row.items():
+                key = (col or "").strip().lower()
+                if key in FIELD_MAP:
+                    mapped[FIELD_MAP[key]] = (val or "").strip()
+            
+            company_name = mapped.get("company_name", "")
+            if not company_name:
+                skipped += 1
+                continue
+            
+            lead = Lead(
+                company_name=company_name,
+                website=mapped.get("website") or None,
+                email=mapped.get("email") or None,
+                phone=mapped.get("phone") or None,
+                industry=mapped.get("industry") or None,
+                source=mapped.get("source") or "Import",
+                status=mapped.get("status") or "New",
+                address=mapped.get("address") or None,
+                notes=mapped.get("notes") or None,
+            )
+            session.add(lead)
+            created += 1
+        except Exception as e:
+            errors.append(f"Row {i+2}: {str(e)}")
+    
+    session.commit()
+    return {"created": created, "skipped": skipped, "errors": errors}
+

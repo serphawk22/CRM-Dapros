@@ -1421,7 +1421,113 @@ class LiveChatMessage(SQLModel, table=True):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+
+# ──────────────────────────────────────────────────────
+# INVENTORY MODULE
+# ──────────────────────────────────────────────────────
+
+class InventoryItem(SQLModel, table=True):
+    """Product/inventory item with multi-supplier support"""
+    __tablename__ = "inventory_items"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(max_length=100, index=True)
+    name: str = Field(max_length=500)
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
+    category: Optional[str] = Field(default=None, max_length=200)
+    tags: Optional[List[str]] = Field(default_factory=list, sa_column=Column(JSON))
+    photo_url: Optional[str] = Field(default=None, max_length=1000)
+    unit: Optional[str] = Field(default=None, max_length=50)   # kg, pcs, box, etc.
+    min_stock: Optional[float] = Field(default=0)
+    current_stock: Optional[float] = Field(default=0)
+    owner_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    suppliers: List["InventorySupplier"] = Relationship(back_populates="item")
+    rfq_requests: List["RFQRequest"] = Relationship(back_populates="item")
+
+
+class InventorySupplier(SQLModel, table=True):
+    """Supplier-specific pricing/lot data per inventory item"""
+    __tablename__ = "inventory_suppliers"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    item_id: int = Field(foreign_key="inventory_items.id")
+    supplier_name: str = Field(max_length=255)
+    supplier_brand: Optional[str] = Field(default=None, max_length=255)
+    supplier_email: Optional[str] = Field(default=None, max_length=255)
+    supplier_user_id: Optional[int] = Field(default=None, foreign_key="users.id")  # if supplier has portal login
+    lot_number: Optional[str] = Field(default=None, max_length=100)
+    unit_cost: Optional[float] = Field(default=None)
+    currency: str = Field(default="USD", max_length=10)
+    lead_time_days: Optional[int] = Field(default=None)
+    min_order_qty: Optional[float] = Field(default=None)
+    is_preferred: bool = Field(default=False)
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    item: Optional[InventoryItem] = Relationship(back_populates="suppliers")
+
+
+# ──────────────────────────────────────────────────────
+# RFQ (Request for Quotation) SYSTEM
+# ──────────────────────────────────────────────────────
+
+class RFQRequest(SQLModel, table=True):
+    """RFQ sent to a supplier"""
+    __tablename__ = "rfq_requests"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    item_id: int = Field(foreign_key="inventory_items.id")
+    supplier_name: str = Field(max_length=255)
+    supplier_email: str = Field(max_length=255)
+    quantity: Optional[float] = Field(default=None)
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    status: str = Field(default="Pending")   # Pending, Responded, Accepted, Rejected
+    token: Optional[str] = Field(default=None, max_length=64)  # unique link token
+    sent_by: Optional[int] = Field(default=None, foreign_key="users.id")
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    item: Optional[InventoryItem] = Relationship(back_populates="rfq_requests")
+    responses: List["RFQResponse"] = Relationship(back_populates="rfq")
+
+
+class RFQResponse(SQLModel, table=True):
+    """Supplier's response to an RFQ"""
+    __tablename__ = "rfq_responses"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    rfq_id: int = Field(foreign_key="rfq_requests.id")
+    unit_price: float
+    currency: str = Field(default="USD", max_length=10)
+    lead_time_days: Optional[int] = Field(default=None)
+    valid_until: Optional[str] = Field(default=None, max_length=50)
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    submitted_at: datetime = Field(default_factory=datetime.utcnow)
+
+    rfq: Optional[RFQRequest] = Relationship(back_populates="responses")
+
+
+# ──────────────────────────────────────────────────────
+# API KEYS
+# ──────────────────────────────────────────────────────
+
+class APIKey(SQLModel, table=True):
+    """API keys for external integrations"""
+    __tablename__ = "api_keys"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    name: str = Field(max_length=255)          # friendly label
+    key_hash: str = Field(max_length=128, index=True)   # SHA-256 hash of the actual key
+    key_prefix: str = Field(max_length=12)     # first 8 chars shown in UI e.g. "sk_live_ab"
+    scopes: Optional[List[str]] = Field(default_factory=list, sa_column=Column(JSON))
+    created_by: Optional[int] = Field(default=None, foreign_key="users.id")
+    last_used_at: Optional[datetime] = Field(default=None)
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 def get_session():
+
     """
     Dependency to get database session
     """

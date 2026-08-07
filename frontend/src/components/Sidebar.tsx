@@ -106,6 +106,7 @@ const defaultSidebarSections = [
     id: "section-inventory",
     heading: "INVENTORY",
     items: [
+      { id: "item-inventory", name: "Inventory", icon: "Package", href: "/inventory", roles: ["Admin", "SalesManager"] },
       { id: "item-products", name: "Catalog", icon: "Package", href: "/products", roles: ["Admin", "SalesManager"] },
       { id: "item-orders", name: "Orders", icon: "ShoppingCart", href: "/orders", roles: ["Admin", "SalesManager"] },
       { id: "item-billing", name: "Billing", icon: "FileText", href: "/billing", roles: ["Admin", "SalesManager"] },
@@ -131,6 +132,9 @@ const defaultSidebarSections = [
     id: "section-system",
     heading: "SYSTEM",
     items: [
+      { id: "item-map", name: "Map View", icon: "Globe", href: "/map", roles: ["Admin", "SalesManager"] },
+      { id: "item-import", name: "Import Data", icon: "FileBarChart2", href: "/import", roles: ["Admin", "SalesManager"] },
+      { id: "item-api-keys", name: "API Keys", icon: "Zap", href: "/api-keys", roles: ["Admin"] },
       { id: "item-api-intelligence", name: "API Intelligence", icon: "Activity", href: "/admin/api-intelligence", roles: ["Admin"] },
       { id: "item-superadmin", name: "SuperAdmin Telemetry", icon: "ActivitySquare", href: "/superadmin", roles: ["Admin"] },
     ],
