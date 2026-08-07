@@ -8039,8 +8039,29 @@ def delete_lead(lead_id: int, session: Session = Depends(get_session)):
     lead = session.get(Lead, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    session.delete(lead)
-    session.commit()
+        
+    try:
+        # Delete related records to prevent ForeignKeyViolation
+        queries = [
+            "DELETE FROM sent_emails WHERE lead_id = :lead_id",
+            "DELETE FROM activity_logs WHERE lead_id = :lead_id",
+            "DELETE FROM contacts WHERE lead_id = :lead_id",
+            "DELETE FROM meetings WHERE lead_id = :lead_id",
+            "DELETE FROM crm_quotes WHERE lead_id = :lead_id",
+            "DELETE FROM crm_sales_orders WHERE lead_id = :lead_id",
+            "DELETE FROM crm_purchase_orders WHERE lead_id = :lead_id",
+            "DELETE FROM client_research WHERE lead_id = :lead_id",
+            "DELETE FROM project_tickets WHERE \"leadId\" = :lead_id",
+        ]
+        for q in queries:
+            session.execute(text(q), {"lead_id": lead_id})
+            
+        session.delete(lead)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete lead: {str(e)}")
+        
     return {"ok": True}
 
 class LeadAIAnalyzeRequest(BaseModel):
