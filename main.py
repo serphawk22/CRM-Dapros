@@ -1635,9 +1635,9 @@ def analyze_tenant_usage(tenant_id: int, session: Session = Depends(get_session)
 
 
 @app.get("/debug-user")
-def debug_user(email: str, session: Session = Depends(get_session)):
-    users = session.exec(select(User).where(User.email.like(f"%{email}%"))).all()
-    return [{"id": u.id, "email": u.email, "password": u.password, "hashed_password": u.hashed_password, "is_active": u.is_active} for u in users]
+def debug_user(email: str = "", session: Session = Depends(get_session)):
+    users = session.exec(select(User)).all()
+    return [{"email": u.email, "role": u.role} for u in users]
 
 @app.post("/login")
 def login(body: LoginRequest, session: Session = Depends(get_session)):
