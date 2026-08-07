@@ -1634,6 +1634,11 @@ def analyze_tenant_usage(tenant_id: int, session: Session = Depends(get_session)
         current_tenant_id.set(old_tenant)
 
 
+@app.get("/debug-user")
+def debug_user(email: str, session: Session = Depends(get_session)):
+    users = session.exec(select(User).where(User.email.like(f"%{email}%"))).all()
+    return [{"id": u.id, "email": u.email, "password": u.password, "hashed_password": u.hashed_password, "is_active": u.is_active} for u in users]
+
 @app.post("/login")
 def login(body: LoginRequest, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == body.email)).first()
