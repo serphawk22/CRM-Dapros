@@ -8010,6 +8010,30 @@ def update_lead(lead_id: int, body: LeadCreateRequest, session: Session = Depend
     session.refresh(lead)
     return lead
 
+from sqlmodel import text
+
+@app.delete("/debug/purge-leads")
+def purge_leads_debug(session: Session = Depends(get_session)):
+    queries = [
+        "DELETE FROM sent_emails WHERE lead_id IS NOT NULL",
+        "DELETE FROM activity_logs WHERE lead_id IS NOT NULL",
+        "DELETE FROM contacts WHERE lead_id IS NOT NULL",
+        "DELETE FROM meetings WHERE lead_id IS NOT NULL",
+        "DELETE FROM crm_quotes WHERE lead_id IS NOT NULL",
+        "DELETE FROM crm_sales_orders WHERE lead_id IS NOT NULL",
+        "DELETE FROM crm_purchase_orders WHERE lead_id IS NOT NULL",
+        "DELETE FROM client_research WHERE lead_id IS NOT NULL",
+        "DELETE FROM project_tickets WHERE \"leadId\" IS NOT NULL",
+        "DELETE FROM leads"
+    ]
+    for q in queries:
+        try:
+            session.execute(text(q))
+        except Exception as e:
+            print("Error executing", q, e)
+    session.commit()
+    return {"ok": True, "message": "All leads purged"}
+
 @app.delete("/leads/{lead_id}")
 def delete_lead(lead_id: int, session: Session = Depends(get_session)):
     lead = session.get(Lead, lead_id)
