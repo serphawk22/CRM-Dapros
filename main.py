@@ -10325,11 +10325,53 @@ def add_supplier(item_id: int, data: InventorySupplierCreate, session: Session =
     item = session.get(InventoryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    supplier = InventorySupplier(item_id=item_id, **data.dict())
+    
+    supplier_user_id = None
+    credentials_created = False
+    
+    # Auto-create supplier login if email provided
+    if data.supplier_email:
+        existing_user = session.exec(select(User).where(User.email == data.supplier_email)).first()
+        if not existing_user:
+            supplier_user = User(
+                email=data.supplier_email,
+                password=_hash_password("password123"),
+                hashed_password=_hash_password("password123"),
+                name=data.supplier_name,
+                role="Supplier",
+                is_active=True,
+                status="Active"
+            )
+            session.add(supplier_user)
+            session.commit()
+            session.refresh(supplier_user)
+            supplier_user_id = supplier_user.id
+            credentials_created = True
+        else:
+            # Update role to Supplier if not already
+            if existing_user.role != "Supplier":
+                existing_user.role = "Supplier"
+                session.add(existing_user)
+                session.commit()
+            supplier_user_id = existing_user.id
+    
+    supplier = InventorySupplier(item_id=item_id, supplier_user_id=supplier_user_id, **data.dict())
     session.add(supplier)
     session.commit()
     session.refresh(supplier)
-    return supplier
+    
+    result = {
+        "id": supplier.id,
+        "supplier_name": supplier.supplier_name,
+        "supplier_email": supplier.supplier_email,
+        "supplier_user_id": supplier_user_id,
+        "credentials_created": credentials_created,
+    }
+    if credentials_created:
+        result["login_email"] = data.supplier_email
+        result["login_password"] = "password123"
+    
+    return result
 
 @app.delete("/inventory/suppliers/{supplier_id}")
 def delete_supplier(supplier_id: int, session: Session = Depends(get_session)):
@@ -10339,6 +10381,90 @@ def delete_supplier(supplier_id: int, session: Session = Depends(get_session)):
     session.delete(s)
     session.commit()
     return {"ok": True}
+
+@app.put("/inventory/suppliers/{supplier_id}")
+def update_supplier(supplier_id: int, data: InventorySupplierCreate, session: Session = Depends(get_session)):
+    s = session.get(InventorySupplier, supplier_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    for k, v in data.dict(exclude_unset=True).items():
+        setattr(s, k, v)
+    session.add(s)
+    session.commit()
+    session.refresh(s)
+    return s
+
+@app.get("/supplier/inventory")
+def get_supplier_inventory(email: str, session: Session = Depends(get_session)):
+    """Get all inventory items that this supplier is linked to"""
+    # Find all supplier records for this email
+    supplier_records = session.exec(
+        select(InventorySupplier).where(InventorySupplier.supplier_email == email)
+    ).all()
+    
+    if not supplier_records:
+        # also try by user_id
+        user = session.exec(select(User).where(User.email == email)).first()
+        if user:
+            supplier_records = session.exec(
+                select(InventorySupplier).where(InventorySupplier.supplier_user_id == user.id)
+            ).all()
+    
+    result = []
+    seen_items = set()
+    for sr in supplier_records:
+        if sr.item_id in seen_items:
+            continue
+        seen_items.add(sr.item_id)
+        item = session.get(InventoryItem, sr.item_id)
+        if not item:
+            continue
+        # Get all suppliers for this item
+        all_suppliers = session.exec(select(InventorySupplier).where(InventorySupplier.item_id == item.id)).all()
+        result.append({
+            "id": item.id, "code": item.code, "name": item.name,
+            "description": item.description, "category": item.category,
+            "tags": item.tags or [], "photo_url": item.photo_url,
+            "unit": item.unit, "min_stock": item.min_stock,
+            "current_stock": item.current_stock, "created_at": item.created_at.isoformat(),
+            "my_supplier_id": sr.id,
+            "my_unit_cost": sr.unit_cost,
+            "my_currency": sr.currency,
+            "my_lead_time_days": sr.lead_time_days,
+            "my_lot_number": sr.lot_number,
+            "my_notes": sr.notes,
+            "is_preferred": sr.is_preferred,
+            "total_suppliers": len(all_suppliers),
+        })
+    return {"items": result, "total": len(result)}
+
+@app.put("/supplier/inventory/{supplier_record_id}")
+def supplier_update_record(supplier_record_id: int, data: InventorySupplierCreate, session: Session = Depends(get_session)):
+    """Supplier updates their own record for an item"""
+    s = session.get(InventorySupplier, supplier_record_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Record not found")
+    for k, v in data.dict(exclude_unset=True).items():
+        setattr(s, k, v)
+    session.add(s)
+    session.commit()
+    session.refresh(s)
+    return {"ok": True}
+
+@app.put("/supplier/inventory/{supplier_record_id}/stock")
+def supplier_update_stock(supplier_record_id: int, current_stock: float, session: Session = Depends(get_session)):
+    """Supplier updates stock level of an item"""
+    s = session.get(InventorySupplier, supplier_record_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Record not found")
+    item = session.get(InventoryItem, s.item_id)
+    if item:
+        item.current_stock = current_stock
+        item.updated_at = datetime.utcnow()
+        session.add(item)
+        session.commit()
+    return {"ok": True}
+
 
 # ═══════════════════════════════════════════════════════════════
 # RFQ ENDPOINTS

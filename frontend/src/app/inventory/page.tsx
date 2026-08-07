@@ -67,6 +67,7 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
+  const [newCredentials, setNewCredentials] = useState<{ email: string; password: string; name: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string, type: "ok" | "err" = "ok") => {
@@ -144,13 +145,18 @@ export default function InventoryPage() {
     if (!showSupplierModal || !supplierForm.supplier_name.trim()) return;
     setSaving(true);
     try {
-      await fetch(`${API_BASE_URL}/inventory/${showSupplierModal.itemId}/suppliers`, {
+      const res = await fetch(`${API_BASE_URL}/inventory/${showSupplierModal.itemId}/suppliers`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(supplierForm)
       });
+      const data = await res.json();
       setShowSupplierModal(null);
       fetchItems();
-      showToast("Supplier added!");
+      if (data.credentials_created) {
+        setNewCredentials({ email: data.login_email, password: data.login_password, name: supplierForm.supplier_name });
+      } else {
+        showToast("Supplier added!");
+      }
     } finally { setSaving(false); }
   };
 
@@ -204,6 +210,53 @@ export default function InventoryPage() {
             className={`fixed top-4 right-4 z-[200] flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-sm font-semibold ${toast.type === "ok" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
             {toast.type === "ok" ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
             {toast.msg}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Credentials Modal - shown when supplier account is auto-created */}
+      <AnimatePresence>
+        {newCredentials && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.94, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.94 }}
+              className="bg-white dark:bg-[#111] rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Supplier Account Created!</h2>
+                  <p className="text-xs text-slate-500">{newCredentials.name} can now log into the Supplier Portal</p>
+                </div>
+              </div>
+              <div className="space-y-3 mb-5">
+                <div className="p-4 bg-slate-900 rounded-xl">
+                  <p className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Login URL</p>
+                  <code className="text-blue-400 text-sm font-mono">crm-dapros.vercel.app/login</code>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 bg-slate-900 rounded-xl">
+                    <p className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Email</p>
+                    <code className="text-emerald-400 text-sm font-mono break-all select-all">{newCredentials.email}</code>
+                  </div>
+                  <div className="p-4 bg-slate-900 rounded-xl">
+                    <p className="text-xs text-slate-400 mb-1 font-semibold uppercase tracking-wider">Password</p>
+                    <code className="text-amber-400 text-sm font-mono select-all">{newCredentials.password}</code>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl mb-4">
+                <p className="text-xs text-amber-700 dark:text-amber-400 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  Share these credentials with the supplier. They can update pricing, stock levels, and lot numbers after logging in.
+                </p>
+              </div>
+              <button onClick={() => { setNewCredentials(null); showToast("Supplier added with login access!"); }}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition-all">
+                Done — I've shared the credentials
+              </button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

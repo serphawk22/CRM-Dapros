@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useRouter, usePathname } from 'next/navigation';
 import { API_BASE_URL } from '@/config';
 
-export type Role = 'Admin' | 'Employee' | 'Client' | 'Intern' | 'SalesManager';
+export type Role = 'Admin' | 'Employee' | 'Client' | 'Intern' | 'SalesManager' | 'Supplier';
 
 interface User {
   id: number;
@@ -87,7 +87,9 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       if (!isAuthenticated && pathname !== '/login' && pathname !== '/signup' && pathname !== '/' && !pathname?.startsWith('/demo_showcase')) {
         router.replace('/login');
       } else if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
-        if (user?.role === 'SalesManager') {
+        if (user?.role === 'Supplier') {
+          router.replace('/supplier');
+        } else if (user?.role === 'SalesManager') {
           router.replace('/clients');
         } else {
           router.replace('/');

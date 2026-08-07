@@ -85,6 +85,27 @@ function AppContent({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // ── Supplier layout ──
+  if (role === "Supplier") {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-black">
+        <nav className="bg-white dark:bg-black border-b border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+              <span className="text-white text-xs font-black">S</span>
+            </div>
+            <span className="font-bold text-slate-800 dark:text-white text-sm">Supplier Portal</span>
+          </div>
+          <a href="/login" onClick={() => { localStorage.removeItem("crm_user"); }}
+            className="text-xs font-semibold text-slate-500 hover:text-red-500 transition-colors">
+            Sign Out
+          </a>
+        </nav>
+        <main>{children}</main>
+      </div>
+    );
+  }
+
   // ── Admin / Employee / Intern layout ──
   if (isAdminOrEmployee) {
     return (
