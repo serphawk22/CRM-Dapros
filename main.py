@@ -392,7 +392,10 @@ allowed_origins = [
     "https://crm.serphawk.in",
     "https://dapros-crm.serphawk.in",
     "https://crm.dapros.serphawk.in",
+    "https://dapros.serphawk.in",
     "https://crm-dapros.vercel.app",
+    "https://crm-dapros.vercel.app/",
+    "http://dapros.serphawk.in"
 ]
 
 
