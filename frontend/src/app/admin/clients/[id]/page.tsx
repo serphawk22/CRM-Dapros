@@ -236,7 +236,7 @@ function OverviewTab({ client, employees, serviceRequests, activities, timeline,
               : client.services_offered;
           }
         } catch {}
-        if (!parsedServices || parsedServices.length === 0) return null;
+        if (!Array.isArray(parsedServices) || parsedServices.length === 0) return null;
         return (
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '16px 20px', backdropFilter: 'blur(16px)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
@@ -540,8 +540,14 @@ export default function AdminClientDetailPage() {
       if (tlRes.status === 'fulfilled') setTimeline(tlRes.value.timeline || []);
       if (notesRes.status === 'fulfilled') setNotes(notesRes.value.notes || []);
       if (convRes.status === 'fulfilled') setConversations(convRes.value.conversations || []);
-      if (taskRes.status === 'fulfilled') setTasks((taskRes.value.tasks || taskRes.value || []).filter((t: any) => String(t.client_id) === String(id)));
-      if (filesRes.status === 'fulfilled') setFiles(filesRes.value.files || filesRes.value || []);
+      if (taskRes.status === 'fulfilled') {
+        const tVal = Array.isArray(taskRes.value?.tasks) ? taskRes.value.tasks : (Array.isArray(taskRes.value) ? taskRes.value : []);
+        setTasks(tVal.filter((t: any) => String(t.client_id) === String(id)));
+      }
+      if (filesRes.status === 'fulfilled') {
+        const fVal = Array.isArray(filesRes.value?.files) ? filesRes.value.files : (Array.isArray(filesRes.value) ? filesRes.value : []);
+        setFiles(fVal);
+      }
       if (researchRes.status === 'fulfilled') setResearch(researchRes.value.research || null);
     } catch (e) { console.error(e); }
     finally { setPageLoading(false); }
