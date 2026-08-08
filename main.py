@@ -9057,7 +9057,31 @@ def list_quotes(status: Optional[str] = None, client_id: Optional[int] = None, l
     if lead_id:
         q = q.where(CRMQuote.lead_id == lead_id)
     quotes = session.exec(q).all()
-    return {"quotes": [_quote_dict(qt, session) for qt in quotes]}
+    if not quotes:
+        return {"quotes": []}
+    # Batch-load related records (fix N+1)
+    cids  = list({qt.client_id for qt in quotes if qt.client_id})
+    lids  = list({qt.lead_id   for qt in quotes if qt.lead_id})
+    qids  = [qt.id for qt in quotes]
+    cps   = session.exec(select(ClientProfile).where(ClientProfile.id.in_(cids))).all() if cids else []
+    leads = session.exec(select(Lead).where(Lead.id.in_(lids))).all() if lids else []
+    items = session.exec(select(QuoteItem).where(QuoteItem.quote_id.in_(qids))).all() if qids else []
+    cp_map    = {cp.id: cp for cp in cps}
+    lead_map  = {l.id: l   for l in leads}
+    items_map: dict = {}
+    for it in items:
+        items_map.setdefault(it.quote_id, []).append(it)
+    result = []
+    for qt in quotes:
+        d = qt.model_dump()
+        cp   = cp_map.get(qt.client_id)
+        lead = lead_map.get(qt.lead_id)
+        d["client_name"] = cp.companyName if cp else None
+        d["lead_name"]   = lead.company_name if lead else None
+        d["items"] = [i.model_dump() for i in items_map.get(qt.id, [])]
+        result.append(d)
+    return {"quotes": result}
+
 
 def _quote_dict(qt: CRMQuote, session: Session) -> dict:
     client = session.get(ClientProfile, qt.client_id) if qt.client_id else None

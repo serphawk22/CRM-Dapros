@@ -63,35 +63,48 @@ export default function InvoicesPage() {
   });
   const [lineItems, setLineItems] = useState([{ description: "", amount: "" }]);
 
+  const [modalDataLoaded, setModalDataLoaded] = useState(false);
+
   useEffect(() => { 
     if (!authLoading) {
-      fetchAll(); 
+      fetchInvoices(); 
     }
   }, [authLoading]);
 
-  async function fetchAll() {
+  async function fetchInvoices() {
     setLoading(true);
     setError(null);
     const invoiceUrl = isClient && clientId
       ? `${API_BASE_URL}/invoices?client_id=${clientId}`
       : `${API_BASE_URL}/invoices`;
     try {
-      const [inv, cl, sr, pr] = await Promise.all([
-        fetch(invoiceUrl).then(r => r.json()),
-        isClient ? Promise.resolve({ clients: [] }) : fetch(`${API_BASE_URL}/clients?per_page=1000`).then(r => r.json()),
-        isClient ? Promise.resolve({ requests: [] }) : fetch(`${API_BASE_URL}/services/requests`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/products?active_only=true`).then(r => r.json()),
-      ]);
+      const inv = await fetch(invoiceUrl).then(r => r.json());
       setInvoices(inv.invoices || []);
-      setClients(cl.clients || []);
-      setServiceRequests(sr.requests || []);
-      setProducts(pr.products || []);
     } catch (e) {
       console.error(e);
-      setError("Failed to load data. Please refresh.");
+      setError("Failed to load invoices. Please refresh.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadModalData() {
+    if (modalDataLoaded || isClient) return;
+    try {
+      const [cl, sr, pr] = await Promise.all([
+        fetch(`${API_BASE_URL}/clients?per_page=500`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/services/requests`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/products?active_only=true`).then(r => r.json()),
+      ]);
+      setClients(cl.clients || []);
+      setServiceRequests(sr.requests || []);
+      setProducts(pr.products || []);
+      setModalDataLoaded(true);
+    } catch (e) { console.error(e); }
+  }
+
+  async function fetchAll() {
+    fetchInvoices();
   }
 
   function downloadInvoice(inv: Invoice) {
@@ -136,7 +149,7 @@ export default function InvoicesPage() {
     setForm({ client_id: "", service_request_id: "", amount: "", tax: "0", due_date: "", notes: "" });
     setLineItems([{ description: "", amount: "" }]);
     setSelectedProductIds([]);
-    fetchAll();
+    fetchInvoices();
     setSubmitting(false);
   }
 
@@ -146,7 +159,8 @@ export default function InvoicesPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    fetchAll();
+    setInvoices(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+    if (selectedInvoice?.id === id) setSelectedInvoice(s => s ? { ...s, status } : s);
     setShowDetailModal(false);
   }
 
@@ -175,7 +189,8 @@ export default function InvoicesPage() {
         </div>
         {!isClient && (
           <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black shadow-lg transition-all active:scale-95">
+            className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black shadow-lg transition-all active:scale-95"
+            onClick={() => { setShowModal(true); loadModalData(); }}>
             <Plus className="w-4 h-4" /> New Invoice
           </button>
         )}

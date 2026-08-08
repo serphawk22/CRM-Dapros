@@ -35,23 +35,39 @@ export default function QuotesPage() {
     client_id: "" as string | number,
   });
 
-  const load = () => {
+  const [modalDataLoaded, setModalDataLoaded] = useState(false);
+
+  const loadQuotes = () => {
     setLoading(true);
-    Promise.all([
-      fetch(`${API_BASE_URL}/quotes`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/leads`).then(r => r.json()),
-      fetch(`${API_BASE_URL}/clients?per_page=1000`).then(r => r.json()),
-    ]).then(([qd, ld, cd]) => {
-      setQuotes(Array.isArray(qd.quotes) ? qd.quotes : []);
+    fetch(`${API_BASE_URL}/quotes`)
+      .then(r => r.json())
+      .then(qd => {
+        setQuotes(Array.isArray(qd.quotes) ? qd.quotes : []);
+        setError(null);
+      })
+      .catch(e => {
+        console.error(e);
+        setError("Failed to load quotes. Please refresh.");
+      })
+      .finally(() => setLoading(false));
+  };
+
+  const load = loadQuotes;
+
+  async function loadModalData() {
+    if (modalDataLoaded) return;
+    try {
+      const [ld, cd] = await Promise.all([
+        fetch(`${API_BASE_URL}/leads`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/clients?per_page=500`).then(r => r.json()),
+      ]);
       setLeads(Array.isArray(ld.leads) ? ld.leads : []);
       setClients(Array.isArray(cd.clients) ? cd.clients : []);
-      setError(null);
-    }).catch(e => {
-      console.error(e);
-      setError("Failed to load data. Please refresh.");
-    }).finally(() => setLoading(false));
-  };
-  useEffect(load, []);
+      setModalDataLoaded(true);
+    } catch (e) { console.error(e); }
+  }
+
+  useEffect(loadQuotes, []);
 
   const filtered = useMemo(() => quotes.filter(q => {
     const s = search.toLowerCase();
@@ -62,6 +78,7 @@ export default function QuotesPage() {
   const openCreate = () => {
     setForm({ title: "", status: "Draft", currency: "USD", valid_until: "", notes: "", linked_to: "lead", lead_id: "", client_id: "" });
     setShowModal(true);
+    loadModalData();
   };
 
   const canSave = () => {
@@ -78,13 +95,13 @@ export default function QuotesPage() {
     if (form.linked_to === "lead" && form.lead_id) payload.lead_id = Number(form.lead_id);
     if (form.linked_to === "client" && form.client_id) payload.client_id = Number(form.client_id);
     await fetch(`${API_BASE_URL}/quotes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    setSaving(false); setShowModal(false); load();
+    setSaving(false); setShowModal(false); loadQuotes();
   };
 
-  const handleDelete = async (id: number) => { if (!confirm("Delete quote?")) return; await fetch(`${API_BASE_URL}/quotes/${id}`, { method: "DELETE" }); load(); };
+  const handleDelete = async (id: number) => { if (!confirm("Delete quote?")) return; await fetch(`${API_BASE_URL}/quotes/${id}`, { method: "DELETE" }); loadQuotes(); };
   const handleStatus = async (q: Quote, status: string) => {
     await fetch(`${API_BASE_URL}/quotes/${q.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: q.title, status }) });
-    load();
+    setQuotes(prev => prev.map(qt => qt.id === q.id ? { ...qt, status } : qt));
   };
 
   return (
