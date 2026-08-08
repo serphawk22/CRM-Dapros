@@ -9042,10 +9042,12 @@ class QuoteCreateRequest(BaseModel):
     contact_id: Optional[int] = None
     status: str = "Draft"
     currency: str = "USD"
+    grand_total: float = 0.0
     valid_until: Optional[str] = None
     notes: Optional[str] = None
     terms: Optional[str] = None
     owner_id: Optional[int] = None
+    items: list[dict] = []
 
 @app.get("/quotes")
 def list_quotes(status: Optional[str] = None, client_id: Optional[int] = None, lead_id: Optional[int] = None, session: Session = Depends(get_session)):
@@ -9096,11 +9098,24 @@ def _quote_dict(qt: CRMQuote, session: Session) -> dict:
 @app.post("/quotes")
 def create_quote(body: QuoteCreateRequest, session: Session = Depends(get_session)):
     import random, string
-    q = CRMQuote(**body.model_dump())
+    body_data = body.model_dump(exclude={"items"})
+    q = CRMQuote(**body_data)
     q.quote_number = "QT-" + "".join(random.choices(string.digits, k=6))
     session.add(q)
     session.commit()
     session.refresh(q)
+    
+    for item in body.items:
+        qi = QuoteItem(
+            quote_id=q.id,
+            description=item.get("description", ""),
+            quantity=item.get("quantity", 1),
+            unit_price=item.get("unit_price", 0.0),
+            provider=item.get("provider", "Custom")
+        )
+        session.add(qi)
+    session.commit()
+    
     return {"quote": _quote_dict(q, session)}
 
 @app.get("/quotes/{quote_id}")
@@ -9153,16 +9168,36 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
     
     if is_dapros:
         curr = "$"
-        title_text = "QUOTATION"
+        title_text = "COTIZACIÓN"
         logo_el = Paragraph("DaPros", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=28, leading=32, textColor=colors.HexColor("#000000")))
         contact_info = [
              Paragraph("+52 33 5018 8216 | contacto@dapros.com.mx", ParagraphStyle("Right", parent=normal, alignment=2)),
-             Paragraph("DaPros, Web Design in Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("DaPros, Diseño Web en Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
              Paragraph("Canarias 1178, 44620 Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
-             Paragraph("Jal., Mexico", ParagraphStyle("Right", parent=normal, alignment=2))
+             Paragraph("Jal., México", ParagraphStyle("Right", parent=normal, alignment=2))
         ]
         payment_name = "DaPros"
         place = "Guadalajara"
+        
+        lbl_quote_for = "COTIZACIÓN PARA:"
+        lbl_quote_details = "DETALLES:"
+        lbl_quote_num = "No. Cotización:"
+        lbl_date = "Fecha:"
+        lbl_valid = "Válido Hasta:"
+        lbl_status = "Estado -"
+        lbl_title = "Título -"
+        lbl_item = "ARTÍCULO"
+        lbl_desc = "DESCRIPCIÓN"
+        lbl_qty = "CANT."
+        lbl_price = "PRECIO U."
+        lbl_total = "TOTAL"
+        lbl_subtotal = "Subtotal:"
+        lbl_tax = "Impuestos:"
+        lbl_notes = "NOTAS Y TÉRMINOS:"
+        lbl_approval = "INFORMACIÓN DE APROBACIÓN:"
+        lbl_signature = "FIRMA/SELLO"
+        lbl_prepared = "Preparado Por:"
+        lbl_place = "Lugar:"
     else:
         curr = "₹"
         title_text = "PROFORMA QUOTATION"
@@ -9184,6 +9219,26 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
         payment_name = "SERP HAWK"
         place = "Bengaluru"
 
+        lbl_quote_for = "QUOTE FOR:"
+        lbl_quote_details = "QUOTE DETAILS:"
+        lbl_quote_num = "Quote Number:"
+        lbl_date = "Date:"
+        lbl_valid = "Valid Until:"
+        lbl_status = "Status -"
+        lbl_title = "Title -"
+        lbl_item = "ITEM"
+        lbl_desc = "DESCRIPTION"
+        lbl_qty = "QTY"
+        lbl_price = "UNIT PRICE"
+        lbl_total = "TOTAL"
+        lbl_subtotal = "Sub Total:"
+        lbl_tax = "Tax:"
+        lbl_notes = "NOTES & TERMS:"
+        lbl_approval = "APPROVAL INFORMATION:"
+        lbl_signature = "SIGNATURE/STAMP"
+        lbl_prepared = "Prepared By:"
+        lbl_place = "Place:"
+
     # Header Section
     header_data = [
         [
@@ -9191,9 +9246,9 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
             logo_el
         ],
         [
-            [Paragraph(f"Quote Number: {q.quote_number or q.id}", normal),
-             Paragraph(f"Date: {q.created_at.strftime('%B %d, %Y') if q.created_at else '—'}", normal),
-             Paragraph(f"Valid Until: {q.valid_until or '—'}", normal)],
+            [Paragraph(f"{lbl_quote_num} {q.quote_number or q.id}", normal),
+             Paragraph(f"{lbl_date} {q.created_at.strftime('%B %d, %Y') if q.created_at else '—'}", normal),
+             Paragraph(f"{lbl_valid} {q.valid_until or '—'}", normal)],
             contact_info
         ]
     ]
@@ -9209,11 +9264,11 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
 
     # Info Section
     info_data = [
-        [Paragraph("QUOTE FOR:", h3), Paragraph("", h3), Paragraph("QUOTE DETAILS:", h3)],
+        [Paragraph(lbl_quote_for, h3), Paragraph("", h3), Paragraph(lbl_quote_details, h3)],
         [
-            [Paragraph(client_name or "—", normal_b), Paragraph("Client/Lead Address", normal)],
-            ["", ""],
-            [Paragraph(f"Status - {q.status}", normal), Paragraph(f"Title - {q.title}", normal)]
+            [Paragraph(client_name or "—", normal_b), Paragraph("Address / Dirección", normal)],
+            "",
+            [Paragraph(f"{lbl_status} {q.status}", normal), Paragraph(f"{lbl_title} {q.title}", normal)]
         ]
     ]
     info_table = Table(info_data, colWidths=[171, 171, 173])
@@ -9225,7 +9280,7 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
     els.append(Spacer(1, 30))
 
     # Line Items Table
-    items_header = ["ITEM", "DESCRIPTION", "QTY", "UNIT PRICE", "TOTAL"]
+    items_header = [lbl_item, lbl_desc, lbl_qty, lbl_price, lbl_total]
     items_data = [items_header]
     
     quote_items = session.exec(select(QuoteItem).where(QuoteItem.quote_id == q.id)).all()
@@ -9263,8 +9318,8 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
     
     # Totals Section
     totals_data = [
-        ["", "Sub Total:", f"{curr}{q.grand_total:.2f}"],
-        ["", "Tax:", f"{curr}0.00"],
+        ["", lbl_subtotal, f"{curr}{q.grand_total:.2f}"],
+        ["", lbl_tax, f"{curr}0.00"],
     ]
     tt = Table(totals_data, colWidths=[295, 110, 110])
     tt.setStyle(TableStyle([
@@ -9275,7 +9330,7 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
     els.append(tt)
     els.append(Spacer(1, 10))
     
-    grand_total_data = [["", f"TOTAL: {curr}{q.grand_total:.2f}"]]
+    grand_total_data = [["", f"{lbl_total}: {curr}{q.grand_total:.2f}"]]
     gt = Table(grand_total_data, colWidths=[295, 220])
     gt.setStyle(TableStyle([
         ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#f1f5f9")),
@@ -9288,17 +9343,17 @@ def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = 
     els.append(Spacer(1, 40))
     
     if q.notes:
-        els.append(Paragraph("<b>NOTES & TERMS:</b>", normal))
+        els.append(Paragraph(f"<b>{lbl_notes}</b>", normal))
         els.append(Paragraph(q.notes, normal))
         els.append(Spacer(1, 40))
     
     # Footer Section
     footer_data = [
-        [Paragraph("APPROVAL INFORMATION:", h3), Paragraph("SIGNATURE/STAMP", h3)],
+        [Paragraph(lbl_approval, h3), Paragraph(lbl_signature, h3)],
         [
-            [Paragraph(f"<b>Prepared By:</b> {payment_name}", normal), 
-             Paragraph("<b>Date:</b> ___________________", normal)],
-            [Paragraph(f"Place: {place}", normal), Paragraph("Date: ____________", normal)]
+            [Paragraph(f"<b>{lbl_prepared}</b> {payment_name}", normal), 
+             Paragraph(f"<b>{lbl_date}</b> ___________________", normal)],
+            [Paragraph(f"{lbl_place} {place}", normal), Paragraph(f"{lbl_date} ____________", normal)]
         ]
     ]
     ft = Table(footer_data, colWidths=[257, 258])
