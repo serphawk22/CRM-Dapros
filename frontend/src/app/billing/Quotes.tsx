@@ -17,10 +17,10 @@ interface Quote {
 interface Lead   { id: number; company_name?: string; contact_name?: string; email?: string; }
 interface Client { id: number; companyName?: string; }
 interface CatalogItem {
-  id: number; name: string; code: string; category: string;
-  unit: string; unit_price: number; photo_url?: string; current_stock: number; description?: string;
+  id: number; name: string; sku: string; category: string;
+  unit_price: number; description?: string;
 }
-interface CartItem { product_id: number; product_name: string; quantity: number; unit_price: number; unit: string; }
+interface CartItem { product_id: number; product_name: string; quantity: number; unit_price: number; unit: string; provider: string; }
 
 const STATUSES = ["Draft", "Sent", "Accepted", "Rejected", "Expired"];
 const STATUS_COLORS: Record<string, string> = {
@@ -52,6 +52,7 @@ export default function QuotesPage() {
   const [modalStep, setModalStep] = useState<ModalStep>("form");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingQuote, setDownloadingQuote] = useState<Quote | null>(null);
 
   // Form
   const [form, setForm] = useState({
@@ -93,11 +94,11 @@ export default function QuotesPage() {
       const [ld, cd, cat] = await Promise.all([
         fetch(`${API_BASE_URL}/leads`).then(r => r.json()),
         fetch(`${API_BASE_URL}/clients?per_page=500`).then(r => r.json()),
-        fetch(`${API_BASE_URL}/proposals/catalog`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/products?active_only=true`).then(r => r.json()),
       ]);
       setLeads(Array.isArray(ld.leads) ? ld.leads : []);
       setClients(Array.isArray(cd.clients) ? cd.clients : []);
-      setCatalog(Array.isArray(cat.items) ? cat.items : []);
+      setCatalog(Array.isArray(cat.products) ? cat.products : []);
       setModalDataLoaded(true);
     } catch (e) {
       console.error(e);
@@ -119,7 +120,7 @@ export default function QuotesPage() {
       if (idx >= 0) {
         return prev.map((c, i) => i === idx ? { ...c, quantity: c.quantity + 1 } : c);
       }
-      return [...prev, { product_id: item.id, product_name: item.name, quantity: 1, unit_price: price, unit: item.unit }];
+      return [...prev, { product_id: item.id, product_name: item.name, quantity: 1, unit_price: price, unit: "ea", provider: item.sku || "Custom" }];
     });
   }
 
@@ -170,7 +171,7 @@ export default function QuotesPage() {
       valid_until: form.valid_until || null,
       notes: form.notes || null,
       grand_total: grandTotal,
-      items: cart.map(c => ({ description: c.product_name, quantity: c.quantity, unit_price: c.unit_price, unit: c.unit })),
+      items: cart.map(c => ({ description: c.product_name, quantity: c.quantity, unit_price: c.unit_price, provider: c.provider })),
     };
     if (form.linked_to === "lead" && form.lead_id)   payload.lead_id   = Number(form.lead_id);
     if (form.linked_to === "client" && form.client_id) payload.client_id = Number(form.client_id);
@@ -214,7 +215,7 @@ export default function QuotesPage() {
   const categories = ["All", ...Array.from(new Set(catalog.map(i => i.category)))];
   const filteredCatalog = catalog.filter(item => {
     const matchCat = catalogCategory === "All" || item.category === catalogCategory;
-    const matchQ   = !catalogSearch || item.name.toLowerCase().includes(catalogSearch.toLowerCase()) || item.code.toLowerCase().includes(catalogSearch.toLowerCase());
+    const matchQ   = !catalogSearch || item.name.toLowerCase().includes(catalogSearch.toLowerCase()) || (item.sku || "").toLowerCase().includes(catalogSearch.toLowerCase());
     return matchCat && matchQ;
   });
 
@@ -229,6 +230,13 @@ export default function QuotesPage() {
       return c?.companyName || "";
     }
     return "";
+  }
+
+  function handleDownloadSelect(provider: 'SERP_HAWK' | 'DAPROS') {
+    if (downloadingQuote) {
+      window.open(`${API_BASE_URL}/quotes/${downloadingQuote.id}/pdf?provider=${provider}`, '_blank');
+      setDownloadingQuote(null);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -319,10 +327,10 @@ export default function QuotesPage() {
               {STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-              <a href={`${API_BASE_URL}/quotes/${q.id}/pdf`} target="_blank" rel="noreferrer" title="Export PDF"
+              <button onClick={() => setDownloadingQuote(q)} title="Download PDF"
                 className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">
                 <Download className="w-3.5 h-3.5" />
-              </a>
+              </button>
               <button onClick={() => handleDelete(q.id)} title="Delete Quote"
                 className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20">
                 <Trash2 className="w-3.5 h-3.5" />
@@ -551,14 +559,14 @@ export default function QuotesPage() {
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-semibold text-slate-900 dark:text-zinc-100 truncate">{item.name}</p>
                                 <div className="flex items-center gap-2 mt-0.5">
-                                  <span className="text-[10px] bg-slate-100 dark:bg-zinc-700 text-slate-500 px-1.5 py-0.5 rounded">{item.category}</span>
-                                  <span className="text-[10px] text-slate-400">{item.code}</span>
+                                  <span className="text-[10px] bg-slate-100 dark:bg-zinc-700 text-slate-500 px-1.5 py-0.5 rounded">{item.category || "General"}</span>
+                                  <span className="text-[10px] text-slate-400">{item.sku || "N/A"}</span>
                                 </div>
                               </div>
                               {/* Price */}
                               <div className="text-right flex-shrink-0">
                                 <p className="text-sm font-bold text-amber-600">
-                                  {price > 0 ? fmtMoney(price, form.currency) : "—"}<span className="text-xs font-normal text-slate-400">/{item.unit}</span>
+                                  {price > 0 ? fmtMoney(price, form.currency) : "—"}
                                 </p>
                                 {inCart && (
                                   <p className="text-[10px] text-emerald-600 font-bold">×{inCart.quantity} in cart</p>
@@ -612,7 +620,6 @@ export default function QuotesPage() {
                               className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-zinc-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-zinc-700">
                               <Plus className="w-3 h-3 text-slate-600 dark:text-zinc-300" />
                             </button>
-                            <span className="text-[10px] text-slate-400">{item.unit}</span>
                           </div>
                           {/* Price input */}
                           <div className="flex items-center gap-1">
@@ -658,6 +665,33 @@ export default function QuotesPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* PDF Download Provider Modal */}
+      {downloadingQuote && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl w-full max-w-sm shadow-2xl p-6 relative overflow-hidden border border-zinc-200 dark:border-zinc-800">
+            <button onClick={() => setDownloadingQuote(null)} className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 bg-zinc-100 dark:bg-zinc-800/50 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+            <h3 className="text-xl font-black text-zinc-900 dark:text-white mb-2 tracking-tight">Download Quote</h3>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6 font-medium">Select the agency provider format for this PDF.</p>
+            <div className="space-y-3">
+              <button onClick={() => handleDownloadSelect('SERP_HAWK')} className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all text-left group">
+                <div>
+                  <div className="font-bold text-indigo-900 dark:text-indigo-300">SERP Hawk</div>
+                  <div className="text-xs font-semibold text-indigo-600/70 dark:text-indigo-400/70">Formal Proforma (INR)</div>
+                </div>
+                <Download className="w-5 h-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
+              </button>
+              <button onClick={() => handleDownloadSelect('DAPROS')} className="w-full flex items-center justify-between p-4 rounded-xl border-2 border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:border-emerald-200 dark:hover:border-emerald-800 transition-all text-left group">
+                <div>
+                  <div className="font-bold text-emerald-900 dark:text-emerald-300">DaPros</div>
+                  <div className="text-xs font-semibold text-emerald-600/70 dark:text-emerald-400/70">Clean Format (MXN)</div>
+                </div>
+                <Download className="w-5 h-5 text-emerald-400 group-hover:text-emerald-600 transition-colors" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

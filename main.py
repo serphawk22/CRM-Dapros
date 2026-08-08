@@ -9111,14 +9111,16 @@ def get_quote(quote_id: int, session: Session = Depends(get_session)):
     return {"quote": _quote_dict(q, session)}
 
 @app.get("/quotes/{quote_id}/pdf")
-def quote_pdf(quote_id: int, session: Session = Depends(get_session)):
+def quote_pdf(quote_id: int, provider: Optional[str] = None, session: Session = Depends(get_session)):
     """Generate a professional PDF for a quote."""
     from fastapi.responses import StreamingResponse
     import io
+    import os
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.utils import ImageReader
 
     q = session.get(CRMQuote, quote_id)
     if not q:
@@ -9127,53 +9129,185 @@ def quote_pdf(quote_id: int, session: Session = Depends(get_session)):
     client_name = ""
     if q.client_id:
         c = session.get(ClientProfile, q.client_id)
-        if c: client_name = c.companyName or f"Client #{c.id}"
+        if c: 
+            user = session.get(User, c.userId) if c.userId else None
+            client_name = c.companyName or (user.name if user else f"Client #{c.id}")
     elif q.lead_id:
-        from database import Lead
         l = session.get(Lead, q.lead_id)
-        if l: client_name = l.company_name
+        if l: client_name = l.company_name or l.contact_name or f"Lead #{l.id}"
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=50, bottomMargin=40)
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=40, bottomMargin=40, leftMargin=40, rightMargin=40)
     styles = getSampleStyleSheet()
-    title_s = ParagraphStyle("PTitle", parent=styles["Title"], fontSize=22, textColor=colors.HexColor("#1e293b"))
-    h2 = ParagraphStyle("PH2", parent=styles["Heading2"], fontSize=13, textColor=colors.HexColor("#334155"), spaceBefore=18)
-    normal = styles["Normal"]
-    small = ParagraphStyle("PSmall", parent=normal, fontSize=9, textColor=colors.grey)
+    
+    # Custom Styles
+    title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=22, leading=26, textColor=colors.HexColor("#000000"))
+    normal_b = ParagraphStyle("NormalB", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#111111"))
+    normal = ParagraphStyle("NormalR", parent=styles["Normal"], fontName="Helvetica", fontSize=10, textColor=colors.HexColor("#333333"))
+    small = ParagraphStyle("Small", parent=normal, fontSize=8, textColor=colors.HexColor("#555555"))
+    h3 = ParagraphStyle("H3", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=12, spaceAfter=8)
 
     els = []
-    els.append(Paragraph("QUOTE", title_s))
-    els.append(Spacer(1, 10))
+    
+    is_dapros = (provider == "DAPROS")
+    
+    if is_dapros:
+        curr = "$"
+        title_text = "QUOTATION"
+        logo_el = Paragraph("DaPros", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=28, leading=32, textColor=colors.HexColor("#000000")))
+        contact_info = [
+             Paragraph("+52 33 5018 8216 | contacto@dapros.com.mx", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("DaPros, Web Design in Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Canarias 1178, 44620 Guadalajara", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Jal., Mexico", ParagraphStyle("Right", parent=normal, alignment=2))
+        ]
+        payment_name = "DaPros"
+        place = "Guadalajara"
+    else:
+        curr = "₹"
+        title_text = "PROFORMA QUOTATION"
+        logo_path = os.path.join(os.path.dirname(__file__), "logo.jpg")
+        if os.path.exists(logo_path):
+            img_reader = ImageReader(logo_path)
+            img_w, img_h = img_reader.getSize()
+            aspect = img_h / float(img_w)
+            logo_el = Image(logo_path, width=120, height=120 * aspect)
+        else:
+            logo_el = Paragraph("SERP HAWK", ParagraphStyle("RightB", parent=title_style, alignment=2, fontSize=16))
 
-    info = [
-        ["Quote No:", q.quote_number or f"#{q.id}"],
-        ["Title:", q.title],
-        ["For:", client_name or "—"],
-        ["Status:", q.status],
-        ["Total Amount:", f"{q.currency} {q.grand_total:,.2f}"],
-        ["Valid Until:", q.valid_until or "—"],
-        ["Created:", q.created_at.strftime("%B %d, %Y") if q.created_at else "—"],
+        contact_info = [
+             Paragraph("089213 81769 | info@serphawk.com", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("B, 2nd Floor, Bannerghatta Slip Rd, KEB Colony", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("New Gurappana Palya, 1st Stage, BTM 1st Stage", ParagraphStyle("Right", parent=normal, alignment=2)),
+             Paragraph("Bengaluru, Karnataka 560029", ParagraphStyle("Right", parent=normal, alignment=2))
+        ]
+        payment_name = "SERP HAWK"
+        place = "Bengaluru"
+
+    # Header Section
+    header_data = [
+        [
+            Paragraph(title_text, title_style),
+            logo_el
+        ],
+        [
+            [Paragraph(f"Quote Number: {q.quote_number or q.id}", normal),
+             Paragraph(f"Date: {q.created_at.strftime('%B %d, %Y') if q.created_at else '—'}", normal),
+             Paragraph(f"Valid Until: {q.valid_until or '—'}", normal)],
+            contact_info
+        ]
     ]
-    it = Table(info, colWidths=[100, 350])
-    it.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("PADDING", (0, 0), (-1, -1), 6),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#64748b")),
+    header_table = Table(header_data, colWidths=[260, 255])
+    header_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 25),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
     ]))
-    els.append(it)
-    els.append(Spacer(1, 18))
-
-    if q.notes:
-        els.append(Paragraph("Notes & Terms", h2))
-        for para in q.notes.split("\n"):
-            if para.strip():
-                els.append(Paragraph(para.strip(), normal))
-                els.append(Spacer(1, 4))
-
+    els.append(header_table)
     els.append(Spacer(1, 30))
-    els.append(Paragraph("— SERP Hawk CRM", small))
 
+    # Info Section
+    info_data = [
+        [Paragraph("QUOTE FOR:", h3), Paragraph("", h3), Paragraph("QUOTE DETAILS:", h3)],
+        [
+            [Paragraph(client_name or "—", normal_b), Paragraph("Client/Lead Address", normal)],
+            ["", ""],
+            [Paragraph(f"Status - {q.status}", normal), Paragraph(f"Title - {q.title}", normal)]
+        ]
+    ]
+    info_table = Table(info_data, colWidths=[171, 171, 173])
+    info_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    els.append(info_table)
+    els.append(Spacer(1, 30))
+
+    # Line Items Table
+    items_header = ["ITEM", "DESCRIPTION", "QTY", "UNIT PRICE", "TOTAL"]
+    items_data = [items_header]
+    
+    quote_items = session.exec(select(QuoteItem).where(QuoteItem.quote_id == q.id)).all()
+    for idx, li in enumerate(quote_items, 1):
+        amt = float(li.unit_price or 0)
+        qty = li.quantity or 1
+        desc = li.description or ''
+        items_data.append([str(idx) + ".", desc, str(qty), f"{curr}{amt:.2f}", f"{curr}{(amt*qty):.2f}"])
+        
+    if not quote_items:
+        items_data.append(["-", "No items added", "-", "-", "-"])
+        
+    lt = Table(items_data, colWidths=[40, 220, 60, 90, 105])
+    
+    # Base table style
+    ts = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#5472d3")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("PADDING", (0, 0), (-1, -1), 10),
+        ("ALIGN", (2, 0), (4, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]
+    
+    # Alternating row colors
+    for i in range(1, len(items_data)):
+        bg = colors.HexColor("#f8f9fa") if i % 2 != 0 else colors.white
+        ts.append(("BACKGROUND", (0, i), (-1, i), bg))
+        
+    lt.setStyle(TableStyle(ts))
+    els.append(lt)
+    els.append(Spacer(1, 15))
+    
+    # Totals Section
+    totals_data = [
+        ["", "Sub Total:", f"{curr}{q.grand_total:.2f}"],
+        ["", "Tax:", f"{curr}0.00"],
+    ]
+    tt = Table(totals_data, colWidths=[295, 110, 110])
+    tt.setStyle(TableStyle([
+        ("FONTNAME", (1, 0), (1, -1), "Helvetica"),
+        ("ALIGN", (1, 0), (2, -1), "RIGHT"),
+        ("PADDING", (0, 0), (-1, -1), 5),
+    ]))
+    els.append(tt)
+    els.append(Spacer(1, 10))
+    
+    grand_total_data = [["", f"TOTAL: {curr}{q.grand_total:.2f}"]]
+    gt = Table(grand_total_data, colWidths=[295, 220])
+    gt.setStyle(TableStyle([
+        ("BACKGROUND", (1, 0), (1, 0), colors.HexColor("#f1f5f9")),
+        ("FONTNAME", (1, 0), (1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (1, 0), (1, 0), 16),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("PADDING", (1, 0), (1, 0), 10),
+    ]))
+    els.append(gt)
+    els.append(Spacer(1, 40))
+    
+    if q.notes:
+        els.append(Paragraph("<b>NOTES & TERMS:</b>", normal))
+        els.append(Paragraph(q.notes, normal))
+        els.append(Spacer(1, 40))
+    
+    # Footer Section
+    footer_data = [
+        [Paragraph("APPROVAL INFORMATION:", h3), Paragraph("SIGNATURE/STAMP", h3)],
+        [
+            [Paragraph(f"<b>Prepared By:</b> {payment_name}", normal), 
+             Paragraph("<b>Date:</b> ___________________", normal)],
+            [Paragraph(f"Place: {place}", normal), Paragraph("Date: ____________", normal)]
+        ]
+    ]
+    ft = Table(footer_data, colWidths=[257, 258])
+    ft.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    els.append(ft)
+    
     doc.build(els)
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/pdf", headers={
