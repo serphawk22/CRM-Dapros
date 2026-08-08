@@ -1,23 +1,37 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus, X, Loader2, FileSignature, CheckCircle, Send,
   Clock, XCircle, DollarSign, Trash2, Eye, Edit3, Download,
-  PlayCircle, MessageSquare
+  PlayCircle, Search, ShoppingCart, Package, ChevronRight,
+  User2, Building2, IndianRupee, BadgeDollarSign, Minus,
+  AlertCircle, FileText, RefreshCw, ArrowLeft
 } from "lucide-react";
 import { API_BASE_URL } from "@/config";
-import { cn } from "@/lib/utils";
 import { useRole } from "@/context/RoleContext";
-import PageGuide from '@/components/PageGuide';
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
+interface LineItem {
+  product_id?: number;
+  product_name: string;
+  description?: string;
+  quantity: number;
+  unit_price: number;
+  unit: string;
+  currency: string;
+}
 
 interface Proposal {
   id: number;
   title: string;
   client_id?: number;
+  lead_id?: number;
+  recipient_type: string;
   client_name?: string;
-  service_request_id?: number;
   content?: string;
+  line_items: LineItem[];
+  currency: string;
   status: string;
   valid_until?: string;
   total_value?: number;
@@ -26,74 +40,217 @@ interface Proposal {
   created_at: string;
 }
 
-const STATUS_CONFIG: Record<string, { icon: any; color: string; bg: string }> = {
-  Draft:            { icon: Edit3,          color: "text-slate-600 dark:text-zinc-300",   bg: "bg-slate-100 dark:bg-zinc-800" },
-  Sent:             { icon: Send,           color: "text-blue-600",    bg: "bg-blue-100" },
-  Accepted:         { icon: CheckCircle,    color: "text-emerald-600", bg: "bg-emerald-100" },
-  Rejected:         { icon: XCircle,        color: "text-red-600",     bg: "bg-red-100" },
-  "Demo Requested": { icon: PlayCircle,     color: "text-violet-600",  bg: "bg-violet-100" },
+interface CatalogItem {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  category: string;
+  unit: string;
+  photo_url?: string;
+  unit_price: number;
+  current_stock: number;
+}
+
+interface Client { id: number; companyName: string; projectName?: string; }
+interface Lead   { id: number; company_name?: string; contact_name?: string; email?: string; }
+
+// ─── Wizard Steps ───────────────────────────────────────────────────────────
+type WizardStep = "recipient" | "cart" | "details";
+
+// ─── Currency config ─────────────────────────────────────────────────────────
+const INR_RATE  = 4.5; // 1 MXN ≈ 4.5 INR
+const CURRENCIES = [
+  { code: "MXN", label: "MXN (Peso)", symbol: "$",  icon: BadgeDollarSign },
+  { code: "INR", label: "INR (₹)",    symbol: "₹", icon: IndianRupee },
+];
+
+function currSymbol(c: string) { return c === "INR" ? "₹" : "$"; }
+function fmtMoney(val: number, curr: string) {
+  return `${currSymbol(curr)}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ─── Status config ───────────────────────────────────────────────────────────
+const STATUS_CFG: Record<string, { icon: any; color: string; dot: string }> = {
+  Draft:            { icon: Edit3,       color: "text-slate-500",   dot: "bg-slate-400" },
+  Sent:             { icon: Send,        color: "text-blue-600",    dot: "bg-blue-500" },
+  Accepted:         { icon: CheckCircle, color: "text-emerald-600", dot: "bg-emerald-500" },
+  Rejected:         { icon: XCircle,     color: "text-red-500",     dot: "bg-red-500" },
+  "Demo Requested": { icon: PlayCircle,  color: "text-violet-600",  dot: "bg-violet-500" },
 };
 
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function ProposalsPage() {
   const { role, user } = useRole();
   const isClient = role === "Client";
   const clientId = user?.client_id;
-  const [proposals, setProposals] = useState<Proposal[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [selected, setSelected] = useState<Proposal | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+
+  const [proposals, setProposals]       = useState<Proposal[]>([]);
+  const [clients,   setClients]         = useState<Client[]>([]);
+  const [leads,     setLeads]           = useState<Lead[]>([]);
+  const [catalog,   setCatalog]         = useState<CatalogItem[]>([]);
+  const [loading,   setLoading]         = useState(true);
   const [filterStatus, setFilterStatus] = useState("All");
 
-  const [form, setForm] = useState({
-    title: "", client_id: "", content: "",
-    valid_until: "", total_value: "",
-  });
-  const [error, setError] = useState<string | null>(null);
+  // Wizard state
+  const [showWizard, setShowWizard]     = useState(false);
+  const [step, setStep]                 = useState<WizardStep>("recipient");
+  const [saving, setSaving]             = useState(false);
 
-  useEffect(() => { fetchAll(); }, []);
+  // Recipient step
+  const [recipientType, setRecipientType] = useState<"client" | "lead">("client");
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [selectedLeadId, setSelectedLeadId]     = useState<number | null>(null);
+  const [recipientSearch, setRecipientSearch]   = useState("");
 
-  async function fetchAll() {
+  // Cart step
+  const [cart, setCart]                 = useState<LineItem[]>([]);
+  const [currency, setCurrency]         = useState("MXN");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState("All");
+
+  // Details step
+  const [quoteTitle, setQuoteTitle]     = useState("");
+  const [validUntil, setValidUntil]     = useState("");
+  const [notes, setNotes]               = useState("");
+  const [sendStatus, setSendStatus]     = useState<"Draft" | "Sent">("Draft");
+
+  // Detail view
+  const [selected, setSelected]         = useState<Proposal | null>(null);
+
+  // ─── Fetch ───────────────────────────────────────────────────────────────
+  const fetchProposals = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    const proposalUrl = isClient && clientId
-      ? `${API_BASE_URL}/proposals?client_id=${clientId}`
-      : `${API_BASE_URL}/proposals`;
     try {
-      const [p, c] = await Promise.all([
-        fetch(proposalUrl).then(r => r.json()),
-        isClient ? Promise.resolve({ clients: [] }) : fetch(`${API_BASE_URL}/clients?per_page=1000`).then(r => r.json()),
-      ]);
-      setProposals(p.proposals || []);
-      setClients(c.clients || []);
-    } catch (e) {
-      console.error(e);
-      setError("Failed to load data. Please refresh.");
-    } finally {
-      setLoading(false);
+      const url = isClient && clientId
+        ? `${API_BASE_URL}/proposals?client_id=${clientId}`
+        : `${API_BASE_URL}/proposals`;
+      const res = await fetch(url);
+      const data = await res.json();
+      setProposals(data.proposals || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [isClient, clientId]);
+
+  useEffect(() => {
+    fetchProposals();
+    if (!isClient) {
+      // Parallel fetch clients + leads for the wizard
+      Promise.all([
+        fetch(`${API_BASE_URL}/clients?per_page=500`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/leads`).then(r => r.json()),
+        fetch(`${API_BASE_URL}/proposals/catalog`).then(r => r.json()),
+      ]).then(([c, l, cat]) => {
+        setClients(c.clients || []);
+        setLeads(l.leads || []);
+        setCatalog(cat.items || []);
+      }).catch(console.error);
     }
+  }, [fetchProposals, isClient]);
+
+  // ─── Wizard helpers ───────────────────────────────────────────────────────
+  function openWizard() {
+    setStep("recipient");
+    setRecipientType("client");
+    setSelectedClientId(null);
+    setSelectedLeadId(null);
+    setRecipientSearch("");
+    setCart([]);
+    setCurrency("MXN");
+    setCatalogSearch("");
+    setCatalogCategory("All");
+    setQuoteTitle("");
+    setValidUntil("");
+    setNotes("");
+    setSendStatus("Draft");
+    setShowWizard(true);
   }
 
-  async function createProposal(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    await fetch(`${API_BASE_URL}/proposals`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title,
-        client_id: form.client_id ? Number(form.client_id) : null,
-        content: form.content || null,
-        valid_until: form.valid_until || null,
-        total_value: form.total_value ? parseFloat(form.total_value) : null,
-      }),
+  function recipientName() {
+    if (recipientType === "client") {
+      const c = clients.find(c => c.id === selectedClientId);
+      return c?.companyName || "";
+    }
+    const l = leads.find(l => l.id === selectedLeadId);
+    return l?.company_name || l?.contact_name || "";
+  }
+
+  const cartTotal = useMemo(() => {
+    const mxn = cart.reduce((s, li) => s + li.quantity * li.unit_price, 0);
+    return currency === "INR" ? mxn * INR_RATE : mxn;
+  }, [cart, currency]);
+
+  function addToCart(item: CatalogItem) {
+    setCart(prev => {
+      const existing = prev.findIndex(c => c.product_id === item.id);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { ...updated[existing], quantity: updated[existing].quantity + 1 };
+        return updated;
+      }
+      return [...prev, {
+        product_id: item.id,
+        product_name: item.name,
+        description: item.description,
+        quantity: 1,
+        unit_price: currency === "INR" ? item.unit_price * INR_RATE : item.unit_price,
+        unit: item.unit,
+        currency,
+      }];
     });
-    setShowModal(false);
-    setForm({ title: "", client_id: "", content: "", valid_until: "", total_value: "" });
-    fetchAll();
-    setSubmitting(false);
+  }
+
+  function removeFromCart(idx: number) {
+    setCart(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  function updateCartQty(idx: number, qty: number) {
+    if (qty <= 0) { removeFromCart(idx); return; }
+    setCart(prev => prev.map((li, i) => i === idx ? { ...li, quantity: qty } : li));
+  }
+
+  function updateCartPrice(idx: number, price: number) {
+    setCart(prev => prev.map((li, i) => i === idx ? { ...li, unit_price: price } : li));
+  }
+
+  // When currency switches, convert prices in cart
+  function switchCurrency(newCurr: string) {
+    if (newCurr === currency) return;
+    setCurrency(newCurr);
+    setCart(prev => prev.map(li => ({
+      ...li,
+      currency: newCurr,
+      unit_price: newCurr === "INR"
+        ? li.unit_price * INR_RATE
+        : li.unit_price / INR_RATE,
+    })));
+  }
+
+  async function submitQuote() {
+    setSaving(true);
+    const totalMXN = currency === "INR" ? cartTotal / INR_RATE : cartTotal;
+    const autoTitle = quoteTitle.trim() ||
+      `Quotation for ${recipientName()} – ${new Date().toLocaleDateString("en-IN")}`;
+    try {
+      await fetch(`${API_BASE_URL}/proposals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: autoTitle,
+          client_id: recipientType === "client" ? selectedClientId : null,
+          lead_id: recipientType === "lead" ? selectedLeadId : null,
+          recipient_type: recipientType,
+          content: notes || null,
+          status: sendStatus,
+          valid_until: validUntil || null,
+          total_value: totalMXN,
+          line_items: cart,
+          currency,
+        }),
+      });
+      setShowWizard(false);
+      fetchProposals();
+    } finally { setSaving(false); }
   }
 
   async function updateStatus(id: number, status: string) {
@@ -102,298 +259,672 @@ export default function ProposalsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    fetchAll();
-    setShowDetail(false);
+    setProposals(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    if (selected?.id === id) setSelected(s => s ? { ...s, status } : s);
   }
 
   async function deleteProposal(id: number) {
+    if (!confirm("Delete this quotation?")) return;
     await fetch(`${API_BASE_URL}/proposals/${id}`, { method: "DELETE" });
     setProposals(prev => prev.filter(p => p.id !== id));
-    setShowDetail(false);
+    setSelected(null);
   }
 
+  function downloadPDF(id: number) {
+    window.open(`${API_BASE_URL}/proposals/${id}/pdf`, "_blank");
+  }
+
+  // ─── Derived state ────────────────────────────────────────────────────────
   const filtered = filterStatus === "All" ? proposals : proposals.filter(p => p.status === filterStatus);
 
+  const catalogCategories = ["All", ...Array.from(new Set(catalog.map(i => i.category)))];
+  const filteredCatalog = catalog.filter(item => {
+    const matchCat = catalogCategory === "All" || item.category === catalogCategory;
+    const matchQ   = !catalogSearch || item.name.toLowerCase().includes(catalogSearch.toLowerCase());
+    return matchCat && matchQ;
+  });
+
+  const filteredRecipients = recipientType === "client"
+    ? clients.filter(c => !recipientSearch || c.companyName.toLowerCase().includes(recipientSearch.toLowerCase()))
+    : leads.filter(l => {
+        const name = (l.company_name || l.contact_name || "").toLowerCase();
+        return !recipientSearch || name.includes(recipientSearch.toLowerCase());
+      });
+
   const stats = {
-    total: proposals.length,
+    total:    proposals.length,
     accepted: proposals.filter(p => p.status === "Accepted").length,
-    value: proposals.filter(p => p.status === "Accepted").reduce((s, p) => s + (p.total_value || 0), 0),
-    pending: proposals.filter(p => p.status === "Sent").length,
+    sent:     proposals.filter(p => p.status === "Sent").length,
+    value:    proposals.filter(p => p.status === "Accepted")
+                .reduce((s, p) => s + (p.total_value || 0), 0),
   };
 
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20 dark:bg-black rounded-3xl p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 dark:text-zinc-50 tracking-tight">{isClient ? "My Proposals" : "Proposals"}</h1>
-          <p className="text-gray-500 dark:text-zinc-400 font-medium">{isClient ? "View and respond to proposals sent to you." : "Create, send, and track client proposals and contracts."}</p>
+    <div className="flex flex-col h-full bg-[#f8fafc] dark:bg-black min-h-screen">
+
+      {/* ── HEADER ──────────────────────────────────────────────────────── */}
+      <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-black">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              Quotations &amp; Proposals
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              Create, send and track client quotes
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={fetchProposals}
+              className="p-2.5 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            {!isClient && (
+              <button id="create-quotation-btn" onClick={openWizard}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-all hover:shadow-md active:scale-95">
+                <Plus className="w-4 h-4" /> Create Quotation
+              </button>
+            )}
+          </div>
         </div>
-        {!isClient && (
-          <button onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black shadow-lg transition-all active:scale-95">
-            <Plus className="w-4 h-4" /> New Proposal
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+          {[
+            { label: "Total",    value: stats.total,    color: "text-blue-600",    bg: "bg-blue-50 dark:bg-blue-900/20" },
+            { label: "Sent",     value: stats.sent,     color: "text-amber-600",   bg: "bg-amber-50 dark:bg-amber-900/20" },
+            { label: "Accepted", value: stats.accepted, color: "text-emerald-600", bg: "bg-emerald-50 dark:bg-emerald-900/20" },
+            { label: "Won Value",value: `$${(stats.value/1000).toFixed(1)}k`, color: "text-violet-600", bg: "bg-violet-50 dark:bg-violet-900/20" },
+          ].map(s => (
+            <div key={s.label} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${s.bg}`}>
+              <p className={`text-xl font-black ${s.color}`}>{loading ? "—" : s.value}</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── FILTER BAR ──────────────────────────────────────────────────── */}
+      <div className="flex gap-2 px-6 py-3 bg-white dark:bg-black border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+        {["All", "Draft", "Sent", "Accepted", "Rejected", "Demo Requested"].map(s => (
+          <button key={s} onClick={() => setFilterStatus(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+              filterStatus === s
+                ? "bg-blue-600 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+            }`}>
+            {s}
           </button>
+        ))}
+      </div>
+
+      {/* ── LIST ────────────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-center">
+            <FileSignature className="w-12 h-12 text-slate-300 mb-3" />
+            <p className="text-slate-500 font-medium">No quotations yet</p>
+            {!isClient && (
+              <button onClick={openWizard} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                Create your first quote
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filtered.map(p => {
+              const cfg = STATUS_CFG[p.status] || STATUS_CFG.Draft;
+              const Icon = cfg.icon;
+              const sym = currSymbol(p.currency || "MXN");
+              return (
+                <div key={p.id}
+                  onClick={() => setSelected(p)}
+                  className="bg-white dark:bg-[#111] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 cursor-pointer hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 transition-all group">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-mono text-slate-400 dark:text-slate-500">
+                        Q-{String(p.id).padStart(4, "0")}
+                      </span>
+                      <h3 className="font-semibold text-slate-900 dark:text-white text-sm leading-tight truncate mt-0.5">
+                        {p.title}
+                      </h3>
+                    </div>
+                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${cfg.color} bg-slate-100 dark:bg-slate-800`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                      {p.status}
+                    </span>
+                  </div>
+
+                  {p.client_name && (
+                    <div className="flex items-center gap-1.5 mb-3">
+                      {p.recipient_type === "lead"
+                        ? <User2 className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                        : <Building2 className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                      <span className="text-xs text-slate-600 dark:text-slate-300 truncate">
+                        {p.client_name}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ml-auto ${
+                        p.recipient_type === "lead"
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                      }`}>
+                        {p.recipient_type === "lead" ? "Lead" : "Client"}
+                      </span>
+                    </div>
+                  )}
+
+                  {p.line_items?.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-1">
+                      {p.line_items.slice(0, 2).map((li, i) => (
+                        <span key={i} className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded-md">
+                          {li.product_name} ×{li.quantity}
+                        </span>
+                      ))}
+                      {p.line_items.length > 2 && (
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md">
+                          +{p.line_items.length - 2} more
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-lg font-bold text-slate-900 dark:text-white">
+                      {p.total_value ? fmtMoney(p.total_value, p.currency || "MXN") : "—"}
+                    </span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={e => { e.stopPropagation(); downloadPDF(p.id); }}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 dark:bg-slate-800 dark:hover:bg-blue-900/30 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
+                        title="Download PDF">
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); deleteProposal(p.id); }}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-500 dark:bg-slate-800 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                        title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {p.valid_until && (
+                    <p className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Valid until {p.valid_until}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      <PageGuide
-        pageKey="proposals"
-        title={isClient ? 'Understanding Your Proposals' : 'How Proposals work'}
-        description={isClient ? 'Review proposals sent by your team, accept them, request a demo, or decline.' : 'Create, send, and track proposals and contracts for your clients.'}
-        steps={isClient ? [
-          { icon: '📃', text: 'Each proposal shows the service, total value, validity period, and current status.' },
-          { icon: '✅', text: 'Click \"Accept\" to approve a proposal, or \"Request Demo\" if you want a walkthrough first.' },
-          { icon: '📅', text: 'Check the \"Valid Until\" date — proposals expire after their validity period.' },
-          { icon: '⬇️', text: 'Download any proposal as a PDF for your records or to share with your team.' },
-        ] : [
-          { icon: '➕', text: 'Click \"New Proposal\" to draft a proposal with services, pricing, and terms.' },
-          { icon: '📨', text: 'Send proposals to clients — they can Accept, Request Demo, or Decline from their dashboard.' },
-          { icon: '📊', text: 'Track acceptance rates and total pipeline value from the stats bar.' },
-          { icon: '🔔', text: 'You receive notifications when a client responds to any proposal.' },
-        ]}
-      />
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Proposals", value: stats.total, icon: FileSignature, color: "text-indigo-600", bg: "bg-indigo-50" },
-          { label: "Accepted", value: stats.accepted, icon: CheckCircle, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Awaiting Response", value: stats.pending, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Won Value", value: `$${stats.value.toFixed(2)}`, icon: DollarSign, color: "text-violet-600", bg: "bg-violet-50" },
-        ].map(s => (
-          <div key={s.label} className={cn("rounded-2xl p-4 flex items-center gap-3", s.bg)}>
-            <s.icon className={cn("w-6 h-6", s.color)} />
-            <div>
-              <p className="text-xs text-gray-500 dark:text-zinc-400 font-semibold">{s.label}</p>
-              <p className={cn("text-xl font-black", s.color)}>{s.value}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {["All", ...(isClient ? ["Sent", "Accepted", "Demo Requested", "Rejected"] : ["Draft", "Sent", "Accepted", "Demo Requested", "Rejected"])].map(f => (
-          <button key={f} onClick={() => setFilterStatus(f)}
-            className={cn("px-4 py-1.5 rounded-full text-sm font-bold border transition-all",
-              filterStatus === f ? "bg-gray-900 text-white border-gray-900" : "bg-white dark:bg-zinc-900 text-gray-600 border-gray-200 dark:border-zinc-700 hover:border-gray-400")}>
-            {f}
-          </button>
-        ))}
-      </div>
-
-      {/* Proposal Cards */}
-      {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.length === 0 && (
-            <div className="col-span-3 text-center py-20 text-gray-400">No proposals found</div>
-          )}
-          {filtered.map(p => {
-            const cfg = STATUS_CONFIG[p.status] || STATUS_CONFIG.Draft;
-            return (
-              <div key={p.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-700 shadow-sm p-6 hover:shadow-md transition-all cursor-pointer group"
-                onClick={() => { setSelected(p); setShowDetail(true); }}>
-                <div className="flex items-start justify-between mb-3">
-                  <span className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold", cfg.bg, cfg.color)}>
-                    <cfg.icon className="w-3 h-3" />{p.status}
-                  </span>
-                  {p.total_value && (
-                    <span className="text-sm font-black text-gray-900 dark:text-zinc-50">${p.total_value.toFixed(2)}</span>
-                  )}
-                </div>
-                <h3 className="font-bold text-gray-900 dark:text-zinc-50 mb-1">{p.title}</h3>
-                <p className="text-sm text-gray-500 dark:text-zinc-400 mb-3">{p.client_name || "No client"}</p>
-                <div className="text-xs text-gray-400 flex justify-between">
-                  <span>Created {new Date(p.created_at).toLocaleDateString()}</span>
-                  {p.valid_until && <span>Valid until {p.valid_until}</span>}
-                </div>
-                {p.signed_at && (
-                  <div className="mt-2 flex items-center gap-1 text-xs text-emerald-600 font-semibold">
-                    <CheckCircle className="w-3 h-3" /> Signed {new Date(p.signed_at).toLocaleDateString()}
-                  </div>
-                )}
-                {/* Client quick actions on card */}
-                {isClient && p.status === "Sent" && (
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800 flex gap-2" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => updateStatus(p.id, "Accepted")}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-all active:scale-95">
-                      <CheckCircle className="w-3.5 h-3.5" /> Accept
-                    </button>
-                    <button onClick={() => updateStatus(p.id, "Demo Requested")}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-violet-600 text-white text-xs font-bold rounded-xl hover:bg-violet-700 transition-all active:scale-95">
-                      <PlayCircle className="w-3.5 h-3.5" /> Request Demo
-                    </button>
-                    <button onClick={() => { setSelected(p); setShowDetail(true); }}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 dark:text-zinc-200 text-xs font-bold rounded-xl hover:bg-gray-200 transition-all active:scale-95">
-                      <Eye className="w-3.5 h-3.5" /> Review
-                    </button>
-                  </div>
-                )}
-                {isClient && p.status === "Demo Requested" && (
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800">
-                    <p className="text-xs text-violet-600 font-semibold flex items-center gap-1.5">
-                      <PlayCircle className="w-3.5 h-3.5" /> Demo requested — our team will reach out soon.
-                    </p>
-                  </div>
-                )}
-                {isClient && p.status === "Accepted" && (
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800">
-                    <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
-                      <CheckCircle className="w-3.5 h-3.5" /> You accepted this proposal.
-                    </p>
-                  </div>
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* DETAIL PANEL                                                       */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#111] rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between p-6 border-b border-slate-200 dark:border-slate-800">
+              <div>
+                <span className="text-xs font-mono text-slate-400">Q-{String(selected.id).padStart(4, "0")}</span>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-0.5">{selected.title}</h2>
+                {selected.client_name && (
+                  <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1.5">
+                    {selected.recipient_type === "lead"
+                      ? <User2 className="w-3.5 h-3.5 text-amber-500" />
+                      : <Building2 className="w-3.5 h-3.5 text-blue-500" />}
+                    {selected.client_name}
+                  </p>
                 )}
               </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Create Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-black">New Proposal</h2>
-              <button onClick={() => setShowModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <form onSubmit={createProposal} className="space-y-4">
-              {error && <p className="text-xs text-red-500 font-bold">{error}</p>}
-              <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Title *</label>
-                <input required value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                  className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="SEO retainer proposal for..." />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Client</label>
-                  <select value={form.client_id} onChange={e => setForm(p => ({ ...p, client_id: e.target.value }))}
-                    className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none">
-                    <option className="text-slate-900 dark:text-zinc-100" value="">Select client...</option>
-                    {clients.map((c: any) => <option className="text-slate-900 dark:text-zinc-100" key={c.id} value={c.id}>{c.companyName || c.name || `Client #${c.id}`}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Total Value</label>
-                  <input type="number" value={form.total_value} onChange={e => setForm(p => ({ ...p, total_value: e.target.value }))}
-                    className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="0.00" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Valid Until</label>
-                <input type="date" value={form.valid_until} onChange={e => setForm(p => ({ ...p, valid_until: e.target.value }))}
-                  className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-zinc-400 uppercase mb-1 block">Proposal Content</label>
-                <textarea value={form.content} onChange={e => setForm(p => ({ ...p, content: e.target.value }))} rows={8}
-                  className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-mono"
-                  placeholder="Scope of work, deliverables, timeline, pricing breakdown..." />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)}
-                  className="flex-1 py-2.5 border rounded-xl font-bold text-sm text-gray-600">Cancel</button>
-                <button type="submit" disabled={submitting}
-                  className="flex-1 py-2.5 bg-gray-900 text-white rounded-xl font-bold text-sm hover:bg-black flex items-center justify-center gap-2">
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Proposal"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Detail Modal */}
-      {showDetail && selected && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-2xl p-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  {(() => { const cfg = STATUS_CONFIG[selected.status] || STATUS_CONFIG.Draft; return (
-                    <span className={cn("flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold", cfg.bg, cfg.color)}>
-                      <cfg.icon className="w-3 h-3" />{selected.status}
-                    </span>
-                  ); })()}
-                  {selected.total_value && <span className="text-sm font-black text-gray-900 dark:text-zinc-50">${selected.total_value.toFixed(2)}</span>}
-                </div>
-                <h2 className="text-xl font-black text-gray-900 dark:text-zinc-50">{selected.title}</h2>
-                <p className="text-sm text-gray-500 dark:text-zinc-400">{selected.client_name}</p>
-              </div>
-              <button onClick={() => setShowDetail(false)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-
-            {selected.content && (
-              <div className="bg-gray-50 dark:bg-zinc-950 rounded-2xl p-4 mb-4 text-sm text-gray-700 dark:text-zinc-200 whitespace-pre-wrap font-mono max-h-64 overflow-y-auto">
-                {selected.content}
-              </div>
-            )}
-
-            <div className="text-xs text-gray-500 dark:text-zinc-400 mb-6 space-y-1">
-              {selected.valid_until && <div>Valid until: <strong>{selected.valid_until}</strong></div>}
-              {selected.signed_at && <div className="text-emerald-600">✓ Signed on {new Date(selected.signed_at).toLocaleDateString()}</div>}
-            </div>
-
-            {/* Client action area */}
-            {isClient && selected.status === "Sent" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-4">
-                <p className="text-sm font-bold text-blue-900 mb-3">This proposal is awaiting your response</p>
-                <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => updateStatus(selected.id, "Accepted")}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-all active:scale-95 shadow-sm">
-                    <CheckCircle className="w-4 h-4" /> Accept Proposal
-                  </button>
-                  <button onClick={() => updateStatus(selected.id, "Demo Requested")}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-violet-600 text-white text-sm font-bold rounded-xl hover:bg-violet-700 transition-all active:scale-95 shadow-sm">
-                    <PlayCircle className="w-4 h-4" /> Request a Demo
-                  </button>
-                  <button onClick={() => updateStatus(selected.id, "Rejected")}
-                    className="flex items-center gap-2 px-5 py-2.5 border border-gray-300 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-100 transition-all active:scale-95">
-                    <XCircle className="w-4 h-4" /> Decline
-                  </button>
-                </div>
-              </div>
-            )}
-            {isClient && selected.status === "Demo Requested" && (
-              <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 mb-4">
-                <p className="text-sm font-bold text-violet-800 flex items-center gap-2">
-                  <PlayCircle className="w-4 h-4" /> Demo requested — our team will contact you to schedule.
-                </p>
-              </div>
-            )}
-            {isClient && selected.status === "Accepted" && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-4">
-                <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" /> You accepted this proposal{selected.signed_at ? ` on ${new Date(selected.signed_at).toLocaleDateString()}` : ""}.
-                </p>
-              </div>
-            )}
-
-            <div className="flex gap-2 flex-wrap">
-              <button onClick={() => window.open(`${API_BASE_URL}/proposals/${selected.id}/pdf`, '_blank')}
-                className="px-4 py-2 text-sm font-bold rounded-xl border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-all flex items-center gap-1.5">
-                <Download className="w-4 h-4" /> Download PDF
+              <button onClick={() => setSelected(null)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
               </button>
-              {!isClient && ["Sent", "Accepted", "Rejected", "Demo Requested"].filter(s => s !== selected.status).map(s => (
-                <button key={s} onClick={() => updateStatus(selected.id, s)}
-                  className={cn("px-4 py-2 text-sm font-bold rounded-xl border transition-all",
-                    s === "Accepted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                    s === "Rejected" ? "bg-red-50 text-red-700 border-red-200" :
-                    s === "Demo Requested" ? "bg-violet-50 text-violet-700 border-violet-200" :
-                    "bg-blue-50 text-blue-700 border-blue-200")}>
-                  Mark {s}
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Status */}
+              <div>
+                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2">Update Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.keys(STATUS_CFG).map(s => {
+                    const cfg = STATUS_CFG[s];
+                    const Icon = cfg.icon;
+                    return (
+                      <button key={s} onClick={() => updateStatus(selected.id, s)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors border ${
+                          selected.status === s
+                            ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-600"
+                            : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                        }`}>
+                        <Icon className="w-3.5 h-3.5" />{s}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Line items */}
+              {selected.line_items?.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2">
+                    Items ({selected.currency || "MXN"})
+                  </p>
+                  <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 dark:bg-slate-900 text-left">
+                          <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-400 text-xs">Product</th>
+                          <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-400 text-xs text-right">Qty</th>
+                          <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-400 text-xs text-right">Unit Price</th>
+                          <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-400 text-xs text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected.line_items.map((li, i) => (
+                          <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
+                            <td className="px-3 py-2.5 text-slate-900 dark:text-white">{li.product_name}</td>
+                            <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-300">{li.quantity} {li.unit}</td>
+                            <td className="px-3 py-2.5 text-right text-slate-600 dark:text-slate-300">{fmtMoney(li.unit_price, selected.currency)}</td>
+                            <td className="px-3 py-2.5 text-right font-semibold text-slate-900 dark:text-white">{fmtMoney(li.quantity * li.unit_price, selected.currency)}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                          <td colSpan={3} className="px-3 py-2.5 font-bold text-slate-900 dark:text-white text-right">TOTAL</td>
+                          <td className="px-3 py-2.5 text-right font-bold text-blue-600 text-base">
+                            {fmtMoney(selected.total_value || 0, selected.currency)}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {selected.content && (
+                <div>
+                  <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1.5">Notes</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-900 rounded-xl p-3">{selected.content}</p>
+                </div>
+              )}
+
+              {/* Meta */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Valid Until",  value: selected.valid_until || "—" },
+                  { label: "Currency",     value: selected.currency || "MXN" },
+                  { label: "Created",      value: new Date(selected.created_at).toLocaleDateString("en-IN") },
+                  { label: "Creator",      value: selected.creator_name || "—" },
+                ].map(m => (
+                  <div key={m.label} className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">{m.label}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-white">{m.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => downloadPDF(selected.id)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 transition-colors">
+                  <Download className="w-4 h-4" /> Download PDF
                 </button>
-              ))}
-              {!isClient && (
                 <button onClick={() => deleteProposal(selected.id)}
-                  className="px-4 py-2 text-sm font-bold rounded-xl border border-red-200 text-red-600 bg-red-50 ml-auto">
+                  className="px-4 py-2.5 bg-red-50 text-red-600 rounded-xl font-semibold text-sm hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors">
                   <Trash2 className="w-4 h-4" />
                 </button>
-              )}
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* QUOTATION WIZARD                                                   */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {showWizard && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0d0d0d] rounded-2xl shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-hidden flex flex-col">
+
+            {/* Wizard Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-4">
+                {step !== "recipient" && (
+                  <button onClick={() => setStep(step === "cart" ? "recipient" : "cart")}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-500">
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                )}
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">New Quotation</h2>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {(["recipient", "cart", "details"] as WizardStep[]).map((s, i) => (
+                      <div key={s} className="flex items-center gap-1.5">
+                        {i > 0 && <ChevronRight className="w-3 h-3 text-slate-300" />}
+                        <span className={`text-xs font-medium ${step === s ? "text-blue-600" : step > s ? "text-emerald-500" : "text-slate-400"}`}>
+                          {s === "recipient" ? "1. Recipient" : s === "cart" ? "2. Products" : "3. Details"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setShowWizard(false)} className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            {/* ── STEP 1: RECIPIENT ────────────────────────────────────── */}
+            {step === "recipient" && (
+              <div className="flex-1 overflow-y-auto p-6">
+                <p className="text-sm text-slate-500 mb-5">Who is this quotation for?</p>
+
+                {/* Type toggle */}
+                <div className="flex gap-3 mb-5">
+                  {([
+                    { type: "client", label: "Client", icon: Building2 },
+                    { type: "lead",   label: "Lead",   icon: User2 },
+                  ] as const).map(t => (
+                    <button key={t.type} onClick={() => { setRecipientType(t.type); setSelectedClientId(null); setSelectedLeadId(null); setRecipientSearch(""); }}
+                      className={`flex-1 flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${
+                        recipientType === t.type
+                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-slate-200 dark:border-slate-700 hover:border-blue-300"
+                      }`}>
+                      <t.icon className={`w-6 h-6 ${recipientType === t.type ? "text-blue-600" : "text-slate-400"}`} />
+                      <span className={`text-sm font-semibold ${recipientType === t.type ? "text-blue-700 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"}`}>
+                        {t.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    value={recipientSearch}
+                    onChange={e => setRecipientSearch(e.target.value)}
+                    placeholder={`Search ${recipientType === "client" ? "clients" : "leads"}…`}
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white" />
+                </div>
+
+                {/* List */}
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {filteredRecipients.slice(0, 50).map((r: any) => {
+                    const id   = r.id;
+                    const name = r.companyName || r.company_name || r.contact_name || "—";
+                    const isSelected = recipientType === "client"
+                      ? selectedClientId === id
+                      : selectedLeadId === id;
+                    return (
+                      <button key={id}
+                        onClick={() => recipientType === "client" ? setSelectedClientId(id) : setSelectedLeadId(id)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                            : "border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-[#111]"
+                        }`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                          isSelected ? "bg-blue-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500"
+                        }`}>
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm text-slate-900 dark:text-white truncate">{name}</p>
+                          {r.email && <p className="text-xs text-slate-400 truncate">{r.email}</p>}
+                        </div>
+                        {isSelected && <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  {filteredRecipients.length === 0 && (
+                    <p className="text-center text-slate-400 py-8 text-sm">No {recipientType === "client" ? "clients" : "leads"} found</p>
+                  )}
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    disabled={recipientType === "client" ? !selectedClientId : !selectedLeadId}
+                    onClick={() => setStep("cart")}
+                    className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    Continue → Add Products
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 2: CART ─────────────────────────────────────────── */}
+            {step === "cart" && (
+              <div className="flex-1 overflow-hidden flex">
+                {/* Left: Catalog */}
+                <div className="flex-1 overflow-y-auto p-5 border-r border-slate-200 dark:border-slate-800">
+                  {/* Currency Toggle */}
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Catalog</p>
+                    <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                      {CURRENCIES.map(c => (
+                        <button key={c.code} onClick={() => switchCurrency(c.code)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                            currency === c.code
+                              ? "bg-white dark:bg-slate-700 shadow text-blue-700 dark:text-blue-400"
+                              : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                          }`}>
+                          <c.icon className="w-3.5 h-3.5" />{c.code}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Search & Category */}
+                  <div className="flex gap-2 mb-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)}
+                        placeholder="Search products…"
+                        className="w-full pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white" />
+                    </div>
+                    <select value={catalogCategory} onChange={e => setCatalogCategory(e.target.value)}
+                      className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-700 dark:text-slate-300 focus:outline-none">
+                      {catalogCategories.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Product grid */}
+                  {filteredCatalog.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+                      <Package className="w-10 h-10 mb-2 opacity-40" />
+                      <p className="text-sm">No products found</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {filteredCatalog.map(item => {
+                        const inCart = cart.find(c => c.product_id === item.id);
+                        const price  = currency === "INR" ? item.unit_price * INR_RATE : item.unit_price;
+                        return (
+                          <button key={item.id} onClick={() => addToCart(item)}
+                            className={`text-left p-3 rounded-xl border transition-all hover:shadow-md relative overflow-hidden ${
+                              inCart
+                                ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                                : "border-slate-100 dark:border-slate-800 bg-white dark:bg-[#111] hover:border-blue-200"
+                            }`}>
+                            {inCart && (
+                              <span className="absolute top-2 right-2 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                                ×{inCart.quantity}
+                              </span>
+                            )}
+                            {item.photo_url ? (
+                              <img src={item.photo_url} alt={item.name}
+                                className="w-full h-20 object-cover rounded-lg mb-2 bg-slate-100" />
+                            ) : (
+                              <div className="w-full h-20 bg-slate-100 dark:bg-slate-800 rounded-lg mb-2 flex items-center justify-center">
+                                <Package className="w-6 h-6 text-slate-300" />
+                              </div>
+                            )}
+                            <p className="text-xs font-semibold text-slate-900 dark:text-white leading-tight truncate">{item.name}</p>
+                            <p className="text-[10px] text-slate-400 mb-1 truncate">{item.category}</p>
+                            <p className="text-xs font-bold text-blue-600">
+                              {price > 0 ? `${currSymbol(currency)}${price.toFixed(2)}` : "—"}<span className="font-normal text-slate-400">/{item.unit}</span>
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Cart */}
+                <div className="w-72 flex flex-col bg-slate-50 dark:bg-[#0a0a0a]">
+                  <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-blue-600" />
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">Cart ({cart.length})</p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {cart.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                        <ShoppingCart className="w-8 h-8 mb-2 opacity-30" />
+                        <p className="text-xs text-center">Click products to add them</p>
+                      </div>
+                    ) : cart.map((li, idx) => (
+                      <div key={idx} className="bg-white dark:bg-[#111] rounded-xl p-3 border border-slate-100 dark:border-slate-800">
+                        <div className="flex items-start justify-between gap-1 mb-2">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-white leading-tight flex-1">{li.product_name}</p>
+                          <button onClick={() => removeFromCart(idx)} className="text-slate-300 hover:text-red-500 transition-colors">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <button onClick={() => updateCartQty(idx, li.quantity - 1)} className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                            <Minus className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                          </button>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white w-6 text-center">{li.quantity}</span>
+                          <button onClick={() => updateCartQty(idx, li.quantity + 1)} className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                            <Plus className="w-3 h-3 text-slate-600 dark:text-slate-300" />
+                          </button>
+                          <span className="text-[10px] text-slate-400">{li.unit}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-slate-400">{currSymbol(currency)}</span>
+                          <input type="number" value={li.unit_price} min={0} step={0.01}
+                            onChange={e => updateCartPrice(idx, parseFloat(e.target.value) || 0)}
+                            className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        </div>
+                        <p className="text-xs font-bold text-blue-600 mt-1.5 text-right">
+                          {fmtMoney(li.quantity * li.unit_price, currency)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Cart total */}
+                  <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm text-slate-500">Total</p>
+                      <p className="text-xl font-black text-slate-900 dark:text-white">{fmtMoney(cartTotal, currency)}</p>
+                    </div>
+                    <button disabled={cart.length === 0} onClick={() => setStep("details")}
+                      className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                      Continue → Details
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── STEP 3: DETAILS ──────────────────────────────────────── */}
+            {step === "details" && (
+              <div className="flex-1 overflow-y-auto p-6 max-w-xl mx-auto w-full">
+                <p className="text-sm text-slate-500 mb-6">Final details for the quotation</p>
+
+                {/* Summary card */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {recipientType === "lead"
+                        ? <User2 className="w-4 h-4 text-amber-500" />
+                        : <Building2 className="w-4 h-4 text-blue-500" />}
+                      <p className="font-semibold text-slate-900 dark:text-white text-sm">{recipientName()}</p>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 rounded-full font-medium">
+                      {recipientType === "lead" ? "Lead" : "Client"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500">{cart.length} product{cart.length !== 1 ? "s" : ""} · {currency}</p>
+                  <p className="text-2xl font-black text-blue-700 dark:text-blue-400 mt-1">{fmtMoney(cartTotal, currency)}</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Quotation Title
+                    </label>
+                    <input value={quoteTitle} onChange={e => setQuoteTitle(e.target.value)}
+                      placeholder={`Quotation for ${recipientName()}`}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Valid Until
+                    </label>
+                    <input type="date" value={validUntil} onChange={e => setValidUntil(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Notes / Terms (optional)
+                    </label>
+                    <textarea value={notes} onChange={e => setNotes(e.target.value)}
+                      rows={4} placeholder="Payment terms, delivery notes…"
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                  </div>
+
+                  {/* Save as Draft or Send */}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
+                      Save As
+                    </label>
+                    <div className="flex gap-2">
+                      {(["Draft", "Sent"] as const).map(s => (
+                        <button key={s} onClick={() => setSendStatus(s)}
+                          className={`flex-1 py-2.5 rounded-xl font-semibold text-sm border-2 transition-all ${
+                            sendStatus === s
+                              ? s === "Sent"
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-400 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                              : "border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300"
+                          }`}>
+                          {s === "Draft" ? "💾 Save Draft" : "📤 Send to Client"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button onClick={() => setStep("cart")}
+                    className="px-6 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    ← Back
+                  </button>
+                  <button onClick={submitQuote} disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                    {saving
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                      : <><FileText className="w-4 h-4" /> {sendStatus === "Draft" ? "Save Quotation" : "Create & Send"}</>}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -822,8 +822,12 @@ class Proposal(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(max_length=500)
     client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id")
+    lead_id: Optional[int] = Field(default=None, foreign_key="leads.id")
+    recipient_type: str = Field(default="client")  # "client" or "lead"
     service_request_id: Optional[int] = Field(default=None, foreign_key="service_requests.id")
     content: Optional[str] = Field(default=None, sa_column=Column(Text))
+    line_items: Optional[List] = Field(default_factory=list, sa_column=Column(JSON))
+    currency: str = Field(default="MXN", max_length=10)
     status: str = Field(default="Draft")  # Draft, Sent, Accepted, Rejected, Demo Requested
     valid_until: Optional[str] = None
     total_value: Optional[float] = None

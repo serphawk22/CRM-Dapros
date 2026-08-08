@@ -285,6 +285,21 @@ def on_startup():
             conn.commit()
     except Exception as e:
         print("Migration error for projects:", e)
+
+    # Auto-migrate proposals new columns
+    proposal_migrations = [
+        "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL;",
+        "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS recipient_type VARCHAR(20) DEFAULT 'client';",
+        "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS line_items JSON DEFAULT '[]'::json;",
+        "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'MXN';",
+    ]
+    for sql in proposal_migrations:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(sql))
+                conn.commit()
+        except Exception as e:
+            print(f"Migration proposals: {e}")
         
     # Tenant ID Migrations (Dynamic reflection to catch all models)
     from sqlmodel import SQLModel
@@ -1162,15 +1177,29 @@ class NPSRespondRequest(BaseModel):
     feedback: Optional[str] = None
 
 
+class ProposalLineItem(BaseModel):
+    product_id: Optional[int] = None
+    product_name: str
+    description: Optional[str] = None
+    quantity: float = 1
+    unit_price: float = 0
+    unit: Optional[str] = None
+    currency: str = "MXN"
+
+
 class ProposalCreateRequest(BaseModel):
     title: str
     client_id: Optional[int] = None
+    lead_id: Optional[int] = None
+    recipient_type: str = "client"
     service_request_id: Optional[int] = None
     content: Optional[str] = None
     status: str = "Draft"
     valid_until: Optional[str] = None
     total_value: Optional[float] = None
     created_by: Optional[int] = None
+    line_items: Optional[List[dict]] = None
+    currency: str = "MXN"
 
 
 class ProposalUpdateRequest(BaseModel):
@@ -1179,6 +1208,8 @@ class ProposalUpdateRequest(BaseModel):
     status: Optional[str] = None
     valid_until: Optional[str] = None
     total_value: Optional[float] = None
+    line_items: Optional[List[dict]] = None
+    currency: Optional[str] = None
 
 
 class FileUploadRequest(BaseModel):
@@ -6028,17 +6059,31 @@ def invoice_pdf(invoice_id: int, provider: Optional[str] = None, session: Sessio
 # ─────────────────────────────────────────────────────────────────────────────
 # Proposals & Contracts
 # ─────────────────────────────────────────────────────────────────────────────
-def _proposal_dict(p: Proposal, session: Session) -> dict:
-    cp = session.get(ClientProfile, p.client_id) if p.client_id else None
-    u = session.get(User, cp.userId) if cp and cp.userId else None
-    creator = session.get(User, p.created_by) if p.created_by else None
+def _proposal_dict_fast(p: Proposal, clients_map: dict, users_map: dict, leads_map: dict) -> dict:
+    """Fast proposal dict using pre-loaded maps (no N+1 queries)."""
+    cp = clients_map.get(p.client_id)
+    user_id = cp.userId if cp else None
+    u = users_map.get(user_id)
+    creator = users_map.get(p.created_by)
+    lead = leads_map.get(getattr(p, 'lead_id', None))
+    recipient_name = None
+    if u:
+        recipient_name = u.name
+    elif cp:
+        recipient_name = cp.companyName
+    elif lead:
+        recipient_name = lead.company_name or lead.contact_name
     return {
         "id": p.id,
         "title": p.title,
         "client_id": p.client_id,
-        "client_name": u.name if u else (cp.companyName if cp else None),
+        "lead_id": getattr(p, 'lead_id', None),
+        "recipient_type": getattr(p, 'recipient_type', 'client'),
+        "client_name": recipient_name,
         "service_request_id": p.service_request_id,
         "content": p.content,
+        "line_items": getattr(p, 'line_items', None) or [],
+        "currency": getattr(p, 'currency', 'MXN'),
         "status": p.status,
         "valid_until": p.valid_until,
         "total_value": p.total_value,
@@ -6048,6 +6093,66 @@ def _proposal_dict(p: Proposal, session: Session) -> dict:
         "created_at": p.created_at.isoformat(),
         "updated_at": p.updated_at.isoformat(),
     }
+
+
+def _proposal_dict(p: Proposal, session: Session) -> dict:
+    cp = session.get(ClientProfile, p.client_id) if p.client_id else None
+    u = session.get(User, cp.userId) if cp and cp.userId else None
+    creator = session.get(User, p.created_by) if p.created_by else None
+    lead_id = getattr(p, 'lead_id', None)
+    lead = session.get(Lead, lead_id) if lead_id else None
+    recipient_name = None
+    if u:
+        recipient_name = u.name
+    elif cp:
+        recipient_name = cp.companyName
+    elif lead:
+        recipient_name = lead.company_name or lead.contact_name
+    return {
+        "id": p.id,
+        "title": p.title,
+        "client_id": p.client_id,
+        "lead_id": lead_id,
+        "recipient_type": getattr(p, 'recipient_type', 'client'),
+        "client_name": recipient_name,
+        "service_request_id": p.service_request_id,
+        "content": p.content,
+        "line_items": getattr(p, 'line_items', None) or [],
+        "currency": getattr(p, 'currency', 'MXN'),
+        "status": p.status,
+        "valid_until": p.valid_until,
+        "total_value": p.total_value,
+        "signed_at": p.signed_at.isoformat() if p.signed_at else None,
+        "created_by": p.created_by,
+        "creator_name": creator.name if creator else None,
+        "created_at": p.created_at.isoformat(),
+        "updated_at": p.updated_at.isoformat(),
+    }
+
+
+@app.get("/proposals/catalog")
+def get_proposals_catalog(session: Session = Depends(get_session)):
+    """Lightweight catalog of inventory items for quotation builder."""
+    items = session.exec(select(InventoryItem).order_by(InventoryItem.name)).all()
+    result = []
+    for item in items:
+        # Get cheapest supplier price
+        suppliers = session.exec(
+            select(InventorySupplier).where(InventorySupplier.item_id == item.id)
+        ).all()
+        unit_price = min((s.unit_cost for s in suppliers if s.unit_cost), default=0.0) or 0.0
+        result.append({
+            "id": item.id,
+            "name": item.name,
+            "code": item.code,
+            "description": item.description,
+            "category": item.category or "General",
+            "unit": item.unit or "pcs",
+            "photo_url": item.photo_url,
+            "unit_price": unit_price,
+            "current_stock": item.current_stock,
+        })
+    return {"items": result}
 
 
 @app.get("/proposals")
@@ -6062,7 +6167,26 @@ def list_proposals(
     if status:
         q = q.where(Proposal.status == status)
     proposals = session.exec(q).all()
-    return {"proposals": [_proposal_dict(p, session) for p in proposals]}
+    if not proposals:
+        return {"proposals": []}
+
+    # Batch-load all related records (fix N+1 query)
+    client_ids = list({p.client_id for p in proposals if p.client_id})
+    lead_ids = list({getattr(p, 'lead_id', None) for p in proposals if getattr(p, 'lead_id', None)})
+    
+    clients_list = session.exec(select(ClientProfile).where(ClientProfile.id.in_(client_ids))).all() if client_ids else []
+    leads_list = session.exec(select(Lead).where(Lead.id.in_(lead_ids))).all() if lead_ids else []
+    
+    user_ids = list({cp.userId for cp in clients_list if cp.userId})
+    creator_ids = list({p.created_by for p in proposals if p.created_by})
+    all_user_ids = list(set(user_ids + creator_ids))
+    users_list = session.exec(select(User).where(User.id.in_(all_user_ids))).all() if all_user_ids else []
+    
+    clients_map = {cp.id: cp for cp in clients_list}
+    users_map = {u.id: u for u in users_list}
+    leads_map = {l.id: l for l in leads_list}
+    
+    return {"proposals": [_proposal_dict_fast(p, clients_map, users_map, leads_map) for p in proposals]}
 
 
 @app.post("/proposals")
@@ -6433,67 +6557,160 @@ def invoice_pdf(invoice_id: int, session: Session = Depends(get_session)):
 
 @app.get("/proposals/{proposal_id}/pdf")
 def proposal_pdf(proposal_id: int, session: Session = Depends(get_session)):
-    """Generate a professional PDF for a proposal."""
+    """Generate a professional itemized PDF quotation."""
     from fastapi.responses import StreamingResponse
     import io
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
 
     prop = session.get(Proposal, proposal_id)
     if not prop:
         raise HTTPException(status_code=404, detail="Proposal not found")
-    client = session.get(ClientProfile, prop.client_id) if prop.client_id else None
-    client_name = ""
-    if client:
-        user = session.get(User, client.userId) if client.userId else None
-        client_name = client.companyName or (user.name if user else f"Client #{client.id}")
+
+    # Resolve recipient name
+    recipient_name = "—"
+    recipient_email = ""
+    if prop.client_id:
+        client = session.get(ClientProfile, prop.client_id)
+        if client:
+            user = session.get(User, client.userId) if client.userId else None
+            recipient_name = client.companyName or (user.name if user else f"Client #{client.id}")
+            recipient_email = user.email if user else ""
+    lead_id = getattr(prop, 'lead_id', None)
+    if lead_id and recipient_name == "—":
+        lead = session.get(Lead, lead_id)
+        if lead:
+            recipient_name = lead.company_name or lead.contact_name or "—"
+            recipient_email = lead.email or ""
+
+    currency = getattr(prop, 'currency', 'MXN')
+    curr_symbol = "₹" if currency == "INR" else "$"
+    line_items = getattr(prop, 'line_items', None) or []
 
     buf = io.BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=50, bottomMargin=40)
+    doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=40*mm, bottomMargin=25*mm,
+                            leftMargin=20*mm, rightMargin=20*mm)
     styles = getSampleStyleSheet()
-    title_s = ParagraphStyle("PTitle", parent=styles["Title"], fontSize=22, textColor=colors.HexColor("#1e293b"))
-    h2 = ParagraphStyle("PH2", parent=styles["Heading2"], fontSize=13, textColor=colors.HexColor("#334155"), spaceBefore=18)
-    normal = styles["Normal"]
-    small = ParagraphStyle("PSmall", parent=normal, fontSize=9, textColor=colors.grey)
+
+    accent = colors.HexColor("#2563eb")
+    dark = colors.HexColor("#0f172a")
+    mid = colors.HexColor("#475569")
+    light_bg = colors.HexColor("#f1f5f9")
+
+    title_s = ParagraphStyle("PTitle", parent=styles["Normal"], fontSize=26, fontName="Helvetica-Bold",
+                             textColor=dark, spaceAfter=2)
+    sub_s = ParagraphStyle("PSub", parent=styles["Normal"], fontSize=11, textColor=mid)
+    h2 = ParagraphStyle("PH2", parent=styles["Normal"], fontSize=11, fontName="Helvetica-Bold",
+                        textColor=dark, spaceBefore=14, spaceAfter=4)
+    normal = ParagraphStyle("PNorm", parent=styles["Normal"], fontSize=10, textColor=dark)
+    small = ParagraphStyle("PSmall", parent=styles["Normal"], fontSize=8, textColor=mid)
+    footer_s = ParagraphStyle("PFoot", parent=styles["Normal"], fontSize=9, textColor=mid, alignment=1)
 
     els = []
-    els.append(Paragraph("PROPOSAL", title_s))
-    els.append(Spacer(1, 10))
 
-    info = [
-        ["Title:", prop.title],
-        ["Client:", client_name or "—"],
-        ["Status:", prop.status],
-        ["Value:", f"${prop.total_value:,.2f}" if prop.total_value else "—"],
-        ["Valid Until:", prop.valid_until or "—"],
-        ["Created:", prop.created_at.strftime("%B %d, %Y") if prop.created_at else "—"],
+    # ── HEADER ────────────────────────────────────────────────────────────────
+    header_data = [
+        [Paragraph("QUOTATION", title_s), Paragraph(f"# Q-{prop.id:04d}", title_s)],
+        [Paragraph("SERP Hawk | Team DaPros", sub_s), Paragraph(f"Currency: {currency}", sub_s)],
     ]
-    it = Table(info, colWidths=[100, 350])
-    it.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("PADDING", (0, 0), (-1, -1), 6),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#64748b")),
+    header_tbl = Table(header_data, colWidths=[90*mm, 80*mm])
+    header_tbl.setStyle(TableStyle([
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("PADDING", (0, 0), (-1, -1), 0),
     ]))
-    els.append(it)
-    els.append(Spacer(1, 18))
+    els.append(header_tbl)
+    els.append(HRFlowable(width="100%", thickness=2, color=accent, spaceAfter=10))
 
+    # ── BILL TO / META ────────────────────────────────────────────────────────
+    meta_data = [
+        [Paragraph("BILL TO", small), Paragraph("QUOTE DETAILS", small)],
+        [Paragraph(f"<b>{recipient_name}</b>", normal), Paragraph(f"<b>Status:</b> {prop.status}", normal)],
+        [Paragraph(recipient_email, normal), Paragraph(f"<b>Valid Until:</b> {prop.valid_until or '—'}", normal)],
+        ["", Paragraph(f"<b>Created:</b> {prop.created_at.strftime('%B %d, %Y') if prop.created_at else '—'}", normal)],
+    ]
+    meta_tbl = Table(meta_data, colWidths=[90*mm, 80*mm])
+    meta_tbl.setStyle(TableStyle([
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), 7),
+        ("TEXTCOLOR", (0, 0), (-1, 0), mid),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("PADDING", (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    els.append(meta_tbl)
+    els.append(Spacer(1, 16))
+
+    # ── LINE ITEMS TABLE ─────────────────────────────────────────────────────
+    if line_items:
+        els.append(Paragraph("Items", h2))
+        rows = [["#", "Product", "Qty", "Unit", f"Unit Price ({curr_symbol})", f"Total ({curr_symbol})"]]
+        subtotal = 0.0
+        for idx, li in enumerate(line_items, 1):
+            qty = float(li.get("quantity", 1))
+            price = float(li.get("unit_price", 0))
+            line_total = qty * price
+            subtotal += line_total
+            rows.append([
+                str(idx),
+                li.get("product_name", ""),
+                f"{qty:g}",
+                li.get("unit", "pcs"),
+                f"{curr_symbol}{price:,.2f}",
+                f"{curr_symbol}{line_total:,.2f}",
+            ])
+        # Subtotal / Total rows
+        rows.append(["", "", "", "", "Subtotal", f"{curr_symbol}{subtotal:,.2f}"])
+        grand = prop.total_value or subtotal
+        rows.append(["", "", "", "", "TOTAL", f"{curr_symbol}{grand:,.2f}"])
+
+        items_tbl = Table(rows, colWidths=[8*mm, 65*mm, 16*mm, 16*mm, 35*mm, 30*mm])
+        items_tbl.setStyle(TableStyle([
+            # Header
+            ("BACKGROUND", (0, 0), (-1, 0), accent),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("PADDING", (0, 0), (-1, -1), 7),
+            ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -3), 0.3, colors.HexColor("#e2e8f0")),
+            # Subtotal row
+            ("LINEABOVE", (0, -2), (-1, -2), 0.5, mid),
+            ("FONTNAME", (4, -2), (-1, -2), "Helvetica"),
+            # Total row
+            ("BACKGROUND", (0, -1), (-1, -1), dark),
+            ("TEXTCOLOR", (0, -1), (-1, -1), colors.white),
+            ("FONTNAME", (4, -1), (-1, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (4, -1), (-1, -1), 10),
+            # Alt row shading
+            *[("BACKGROUND", (0, i), (-1, i), light_bg) for i in range(2, len(rows)-2, 2)],
+        ]))
+        els.append(items_tbl)
+    else:
+        # Fallback — just show total_value if no line items
+        els.append(Paragraph(f"Total Value: {curr_symbol}{prop.total_value:,.2f}" if prop.total_value else "No items.", normal))
+
+    # ── NOTES ─────────────────────────────────────────────────────────────────
     if prop.content:
-        els.append(Paragraph("Proposal Details", h2))
-        for para in prop.content.split("\\n"):
+        els.append(Spacer(1, 16))
+        els.append(Paragraph("Notes", h2))
+        for para in prop.content.split("\n"):
             if para.strip():
                 els.append(Paragraph(para.strip(), normal))
                 els.append(Spacer(1, 4))
 
-    els.append(Spacer(1, 30))
-    els.append(Paragraph("— SERP Hawk | Team DaPros", small))
+    els.append(Spacer(1, 20))
+    els.append(HRFlowable(width="100%", thickness=0.5, color=mid))
+    els.append(Spacer(1, 6))
+    els.append(Paragraph("SERP Hawk | Team DaPros — Thank you for your business!", footer_s))
 
     doc.build(els)
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/pdf", headers={
-        "Content-Disposition": f'attachment; filename="proposal-{prop.id}.pdf"'
+        "Content-Disposition": f'attachment; filename="quotation-Q{prop.id:04d}.pdf"'
     })
 
 
