@@ -10729,6 +10729,7 @@ def get_inventory(session: Session = Depends(get_session)):
 @app.post("/inventory")
 def create_inventory_item(data: InventoryItemCreate, session: Session = Depends(get_session)):
     item = InventoryItem(**data.dict())
+    item.tenant_id = current_tenant_id.get()
     session.add(item)
     session.commit()
     session.refresh(item)
@@ -10749,12 +10750,13 @@ def update_inventory_item(item_id: int, data: InventoryItemCreate, session: Sess
 
 @app.delete("/inventory/{item_id}")
 def delete_inventory_item(item_id: int, session: Session = Depends(get_session)):
+    from sqlmodel import delete
     item = session.get(InventoryItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     # delete related
-    session.exec(text("DELETE FROM inventory_suppliers WHERE item_id = :id"), {"id": item_id})
-    session.exec(text("DELETE FROM rfq_requests WHERE item_id = :id"), {"id": item_id})
+    session.exec(delete(InventorySupplier).where(InventorySupplier.item_id == item_id))
+    session.exec(delete(RFQRequest).where(RFQRequest.item_id == item_id))
     session.delete(item)
     session.commit()
     return {"ok": True}
