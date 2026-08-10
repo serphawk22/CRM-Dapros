@@ -848,6 +848,7 @@ class ChatbotRequest(BaseModel):
     current_route: Optional[str] = None
     chat_history: Optional[str] = None
     session_id: Optional[str] = None
+    user_role: Optional[str] = None  # Admin, SalesManager, Employee, ProjectMember, Supplier, Demo
 
 
 class CreateUserRequest(BaseModel):
@@ -7283,7 +7284,7 @@ async def chatbot_message(
             }
             
     # Advanced Omni-Agent AI processing
-    result = process_chatbot_command(request.message, client_context, request.current_route, crm_summary)
+    result = process_chatbot_command(request.message, client_context, request.current_route, crm_summary, user_role=request.user_role)
     
     actions = result.get("actions", [])
     action_taken = None

@@ -55,7 +55,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
   const isClient = role === "Client";
   const isDeveloper = role === "ProjectMember";
   const isAdminOrEmployee = role === "Admin" || role === "Employee" || role === "Intern" || role === "SalesManager";
-  const showChatbot = role === "SalesManager" || role === "Employee" || role === "ProjectMember";
+  const showChatbot = !!role && role !== "Client"; // Show for ALL roles except unauthenticated Client
 
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -102,6 +102,7 @@ function AppContent({ children }: { children: React.ReactNode }) {
           </a>
         </nav>
         <main>{children}</main>
+        <Chatbot />
       </div>
     );
   }

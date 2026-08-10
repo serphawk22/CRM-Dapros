@@ -285,30 +285,96 @@ def extract_tasks_from_note(note_content):
         print(f"Error in task extraction: {e}")
         return []
 
-def process_chatbot_command(message: str, client_context: dict = None, current_route: str = None, crm_summary: str = ""):
+def process_chatbot_command(message: str, client_context: dict = None, current_route: str = None, crm_summary: str = "", user_role: str = None):
     """
     Analyzes user message using OpenAI Function Calling to determine one or more CRM actions.
+    Role-aware: adapts capabilities, persona, and tools based on the logged-in user's role.
     """
     import json
     try:
-        client = get_openai_client()
+        client_ai = get_openai_client()
         context_str = f"Client context: {json.dumps(client_context)}" if client_context else "No specific client context."
         route_str = f"User's current page route: {current_route}" if current_route else "Unknown route."
-        
+
+        # ── Role-specific persona and capability definitions ─────────────────
+        role = (user_role or "").strip()
+
+        if role == "Admin":
+            persona = """You are the SERP Hawk CRM Super-Admin AI Assistant. 
+You have FULL access to every module: Clients, Leads, Deals, Invoices, Quotes, Billing, Inventory, Products, Catalog, Orders, Projects, Tasks, Team, Meetings, Calls, Email Agent, Marketplace, Settings, Users, Reports.
+You can create, edit, delete, and manage ANYTHING in the system.
+You can also navigate to any page and perform advanced admin operations."""
+            allowed_tools = "all"
+            route_map = "Dashboard='/', Clients='/clients', Leads='/leads', Deals='/pipeline', Invoices='/invoices', Quotes='/billing', Billing='/billing', Inventory='/inventory', Products='/catalog', Catalog='/catalog', Orders='/orders', Projects='/projects', Tasks='/tasks', Team='/team', Meetings='/meetings', Calls='/calls', Email Agent='/email-agent', Marketplace='/admin/marketplace', Settings='/setup', Reports='/reports', Notifications='/notifications', Billing Settings='/billing'"
+
+        elif role in ("SalesManager", "Sales"):
+            persona = """You are the SERP Hawk CRM Sales AI Assistant.
+You can manage: Clients, Leads, Deals/Pipeline, Quotes, Invoices, Meetings, Calls, Email Agent, and view Reports.
+You CANNOT access: Inventory, Settings, User Management, Marketplace Admin, or Billing Settings.
+Focus on helping with sales workflows: creating leads, managing pipeline, drafting quotes and emails, logging calls and meetings."""
+            allowed_tools = "sales"
+            route_map = "Dashboard='/', Clients='/clients', Leads='/leads', Deals='/pipeline', Invoices='/invoices', Quotes='/billing', Meetings='/meetings', Calls='/calls', Email Agent='/email-agent'"
+
+        elif role == "Employee":
+            persona = """You are the SERP Hawk CRM Employee AI Assistant.
+You can manage: Clients (view/edit), Deals, Tasks, Meetings, Calls, Email Agent.
+You CANNOT access: Invoices, Billing, Settings, User Management, Marketplace, Inventory, or Reports.
+Help the employee with their day-to-day work: logging calls, managing tasks, updating client notes, scheduling meetings."""
+            allowed_tools = "employee"
+            route_map = "Dashboard='/', Clients='/clients', Deals='/pipeline', Tasks='/tasks', Meetings='/meetings', Calls='/calls', Email Agent='/email-agent'"
+
+        elif role in ("ProjectMember", "Developer"):
+            persona = """You are the SERP Hawk CRM Developer/Project AI Assistant.
+You can manage: Projects, Tasks (Kanban board), view your assigned work, and communicate via Messages.
+You CANNOT access: Clients, Leads, Invoices, Billing, Inventory, Settings, or Sales data.
+Help with project management: creating tasks, updating ticket status, viewing project details, managing the Kanban board."""
+            allowed_tools = "developer"
+            route_map = "Dashboard='/', Projects='/projects', Tasks='/tasks', Messages='/messages', My Profile='/setup'"
+
+        elif role == "Supplier":
+            persona = """You are the SERP Hawk Supplier Portal AI Assistant.
+You can ONLY help with: Viewing your submitted RFQ (Request for Quotation) responses, understanding the RFQ process, navigating the supplier portal.
+You CANNOT access any client data, sales data, financials, or admin features.
+Be helpful and guide the supplier through their limited portal experience."""
+            allowed_tools = "supplier"
+            route_map = "Supplier Portal='/supplier', My RFQs='/supplier/rfqs'"
+
+        elif role == "Demo":
+            persona = """You are the SERP Hawk CRM Demo AI Assistant.
+You are demonstrating the CRM to a potential customer. You can navigate to any section for showcasing purposes.
+You should explain what each feature does as you navigate.
+You CANNOT make any real changes to data in demo mode — you can only show, explain, and navigate."""
+            allowed_tools = "demo"
+            route_map = "Dashboard='/', Clients='/clients', Leads='/leads', Pipeline='/pipeline', Invoices='/invoices', Billing='/billing', Inventory='/inventory', Catalog='/catalog', Projects='/projects', Email Agent='/email-agent', Marketplace='/admin/marketplace'"
+
+        else:
+            # Fallback: minimal permissions
+            persona = "You are the SERP Hawk CRM AI Assistant. You can help navigate the system and answer questions."
+            allowed_tools = "minimal"
+            route_map = "Dashboard='/', Clients='/clients'"
+
         system_prompt = f"""
-        You are the highly advanced SERP Hawk CRM Omni-Agent. 
-        Your goal is to perform operations on behalf of the user to make managing their CRM 'as easy as f***'.
-        
-        {route_str}
-        {context_str}
-        {crm_summary}
-        
-        You have a suite of tools available. If the user asks you to do something that matches a tool, CALL THE TOOL. 
-        You can call multiple tools if necessary.
-        If no tools are relevant, or after you've called tools, respond with a helpful conversational reply.
-        """
-        
-        tools = [
+{persona}
+
+{route_str}
+{context_str}
+{crm_summary}
+
+ROUTE MAP (use ONLY these exact routes for navigation):
+{route_map}
+
+You have a suite of tools available. If the user asks you to do something that matches a tool AND your role allows it, CALL THE TOOL.
+You can call multiple tools if necessary.
+If no tools are relevant, or after you've called tools, respond with a helpful conversational reply.
+
+At the end of EVERY response, always append a line like:
+"💡 **I can help you with:** [list the 3-5 most relevant things you can do for this user based on their role and current page]"
+
+Be concise, professional, and action-oriented.
+"""
+
+        # ── Build tool list based on role ────────────────────────────────────
+        ALL_TOOLS = [
             {
                 "type": "function",
                 "function": {
@@ -419,7 +485,7 @@ def process_chatbot_command(message: str, client_context: dict = None, current_r
                 "type": "function",
                 "function": {
                     "name": "navigate_user",
-                    "description": "Teleports the user's screen to a specific page route. EXACT ROUTE MAP: Dashboard = '/', Clients = '/clients', Add New Client = '/clients?action=add', Marketplace = '/admin/marketplace', Store = '/store', Email Agent = '/email-agent', Pipeline = '/pipeline', Projects = '/projects', Tasks = '/tasks', Messages = '/messages', Setup/Settings = '/setup', Invoices = '/invoices'. NEVER guess a route outside this map.",
+                    "description": f"Teleports the user's screen to a specific page route. EXACT ROUTE MAP: {route_map}. NEVER guess a route outside this map.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -431,7 +497,32 @@ def process_chatbot_command(message: str, client_context: dict = None, current_r
             }
         ]
 
-        response = client.chat.completions.create(
+        TOOL_SETS = {
+            "all": ALL_TOOLS,
+            "sales": [t for t in ALL_TOOLS if t["function"]["name"] in (
+                "research_lead", "create_client", "draft_email", "add_note_to_client",
+                "create_deal", "trigger_whatsapp_support", "navigate_user"
+            )],
+            "employee": [t for t in ALL_TOOLS if t["function"]["name"] in (
+                "add_note_to_client", "create_deal", "draft_email", "trigger_whatsapp_support", "navigate_user"
+            )],
+            "developer": [t for t in ALL_TOOLS if t["function"]["name"] in (
+                "navigate_user", "trigger_whatsapp_support"
+            )],
+            "supplier": [t for t in ALL_TOOLS if t["function"]["name"] in (
+                "navigate_user", "trigger_whatsapp_support"
+            )],
+            "demo": [t for t in ALL_TOOLS if t["function"]["name"] in (
+                "navigate_user"
+            )],
+            "minimal": [t for t in ALL_TOOLS if t["function"]["name"] in (
+                "navigate_user", "trigger_whatsapp_support"
+            )],
+        }
+
+        tools = TOOL_SETS.get(allowed_tools, TOOL_SETS["minimal"])
+
+        response = client_ai.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -440,11 +531,11 @@ def process_chatbot_command(message: str, client_context: dict = None, current_r
             tools=tools,
             tool_choice="auto"
         )
-        
+
         msg = response.choices[0].message
         actions = []
         reply = msg.content or ""
-        
+
         if msg.tool_calls:
             for tool_call in msg.tool_calls:
                 args = json.loads(tool_call.function.arguments)
@@ -452,12 +543,12 @@ def process_chatbot_command(message: str, client_context: dict = None, current_r
                     "action": tool_call.function.name,
                     "parameters": args
                 })
-                
+
             # Generate a dynamic reply based on the actions taken if the LLM didn't provide one
             if not reply:
                 names = [a["action"] for a in actions]
                 reply = f"I've initiated the following actions: {', '.join(names)}."
-                
+
         return {
             "actions": actions,
             "reply": reply
@@ -468,6 +559,7 @@ def process_chatbot_command(message: str, client_context: dict = None, current_r
             "actions": [],
             "reply": "I'm sorry, my Omni-Agent processor encountered an error."
         }
+
 
 
 def extract_client_services(website_text: str, company_name: str) -> list:
