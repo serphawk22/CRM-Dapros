@@ -118,20 +118,6 @@ class MarketplaceService(SQLModel, table=True):
     estimated_cost: float = Field(default=0.0)
     cost_is_estimated: bool = Field(default=False)  # True if AI guessed the cost
 
-class AutomationRule(SQLModel, table=True):
-    """
-    Workflow automations (If X happens, do Y)
-    """
-    __tablename__ = "automation_rules"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
-    name: str = Field(max_length=255)
-    trigger: str = Field(max_length=255)  # e.g., "deal_closed", "lead_stale"
-    action: str = Field(max_length=255)   # e.g., "send_email", "create_project"
-    is_active: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-
-
     # Provider info (linked CRM client)
     provider_name: Optional[str] = Field(default=None, max_length=255)
     provider_client_id: Optional[int] = Field(default=None, foreign_key="client_profiles.id", index=True)
@@ -146,6 +132,20 @@ class AutomationRule(SQLModel, table=True):
 
     # Relationship back to client profile
     provider: Optional["ClientProfile"] = Relationship(back_populates="marketplace_services")
+
+
+class AutomationRule(SQLModel, table=True):
+    """
+    Workflow automations (If X happens, do Y)
+    """
+    __tablename__ = "automation_rules"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    name: str = Field(max_length=255)
+    trigger: str = Field(max_length=255)  # e.g., "deal_closed", "lead_stale"
+    action: str = Field(max_length=255)   # e.g., "send_email", "create_project"
+    is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class ServiceCatalog(SQLModel, table=True):
