@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { Trophy, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_BASE_URL } from "@/config";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface LeaderboardEntry {
   user_id: number;

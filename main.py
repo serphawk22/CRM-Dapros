@@ -295,6 +295,8 @@ def on_startup():
         "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS recipient_type VARCHAR(20) DEFAULT 'client';",
         "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS line_items JSON DEFAULT '[]'::json;",
         "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'MXN';",
+        "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS signed_by_ip VARCHAR(255);",
+        "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS signature_data TEXT;"
     ]
     for sql in proposal_migrations:
         try:
