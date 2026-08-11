@@ -107,6 +107,8 @@ const defaultSidebarSections = [
       { id: "item-products", name: "Catalog", icon: "Package", href: "/products", roles: ["Admin", "SalesManager"] },
       { id: "item-orders", name: "Orders", icon: "ShoppingCart", href: "/orders", roles: ["Admin", "SalesManager"] },
       { id: "item-billing", name: "Billing", icon: "FileText", href: "/billing", roles: ["Admin", "SalesManager"] },
+      { id: "item-proposals", name: "Proposals", icon: "FileEdit", href: "/proposals", roles: ["Admin", "SalesManager"] },
+      { id: "item-marketplace", name: "Marketplace", icon: "ShoppingBag", href: "/admin/marketplace", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
@@ -115,14 +117,6 @@ const defaultSidebarSections = [
     items: [
       { id: "item-cases", name: "Cases", icon: "HeadphonesIcon", href: "/support/cases", roles: ["Admin", "SalesManager"] },
       { id: "item-solutions", name: "Solutions", icon: "BookOpen", href: "/support/solutions", roles: ["Admin", "SalesManager"] },
-    ],
-  },
-  {
-    id: "section-financials",
-    heading: "FINANCIALS",
-    items: [
-      { id: "item-proposals", name: "Proposals", icon: "FileEdit", href: "/proposals", roles: ["Admin", "SalesManager"] },
-      { id: "item-marketplace", name: "Marketplace", icon: "ShoppingBag", href: "/admin/marketplace", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
@@ -158,13 +152,13 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
   if (visibleItems.length === 0) return null;
 
   return (
-    <div ref={setNodeRef} style={style} className={cn("flex flex-col mt-3")}>
+    <div ref={setNodeRef} style={style} className={cn("flex flex-col mt-2")}>
       <AnimatePresence>
         {!collapsed && section.heading !== null && (
-          <div className="flex items-center group px-3 pt-1 pb-1.5 gap-2">
+          <div className="flex items-center group px-2 pt-1 pb-1 gap-1">
             {isEditMode && (
               <div {...attributes} {...listeners} className="cursor-grab hover:bg-slate-200 dark:hover:bg-slate-700 p-0.5 rounded">
-                <GripVertical className="w-3 h-3 text-slate-400" />
+                <GripVertical className="w-2.5 h-2.5 text-slate-400" />
               </div>
             )}
             
@@ -174,7 +168,7 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
                   type="text" 
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
-                  className="bg-transparent text-[10px] font-bold tracking-[0.12em] uppercase text-slate-600 dark:text-slate-300 outline-none w-full border-b border-blue-500"
+                  className="bg-transparent text-[9px] font-bold tracking-[0.1em] uppercase text-slate-600 dark:text-slate-300 outline-none w-full border-b border-blue-500"
                   autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                 />
@@ -185,12 +179,12 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="flex-1 text-[10px] font-bold tracking-[0.12em] uppercase flex justify-between items-center"
+                className="flex-1 text-[9px] font-bold tracking-[0.1em] uppercase flex justify-between items-center"
                 style={{ color: "var(--text-secondary)" }}
               >
                 <span>{section.heading}</span>
                 {isEditMode && (
-                  <Edit2 onClick={() => setIsEditing(true)} className="w-3 h-3 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity" />
+                  <Edit2 onClick={() => setIsEditing(true)} className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity" />
                 )}
               </motion.div>
             )}
@@ -198,7 +192,7 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-[1px]">
         {visibleItems.map((item: any) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
           const IconComp = iconMap[item.icon] || LayoutDashboard;
@@ -207,8 +201,8 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
               key={item.href}
               href={item.href}
               className={cn(
-                "relative group flex items-center gap-2.5 rounded-[10px] transition-all duration-150 select-none shrink-0",
-                collapsed ? "w-10 h-10 justify-center mx-auto" : "py-1.5 px-3 min-h-[34px]",
+                "relative group flex items-center gap-2 rounded-[8px] transition-all duration-150 select-none shrink-0",
+                collapsed ? "w-9 h-9 justify-center mx-auto" : "py-[4px] px-2 h-[28px]",
                 !isActive && "hover:bg-gray-50 dark:hover:bg-slate-800/50"
               )}
               style={isActive ? { background: "rgba(37,99,235,0.08)", color: "#2563eb" } : { color: "var(--sidebar-text)" }}
@@ -501,7 +495,7 @@ export function Sidebar({ role }: SidebarProps) {
         </AnimatePresence>
 
         {/* ── MAIN NAVIGATION ── */}
-        <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")} style={{ scrollbarWidth: "thin" }}>
+        <nav className={cn("flex-1 overflow-hidden flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {sections.map((section) => (
