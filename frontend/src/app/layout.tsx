@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import "./globals.css";
 import { Inter } from "next/font/google";
 import { Chatbot } from "@/components/Chatbot";
+import QuickAddFab from "@/components/QuickAddFab";
+import OmniSearch from "@/components/OmniSearch";
 import { SidebarProvider, useSidebar } from "@/context/SidebarContext";
 import { RoleProvider, useRole } from "@/context/RoleContext";
 import { LanguageProvider } from "@/context/LanguageContext";
@@ -220,6 +222,8 @@ export default function RootLayout({
                 <TelemetryTracker />
                 <SpaceAtmosphere />
                 <AppContent>{children}</AppContent>
+                <OmniSearch />
+                <QuickAddFab />
               </RoleProvider>
             </LanguageProvider>
           </I18nProvider>

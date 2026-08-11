@@ -16,6 +16,7 @@ import Link from "next/link";
 import { API_BASE_URL } from "@/config";
 import { cn } from "@/lib/utils";
 import LanguageSelector from "./LanguageSelector";
+import GlobalActivityFeed from "./GlobalActivityFeed";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Dashboard", "/clients": "Clients", "/projects": "Projects", "/tasks": "Task Board",
@@ -112,6 +113,8 @@ export function AdminTopbar() {
   
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotifs, setRecentNotifs] = useState<any[]>([]);
+  
+  const [activityFeedOpen, setActivityFeedOpen] = useState(false);
   
   const searchRef = useRef<HTMLInputElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
@@ -363,6 +366,17 @@ export function AdminTopbar() {
           </AnimatePresence>
         </div>
 
+        {/* Global Activity Feed Toggle */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setActivityFeedOpen(true)}
+          className="relative p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:bg-zinc-800 transition-all"
+          title="Global Activity Feed"
+        >
+          <Activity className="w-4.5 h-4.5" />
+        </motion.button>
+
         {/* Divider */}
         <div className="w-px h-6 bg-slate-200 dark:bg-zinc-700 mx-1" />
 
@@ -537,6 +551,7 @@ export function AdminTopbar() {
           </motion.div>
         )}
       </AnimatePresence>
+      <GlobalActivityFeed isOpen={activityFeedOpen} onClose={() => setActivityFeedOpen(false)} />
     </header>
   );
 }

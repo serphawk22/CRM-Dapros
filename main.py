@@ -1470,6 +1470,63 @@ def signup(body: SignupRequest, session: Session = Depends(get_session)):
     
     return {"message": "Trial account created successfully", "tenant_id": tenant.id}
 
+@app.get("/omnisearch")
+def omnisearch(q: str, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if not tenant_id:
+        return {"results": []}
+
+    from database import ClientProfile, Lead, Task, Deal
+    from sqlalchemy import select, or_
+
+    search_term = f"%{q}%"
+    results = []
+
+    # Search Clients
+    clients = session.exec(select(ClientProfile).where(
+        ClientProfile.tenant_id == tenant_id,
+        or_(ClientProfile.companyName.ilike(search_term), ClientProfile.contactPerson.ilike(search_term), ClientProfile.email.ilike(search_term))
+    ).limit(5)).all()
+    for c in clients:
+        results.append({"type": "Client", "title": c.companyName, "subtitle": c.contactPerson, "route": f"/admin/clients/{c.id}"})
+
+    # Search Leads
+    leads = session.exec(select(Lead).where(
+        Lead.tenant_id == tenant_id,
+        or_(Lead.company_name.ilike(search_term), Lead.contact_name.ilike(search_term), Lead.email.ilike(search_term))
+    ).limit(5)).all()
+    for l in leads:
+        results.append({"type": "Lead", "title": l.company_name, "subtitle": l.contact_name, "route": f"/leads"})
+
+    # Search Tasks
+    tasks = session.exec(select(Task).where(
+        Task.tenant_id == tenant_id,
+        or_(Task.title.ilike(search_term), Task.description.ilike(search_term))
+    ).limit(5)).all()
+    for t in tasks:
+        results.append({"type": "Task", "title": t.title, "subtitle": t.status, "route": f"/tasks"})
+
+    # Search Deals
+    deals = session.exec(select(Deal).where(
+        Deal.tenant_id == tenant_id,
+        Deal.deal_name.ilike(search_term)
+    ).limit(5)).all()
+    for d in deals:
+        results.append({"type": "Deal", "title": d.deal_name, "subtitle": f"${d.amount}", "route": f"/pipeline"})
+
+    return {"results": results}
+
+@app.get("/activities/global")
+def global_activities(session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if not tenant_id:
+        return {"activities": []}
+    
+    from database import ActivityLog
+    from sqlalchemy import select
+    
+    activities = session.exec(select(ActivityLog).where(ActivityLog.tenant_id == tenant_id).order_by(ActivityLog.createdAt.desc()).limit(30)).all()
+    return {"activities": activities}
 
 @app.get("/superadmin/tenants")
 def get_all_tenants(session: Session = Depends(get_session)):
@@ -1544,6 +1601,73 @@ def log_page_visit(body: PageVisitRequest, session: Session = Depends(get_sessio
     session.add(visit)
     session.commit()
     return {"status": "ok"}
+
+
+@app.get("/superadmin/telemetry/global")
+def get_global_telemetry(session: Session = Depends(get_session)):
+    # Bypassing tenant filter for super admin
+    import contextvars
+    from database import Tenant, User, ClientProfile, PageVisitTelemetry
+    from sqlalchemy import select, func
+    
+    old_tenant = current_tenant_id.get()
+    current_tenant_id.set(None)
+    
+    try:
+        # Aggregated Tenant Stats
+        tenants = session.exec(select(Tenant)).all()
+        
+        def is_tenant_trial(t):
+            obj = t[0] if isinstance(t, tuple) or type(t).__name__ in ("Row", "BaseRow") else t
+            return getattr(obj, "is_trial", False)
+            
+        demo_accounts = sum(1 for t in tenants if is_tenant_trial(t))
+        active_accounts = sum(1 for t in tenants if not is_tenant_trial(t))
+        
+        # Aggregated Usage Stats
+        total_users_result = session.exec(select(func.count(User.id))).first()
+        total_users = total_users_result[0] if isinstance(total_users_result, tuple) or type(total_users_result).__name__ in ("Row", "BaseRow") else (total_users_result or 0)
+
+        def get_tenant_attr(t, attr, default=0):
+            obj = t[0] if isinstance(t, tuple) or type(t).__name__ in ("Row", "BaseRow") else t
+            return getattr(obj, attr, default)
+
+        total_clients = sum(get_tenant_attr(t, "usage_clients") for t in tenants)
+        total_emails = sum(get_tenant_attr(t, "usage_emails") for t in tenants)
+        total_searches = sum(get_tenant_attr(t, "usage_searches") for t in tenants)
+        
+        # Global Page Utilization
+        visits = session.exec(
+            select(
+                PageVisitTelemetry.page_path,
+                func.sum(PageVisitTelemetry.time_spent_seconds).label("total_time"),
+                func.count(PageVisitTelemetry.id).label("visit_count")
+            ).group_by(PageVisitTelemetry.page_path).order_by(func.sum(PageVisitTelemetry.time_spent_seconds).desc()).limit(10)
+        ).all()
+        
+        top_pages = []
+        for v in visits:
+            path = v[0] if isinstance(v, tuple) or type(v).__name__ in ("Row", "BaseRow") else getattr(v, "page_path", "")
+            time_spent = v[1] if isinstance(v, tuple) or type(v).__name__ in ("Row", "BaseRow") else getattr(v, "total_time", 0)
+            visit_count = v[2] if isinstance(v, tuple) or type(v).__name__ in ("Row", "BaseRow") else getattr(v, "visit_count", 0)
+            
+            top_pages.append({
+                "path": path,
+                "time_spent": int(time_spent or 0),
+                "visits": int(visit_count or 0)
+            })
+            
+        return {
+            "demo_accounts": demo_accounts,
+            "active_accounts": active_accounts,
+            "total_users": total_users,
+            "total_clients_managed": total_clients,
+            "total_emails_generated": total_emails,
+            "total_searches_performed": total_searches,
+            "top_pages": top_pages
+        }
+    finally:
+        current_tenant_id.set(old_tenant)
 
 
 @app.get("/dashboard-call-pitch")
