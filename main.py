@@ -272,6 +272,9 @@ app.include_router(api_intelligence_router)
 from routers.email_tracking import router as email_tracking_router
 app.include_router(email_tracking_router)
 
+from routers.leaderboard import router as leaderboard_router
+app.include_router(leaderboard_router)
+
 @app.on_event("startup")
 def on_startup():
     patch_openai()
@@ -6384,6 +6387,22 @@ def update_proposal(
             session.add(notif)
         session.commit()
     return {"proposal": _proposal_dict(p, session)}
+
+
+@app.post("/proposals/{proposal_id}/sign")
+def sign_proposal(proposal_id: int, request: Request, session: Session = Depends(get_session)):
+    p = session.get(Proposal, proposal_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    
+    p.signed_at = datetime.utcnow()
+    p.status = "Accepted"
+    p.signed_by_ip = request.client.host if request.client else "Unknown IP"
+    
+    session.add(p)
+    session.commit()
+    session.refresh(p)
+    return _proposal_dict(p, session)
 
 
 @app.delete("/proposals/{proposal_id}")

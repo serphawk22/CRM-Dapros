@@ -571,6 +571,47 @@ export default function ProposalsPage() {
                 ))}
               </div>
 
+              {/* Digital Signature Block */}
+              <div className="mt-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-6 bg-slate-50 dark:bg-slate-900/50 flex flex-col items-center justify-center">
+                {selected.signed_at ? (
+                  <div className="text-center space-y-2">
+                    <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <FileSignature className="w-6 h-6" />
+                    </div>
+                    <p className="text-lg font-black text-emerald-600 dark:text-emerald-400 font-serif italic">Digitally Signed</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wide">
+                      Signed on {new Date(selected.signed_at).toLocaleString("en-IN")}
+                    </p>
+                    {selected.signed_by_ip && (
+                      <p className="text-[10px] text-slate-400">IP: {selected.signed_by_ip}</p>
+                    )}
+                  </div>
+                ) : isClient ? (
+                  <div className="text-center space-y-4 w-full">
+                    <p className="text-sm text-slate-600 dark:text-slate-300 font-medium">Ready to proceed? Sign below to approve this quotation.</p>
+                    <button onClick={async () => {
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/proposals/${selected.id}/sign`, { method: "POST" });
+                        if (res.ok) {
+                          const updated = await res.json();
+                          setSelected(updated);
+                          fetchProposals();
+                        }
+                      } catch (e) { console.error(e); }
+                    }} className="w-full py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold shadow-md hover:scale-[1.02] transition-transform flex items-center justify-center gap-2">
+                      <FileSignature className="w-5 h-5" />
+                      Approve & Sign Quotation
+                    </button>
+                    <p className="text-[10px] text-slate-400">By signing, you agree to the terms specified above.</p>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <FileSignature className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-slate-500">Awaiting Client Signature</p>
+                  </div>
+                )}
+              </div>
+
               {/* Actions */}
               <div className="flex gap-3 pt-2">
                 <button onClick={() => downloadPDF(selected.id)}

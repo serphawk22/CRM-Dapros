@@ -82,6 +82,7 @@ const defaultSidebarSections = [
     heading: "TEAMS",
     items: [
       { id: "item-teams", name: "Team Directory", icon: "Users", href: "/teams", roles: ["Admin", "SalesManager"] },
+      { id: "item-leaderboard", name: "Leaderboard", icon: "Trophy", href: "/admin/leaderboard", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
@@ -115,6 +116,7 @@ const defaultSidebarSections = [
     id: "section-system",
     heading: "SYSTEM",
     items: [
+      { id: "item-automations", name: "Automations", icon: "Zap", href: "/admin/automations", roles: ["Admin", "SalesManager"] },
       { id: "item-import", name: "Import Data", icon: "FileBarChart2", href: "/import", roles: ["Admin", "SalesManager"] },
       { id: "item-superadmin", name: "SuperAdmin Telemetry", icon: "ActivitySquare", href: "/superadmin", roles: ["Admin"] },
     ],
