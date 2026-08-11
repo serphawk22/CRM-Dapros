@@ -56,7 +56,6 @@ const defaultSidebarSections = [
     heading: null,
     items: [
       { id: "item-dashboard", name: "Dashboard", icon: "LayoutDashboard", href: "/", roles: ["Admin", "Employee", "Client", "Intern", "SalesManager"] },
-      { id: "item-notifications", name: "Notifications", icon: "Bell", href: "/notifications", roles: ["Admin", "Employee", "Client"], badge: NOTIFICATION_COUNT },
       { id: "item-work-queue", name: "My Work Queue", icon: "LayoutList", href: "/work-queue", roles: ["Admin"] },
     ],
   },
@@ -70,19 +69,12 @@ const defaultSidebarSections = [
     ],
   },
   {
-    id: "section-activities",
-    heading: "ACTIVITIES",
-    items: [
-      { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "SalesManager"] },
-      { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "SalesManager"] },
-    ],
-  },
-  {
     id: "section-projects",
-    heading: "PROJECTS",
+    heading: "PROJECTS & ACTIVITIES",
     items: [
       { id: "item-projects", name: "Projects", icon: "FolderOpen", href: "/projects", roles: ["Admin", "Employee", "Intern"] },
-      { id: "item-milestones", name: "Milestones", icon: "Activity", href: "/milestones", roles: ["Admin", "Employee", "Intern"] },
+      { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "SalesManager"] },
+      { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "SalesManager"] },
     ],
   },
   {
@@ -375,9 +367,9 @@ export function Sidebar({ role }: SidebarProps) {
         }}
       >
         {/* ── TOP BRANDING ── */}
-        <div className={cn("shrink-0 flex items-center py-4", collapsed ? "justify-center px-2" : "px-4 gap-3")}>
-          <div className="shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-            <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5">
+        <div className={cn("shrink-0 flex items-center py-2.5", collapsed ? "justify-center px-2" : "px-4 gap-3")}>
+          <div className="shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4">
               <path d="M12 3L3 8.5V15.5L12 21L21 15.5V8.5L12 3Z" fill="white" fillOpacity="0.9" />
               <path d="M12 7L7 10V14L12 17L17 14V10L12 7Z" fill="white" fillOpacity="0.5" />
               <circle cx="12" cy="12" r="2" fill="white" />
@@ -394,8 +386,8 @@ export function Sidebar({ role }: SidebarProps) {
                 className="flex-1 min-w-0 overflow-hidden flex items-center justify-between"
               >
                 <div>
-                  <span className="block font-bold text-[15px] leading-tight tracking-tight truncate" style={{ color: "var(--text-primary)" }}>SERP Hawk</span>
-                  <span className="block text-[11px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>Corporate HQ</span>
+                  <span className="block font-bold text-[14px] leading-tight tracking-tight truncate" style={{ color: "var(--text-primary)" }}>SERP Hawk</span>
+                  <span className="block text-[10px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>Corporate HQ</span>
                 </div>
                 <button 
                   onClick={() => setIsEditMode(!isEditMode)} 
@@ -410,13 +402,13 @@ export function Sidebar({ role }: SidebarProps) {
         </div>
 
         {/* ── LANGUAGE TOGGLE (top-left, below branding) ── */}
-        <div className={cn("shrink-0 pb-3", collapsed ? "flex justify-center px-2" : "px-3")}>
+        <div className={cn("shrink-0 pb-1.5", collapsed ? "flex justify-center px-2" : "px-3")}>
           {collapsed ? (
             // Collapsed: single flag, click cycles EN ↔ ES
             <button
               onClick={() => switchLanguage(activeLang === "en" ? "es" : "en")}
               title={activeLang === "en" ? "Switch to Español" : "Switch to English"}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-lg hover:bg-white/10 transition-all"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-lg hover:bg-white/10 transition-all"
             >
               {activeLang === "en" ? "🇺🇸" : "🇪🇸"}
             </button>
@@ -430,12 +422,12 @@ export function Sidebar({ role }: SidebarProps) {
                 onClick={() => switchLanguage("en")}
                 title="Switch to English"
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all duration-200",
+                  "flex-1 flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black transition-all duration-200",
                   activeLang === "en" ? "bg-white shadow-sm" : "hover:opacity-70"
                 )}
                 style={activeLang === "en" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
               >
-                <span className="text-[14px] leading-none">🇺🇸</span>
+                <span className="text-[12px] leading-none">🇺🇸</span>
                 <span>EN</span>
               </button>
 
@@ -443,12 +435,12 @@ export function Sidebar({ role }: SidebarProps) {
                 onClick={() => switchLanguage("es")}
                 title="Cambiar a Español"
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black transition-all duration-200",
+                  "flex-1 flex items-center justify-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black transition-all duration-200",
                   activeLang === "es" ? "bg-white shadow-sm" : "hover:opacity-70"
                 )}
                 style={activeLang === "es" ? { color: "var(--accent)" } : { color: "var(--text-secondary)" }}
               >
-                <span className="text-[14px] leading-none">🇪🇸</span>
+                <span className="text-[12px] leading-none">🇪🇸</span>
                 <span>ES</span>
               </button>
             </div>
@@ -462,22 +454,22 @@ export function Sidebar({ role }: SidebarProps) {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="shrink-0 px-3 pb-3"
+              className="shrink-0 px-3 pb-1.5"
             >
               <div
-                className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border"
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border"
                 style={{ background: "var(--surface)", borderColor: "var(--border)" }}
               >
                 <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--text-secondary)" }} />
                 <input
                   type="text"
-                  placeholder="Search anything..."
+                  placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 bg-transparent text-[13px] outline-none placeholder-gray-400"
+                  className="flex-1 bg-transparent text-[12px] outline-none placeholder-gray-400"
                   style={{ color: "var(--text-primary)" }}
                 />
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md border shrink-0" style={{ color: "var(--text-secondary)", borderColor: "var(--border)", background: "var(--background)" }}>
+                <span className="text-[9px] font-medium px-1 rounded border shrink-0" style={{ color: "var(--text-secondary)", borderColor: "var(--border)", background: "var(--background)" }}>
                   ⌘K
                 </span>
               </div>
