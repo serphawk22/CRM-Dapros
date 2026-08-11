@@ -97,9 +97,6 @@ const defaultSidebarSections = [
     heading: "AI AGENTS",
     items: [
       { id: "item-email-agent", name: "Email Agent", icon: "Mail", href: "/email-agent", roles: ["Admin"] },
-      { id: "item-radar", name: "Radar Analysis", icon: "Radar", href: "/admin/radar", roles: ["Admin"] },
-      { id: "item-competitor", name: "Competitor Analysis", icon: "BarChart2", href: "/admin/agents/competitor", roles: ["Admin"] },
-      { id: "item-website-scanner", name: "Website Scanner", icon: "Globe", href: "/admin/agents/website-scanner", roles: ["Admin"] },
     ],
   },
   {
@@ -132,10 +129,7 @@ const defaultSidebarSections = [
     id: "section-system",
     heading: "SYSTEM",
     items: [
-      { id: "item-map", name: "Map View", icon: "Globe", href: "/map", roles: ["Admin", "SalesManager"] },
       { id: "item-import", name: "Import Data", icon: "FileBarChart2", href: "/import", roles: ["Admin", "SalesManager"] },
-      { id: "item-api-keys", name: "API Keys", icon: "Zap", href: "/api-keys", roles: ["Admin"] },
-      { id: "item-api-intelligence", name: "API Intelligence", icon: "Activity", href: "/admin/api-intelligence", roles: ["Admin"] },
       { id: "item-superadmin", name: "SuperAdmin Telemetry", icon: "ActivitySquare", href: "/superadmin", roles: ["Admin"] },
     ],
   },
@@ -213,16 +207,16 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
               key={item.href}
               href={item.href}
               className={cn(
-                "relative group flex items-center gap-3 rounded-xl transition-all duration-150 select-none shrink-0",
-                collapsed ? "w-11 h-11 justify-center mx-auto" : "h-[42px] px-3",
+                "relative group flex items-center gap-2.5 rounded-[10px] transition-all duration-150 select-none shrink-0",
+                collapsed ? "w-10 h-10 justify-center mx-auto" : "py-1.5 px-3 min-h-[34px]",
                 !isActive && "hover:bg-gray-50 dark:hover:bg-slate-800/50"
               )}
               style={isActive ? { background: "rgba(37,99,235,0.08)", color: "#2563eb" } : { color: "var(--sidebar-text)" }}
             >
               {isActive && !collapsed && (
-                <motion.span layoutId="sidebar-active-indicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-blue-600" />
+                <motion.span layoutId="sidebar-active-indicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-[18px] rounded-full bg-blue-600" />
               )}
-              <IconComp className={cn("w-[18px] h-[18px] shrink-0 transition-colors", isActive ? "text-blue-600" : "group-hover:text-blue-500")} />
+              <IconComp className={cn("w-[16px] h-[16px] shrink-0 transition-colors", isActive ? "text-blue-600" : "group-hover:text-blue-500")} />
               <AnimatePresence>
                 {!collapsed && (
                   <motion.span
@@ -230,14 +224,14 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -6 }}
                     transition={{ duration: 0.14 }}
-                    className={cn("flex-1 text-[13.5px] font-medium truncate", isActive && "font-semibold")}
+                    className={cn("flex-1 text-[13px] font-medium truncate", isActive && "font-semibold")}
                   >
                     {item.name}
                   </motion.span>
                 )}
               </AnimatePresence>
               {(item.id === "item-notifications" ? unreadCount : item.badge) > 0 && !collapsed && (
-                <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
                   {item.id === "item-notifications" ? unreadCount : item.badge}
                 </span>
               )}
@@ -507,7 +501,7 @@ export function Sidebar({ role }: SidebarProps) {
         </AnimatePresence>
 
         {/* ── MAIN NAVIGATION ── */}
-        <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")} style={{ scrollbarWidth: "none" }}>
+        <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")} style={{ scrollbarWidth: "thin" }}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {sections.map((section) => (

@@ -1493,10 +1493,10 @@ def omnisearch(q: str, session: Session = Depends(get_session)):
     # Search Leads
     leads = session.exec(select(Lead).where(
         Lead.tenant_id == tenant_id,
-        or_(Lead.company_name.ilike(search_term), Lead.contact_name.ilike(search_term), Lead.email.ilike(search_term))
+        or_(Lead.company_name.ilike(search_term), Lead.email.ilike(search_term))
     ).limit(5)).all()
     for l in leads:
-        results.append({"type": "Lead", "title": l.company_name, "subtitle": l.contact_name, "route": f"/leads"})
+        results.append({"type": "Lead", "title": l.company_name, "subtitle": l.email or "", "route": f"/leads"})
 
     # Search Tasks
     tasks = session.exec(select(Task).where(
@@ -1509,10 +1509,10 @@ def omnisearch(q: str, session: Session = Depends(get_session)):
     # Search Deals
     deals = session.exec(select(Deal).where(
         Deal.tenant_id == tenant_id,
-        Deal.deal_name.ilike(search_term)
+        Deal.title.ilike(search_term)
     ).limit(5)).all()
     for d in deals:
-        results.append({"type": "Deal", "title": d.deal_name, "subtitle": f"${d.amount}", "route": f"/pipeline"})
+        results.append({"type": "Deal", "title": d.title, "subtitle": f"${d.value}", "route": f"/pipeline"})
 
     return {"results": results}
 
