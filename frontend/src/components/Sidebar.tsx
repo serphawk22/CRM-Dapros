@@ -243,14 +243,10 @@ export function Sidebar({ role }: SidebarProps) {
   const { collapsed, setCollapsed } = useSidebar();
   const { theme, toggleTheme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
-  const [darkToggle, setDarkToggle] = useState(theme === "dark");
   
   const [sections, setSections] = useState<any[]>(defaultSidebarSections);
   const [isEditMode, setIsEditMode] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-
-  const initial = user?.name?.charAt(0).toUpperCase() || "B";
-  const userName = user?.name || "Brajesh";
 
   useEffect(() => {
     fetchSidebarPrefs();
@@ -302,11 +298,6 @@ export function Sidebar({ role }: SidebarProps) {
     } catch (e) {
       console.error("Failed to save sidebar prefs", e);
     }
-  };
-
-  const handleDarkToggle = () => {
-    setDarkToggle(!darkToggle);
-    toggleTheme();
   };
 
   const handleRenameSection = (sectionId: string, newName: string) => {
@@ -514,76 +505,7 @@ export function Sidebar({ role }: SidebarProps) {
           </DndContext>
         </nav>
 
-        {/* ── BOTTOM SECTION ── */}
-        <div className="shrink-0" style={{ borderTop: "1px solid var(--sidebar-border)" }}>
-          <div className={cn("flex flex-col gap-0.5 py-3", collapsed ? "px-2" : "px-3")}>
-            <Link
-              href="/admin/settings"
-              className={cn("group flex items-center gap-3 rounded-xl transition-all duration-150 hover:bg-gray-50 dark:hover:bg-slate-800/50", collapsed ? "w-11 h-11 justify-center mx-auto" : "h-[42px] px-3")}
-              style={{ color: "var(--sidebar-text)" }}
-            >
-              <Settings className="w-[18px] h-[18px] shrink-0 group-hover:text-blue-500 transition-colors" />
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 text-[13.5px] font-medium">
-                    Settings
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </Link>
-
-            <div
-              className={cn("group flex items-center gap-3 rounded-xl transition-all duration-150 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800/50", collapsed ? "w-11 h-11 justify-center mx-auto relative" : "h-[42px] px-3")}
-              style={{ color: "var(--sidebar-text)" }}
-              onClick={handleDarkToggle}
-            >
-              {theme === "dark" ? <Moon className="w-[18px] h-[18px] shrink-0 group-hover:text-blue-500 transition-colors" /> : <Sun className="w-[18px] h-[18px] shrink-0 group-hover:text-blue-500 transition-colors" />}
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 flex items-center justify-between">
-                    <span className="text-[13.5px] font-medium">Dark Mode</span>
-                    <div className={cn("relative w-9 h-5 rounded-full transition-all duration-300 shrink-0", darkToggle ? "bg-blue-600" : "bg-gray-300")}>
-                      <div className={cn("absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-300", darkToggle ? "left-[18px]" : "left-0.5")} />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-
-          <div className={cn("pb-4", collapsed ? "px-2" : "px-3")}>
-            <AnimatePresence>
-              {!collapsed ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 6 }}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all hover:bg-gray-50 dark:hover:bg-slate-800/50 group"
-                  style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-                >
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm">
-                    {initial}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold truncate leading-tight" style={{ color: "var(--text-primary)" }}>{userName}</p>
-                    <p className="text-[11px] font-medium truncate" style={{ color: "var(--text-secondary)" }}>Admin</p>
-                  </div>
-                  <ChevronDown className="w-4 h-4 shrink-0 opacity-50 group-hover:opacity-100 transition-opacity" style={{ color: "var(--text-secondary)" }} />
-                </motion.div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="w-11 h-11 mx-auto rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm cursor-pointer shadow-sm"
-                  title={`${userName} — Admin`}
-                >
-                  {initial}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+        {/* ── BOTTOM SECTION REMOVED ── */}
       </motion.div>
 
       <motion.button
