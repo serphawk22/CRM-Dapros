@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '@/config';
 import { useRole } from '@/context/RoleContext';
+import LinkedContacts from '@/components/LinkedContacts';
 import { cn } from '@/lib/utils';
 import PageGuide from '@/components/PageGuide';
 import axios from 'axios';
@@ -710,6 +711,7 @@ export default function ClientDetailPage() {
                   )}
                 </div>
               </div>
+              <LinkedContacts clientId={id} />
             </motion.div>
 
             {/* Team & Services - Interactive */}

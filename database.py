@@ -535,6 +535,23 @@ class ActivityLog(SQLModel, table=True):
     client: Optional[ClientProfile] = Relationship()
 
 
+class AuditLog(SQLModel, table=True):
+    """
+    Universal audit log capturing created/updated by across all models.
+    """
+    __tablename__ = "audit_logs"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="users.id", index=True)
+    table_name: str = Field(max_length=100, index=True)
+    record_id: Optional[int] = Field(default=None, index=True)
+    action: str = Field(max_length=20) # CREATE, UPDATE, DELETE
+    changes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+
 class Company(SQLModel, table=True):
     """
     Company model - stores prospect information
@@ -1543,6 +1560,31 @@ class APIKey(SQLModel, table=True):
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
     last_used_at: Optional[datetime] = Field(default=None)
     is_active: bool = Field(default=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+
+class ContactLeadLink(SQLModel, table=True):
+    __tablename__ = "contact_lead_links"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    contact_id: int = Field(foreign_key="contacts.id", index=True)
+    lead_id: int = Field(foreign_key="leads.id", index=True)
+    role_at_company: Optional[str] = Field(default=None, max_length=100)
+    is_primary: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ContactClientLink(SQLModel, table=True):
+    __tablename__ = "contact_client_links"
+    tenant_id: Optional[int] = Field(default=None, foreign_key="tenants.id", index=True)
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    contact_id: int = Field(foreign_key="contacts.id", index=True)
+    client_id: int = Field(foreign_key="client_profiles.id", index=True)
+    role_at_company: Optional[str] = Field(default=None, max_length=100)
+    is_primary: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

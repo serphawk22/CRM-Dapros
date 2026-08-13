@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useRouter, usePathname } from 'next/navigation';
 import { API_BASE_URL } from '@/config';
 
-export type Role = 'Admin' | 'Employee' | 'Client' | 'Intern' | 'SalesManager' | 'Supplier';
+export type Role = 'SuperAdmin' | 'Admin' | 'Employee' | 'Client' | 'Intern' | 'SalesManager' | 'Supplier';
 
 interface User {
   id: number;
@@ -46,7 +46,8 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         if (saved && isInternalApi) {
           try {
             const parsed = JSON.parse(saved);
-            if (parsed.tenant_id) {
+            // Skip sending tenant ID if the user is a SuperAdmin, giving them global access
+            if (parsed.tenant_id && parsed.role !== 'SuperAdmin') {
               config = config || {};
               config.headers = {
                 ...config.headers,

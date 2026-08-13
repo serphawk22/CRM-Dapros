@@ -178,6 +178,82 @@ def _auto_assign_tenant_id(session, flush_context, instances):
                 setattr(obj, "tenant_id", tenant_id)
 
 
+@event.listens_for(SASession, "after_flush")
+def _audit_log_changes(session, flush_context):
+    from database import AuditLog
+    from sqlalchemy import inspect
+    # Prevent recursive audit logging
+    if getattr(session, "_is_auditing", False):
+        return
+        
+    user_id = None
+    try:
+        from modules.api_tracker import current_salesperson_id
+        user_id = current_salesperson_id.get()
+    except Exception:
+        pass
+        
+    tenant_id = current_tenant_id.get()
+    audit_entries = []
+    
+    # helper to get dirty attributes safely
+    def get_changes(obj):
+        changes = {}
+        for attr in inspect(obj).attrs:
+            if attr.history.has_changes():
+                changes[attr.key] = {
+                    "old": attr.history.deleted[0] if attr.history.deleted else None,
+                    "new": attr.history.added[0] if attr.history.added else None
+                }
+        import json
+        try:
+            return json.dumps(changes, default=str)
+        except:
+            return str(changes)
+            
+    def get_pk(obj):
+        mapper = inspect(obj.__class__)
+        pk = mapper.primary_key[0].name
+        return getattr(obj, pk, None)
+        
+    for obj in session.new:
+        if hasattr(obj, "__tablename__") and obj.__tablename__ != "audit_logs":
+            audit_entries.append(AuditLog(
+                tenant_id=getattr(obj, "tenant_id", tenant_id),
+                user_id=user_id,
+                table_name=obj.__tablename__,
+                record_id=get_pk(obj),
+                action="CREATE",
+                changes=get_changes(obj)
+            ))
+            
+    for obj in session.dirty:
+        if hasattr(obj, "__tablename__") and obj.__tablename__ != "audit_logs":
+            if session.is_modified(obj, include_collections=False):
+                audit_entries.append(AuditLog(
+                    tenant_id=getattr(obj, "tenant_id", tenant_id),
+                    user_id=user_id,
+                    table_name=obj.__tablename__,
+                    record_id=get_pk(obj),
+                    action="UPDATE",
+                    changes=get_changes(obj)
+                ))
+                
+    for obj in session.deleted:
+        if hasattr(obj, "__tablename__") and obj.__tablename__ != "audit_logs":
+            audit_entries.append(AuditLog(
+                tenant_id=getattr(obj, "tenant_id", tenant_id),
+                user_id=user_id,
+                table_name=obj.__tablename__,
+                record_id=get_pk(obj),
+                action="DELETE"
+            ))
+            
+    if audit_entries:
+        session._is_auditing = True
+        session.add_all(audit_entries)
+        session.flush()
+        session._is_auditing = False
 def check_tenant_limit(session: Session, limit_type: str):
     # This must be called inside the endpoint, it reads current_tenant_id
     t_id = current_tenant_id.get()
@@ -279,6 +355,20 @@ app.include_router(leaderboard_router)
 def on_startup():
     patch_openai()
     create_db_and_tables()
+    
+    # Ensure SuperAdmin exists
+    try:
+        from sqlmodel import Session, select
+        from database import engine, User
+        with Session(engine) as session:
+            users = session.exec(select(User).where(User.role == 'SuperAdmin')).all()
+            if not users:
+                su = User(name='Super Admin', email='superadmin@serphawk.in', password='password123', role='SuperAdmin', tenant_id=None)
+                session.add(su)
+                session.commit()
+                print("Provisioned default SuperAdmin user.")
+    except Exception as e:
+        print("Error provisioning SuperAdmin:", e)
     
     # Auto-migrate: Add missing columns if they don't exist
     from sqlalchemy import text
@@ -11229,3 +11319,78 @@ async def import_leads_csv(file: UploadFile = File(...), session: Session = Depe
     session.commit()
     return {"created": created, "skipped": skipped, "errors": errors}
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Contacts (Multiple / Sub-contacts)
+# ─────────────────────────────────────────────────────────────────────────────
+from pydantic import BaseModel
+
+class ContactCreate(BaseModel):
+    first_name: str
+    last_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
+    department: Optional[str] = None
+    notes: Optional[str] = None
+
+class ContactLinkRequest(BaseModel):
+    contact_id: int
+    role_at_company: Optional[str] = None
+    is_primary: bool = False
+
+@app.get("/contacts")
+def list_contacts(session: Session = Depends(get_session)):
+    return session.exec(select(Contact)).all()
+
+@app.post("/contacts")
+def create_contact(body: ContactCreate, session: Session = Depends(get_session)):
+    c = Contact(**body.dict())
+    session.add(c)
+    session.commit()
+    session.refresh(c)
+    return c
+
+@app.post("/clients/{client_id}/contacts")
+def link_contact_to_client(client_id: int, body: ContactLinkRequest, session: Session = Depends(get_session)):
+    link = ContactClientLink(
+        client_id=client_id,
+        contact_id=body.contact_id,
+        role_at_company=body.role_at_company,
+        is_primary=body.is_primary
+    )
+    session.add(link)
+    session.commit()
+    return {"status": "success"}
+
+@app.post("/leads/{lead_id}/contacts")
+def link_contact_to_lead(lead_id: int, body: ContactLinkRequest, session: Session = Depends(get_session)):
+    link = ContactLeadLink(
+        lead_id=lead_id,
+        contact_id=body.contact_id,
+        role_at_company=body.role_at_company,
+        is_primary=body.is_primary
+    )
+    session.add(link)
+    session.commit()
+    return {"status": "success"}
+
+@app.get("/clients/{client_id}/contacts")
+def get_client_contacts(client_id: int, session: Session = Depends(get_session)):
+    links = session.exec(select(ContactClientLink).where(ContactClientLink.client_id == client_id)).all()
+    results = []
+    for link in links:
+        c = session.get(Contact, link.contact_id)
+        if c:
+            results.append({"link_id": link.id, "contact": c, "role": link.role_at_company, "is_primary": link.is_primary})
+    return results
+
+@app.get("/leads/{lead_id}/contacts")
+def get_lead_contacts(lead_id: int, session: Session = Depends(get_session)):
+    links = session.exec(select(ContactLeadLink).where(ContactLeadLink.lead_id == lead_id)).all()
+    results = []
+    for link in links:
+        c = session.get(Contact, link.contact_id)
+        if c:
+            results.append({"link_id": link.id, "contact": c, "role": link.role_at_company, "is_primary": link.is_primary})
+    return results

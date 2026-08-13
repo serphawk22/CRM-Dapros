@@ -16,6 +16,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import LeadHeader from './components/LeadHeader';
 import LeadSidebarPanel from './components/LeadSidebarPanel';
 import LeadAiCopilotPanel from './components/LeadAiCopilotPanel';
+import LinkedContacts from '@/components/LinkedContacts';
 import TimelineTab from './components/tabs/TimelineTab';
 import ConversationsTab from './components/tabs/ConversationsTab';
 import NotesTab from './components/tabs/NotesTab';

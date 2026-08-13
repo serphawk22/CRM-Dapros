@@ -142,7 +142,7 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
     setIsEditing(false);
   };
 
-  const visibleItems = section.items.filter((item: any) => item.roles.includes(role));
+  const visibleItems = section.items.filter((item: any) => role === 'SuperAdmin' || item.roles.includes(role));
   if (visibleItems.length === 0) return null;
 
   return (

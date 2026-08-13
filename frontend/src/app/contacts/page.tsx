@@ -31,7 +31,7 @@ export default function ContactsPage() {
       const res = await fetch(`${API_BASE_URL}/contacts`);
       if (res.ok) {
         const data = await res.json();
-        setContacts(data.contacts || []);
+        setContacts(Array.isArray(data) ? data : data.contacts || []);
       }
     } catch (error) {
       console.error(error);
