@@ -250,10 +250,24 @@ def _audit_log_changes(session, flush_context):
             ))
             
     if audit_entries:
-        session._is_auditing = True
-        session.add_all(audit_entries)
-        session.flush()
-        session._is_auditing = False
+        from sqlalchemy import insert
+        from database import AuditLog
+        
+        # We cannot use session.add() + session.flush() inside after_flush 
+        # because the session is already flushing. Instead, we execute raw inserts.
+        audit_dicts = []
+        for entry in audit_entries:
+            audit_dicts.append({
+                "tenant_id": entry.tenant_id,
+                "user_id": entry.user_id,
+                "table_name": entry.table_name,
+                "record_id": entry.record_id,
+                "action": entry.action,
+                "changes": entry.changes,
+                "timestamp": entry.timestamp
+            })
+            
+        session.execute(insert(AuditLog).values(audit_dicts))
 def check_tenant_limit(session: Session, limit_type: str):
     # This must be called inside the endpoint, it reads current_tenant_id
     t_id = current_tenant_id.get()
