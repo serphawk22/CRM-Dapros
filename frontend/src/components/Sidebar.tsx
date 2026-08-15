@@ -118,7 +118,7 @@ const defaultSidebarSections = [
     items: [
       { id: "item-automations", name: "Automations", icon: "Zap", href: "/admin/automations", roles: ["Admin", "SalesManager"] },
       { id: "item-import", name: "Import Data", icon: "FileBarChart2", href: "/import", roles: ["Admin", "SalesManager"] },
-      { id: "item-superadmin", name: "SuperAdmin Telemetry", icon: "ActivitySquare", href: "/superadmin", roles: ["Admin"] },
+      { id: "item-telemetry", name: "Telemetry & Audit", icon: "ActivitySquare", href: "/admin/telemetry", roles: ["Admin"] },
     ],
   },
 ];
@@ -480,7 +480,7 @@ export function Sidebar({ role }: SidebarProps) {
         </AnimatePresence>
 
         {/* ── MAIN NAVIGATION ── */}
-        <nav className={cn("flex-1 overflow-hidden flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")}>
+        <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")}>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {sections.map((section) => (

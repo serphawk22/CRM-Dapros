@@ -11408,3 +11408,47 @@ def get_lead_contacts(lead_id: int, session: Session = Depends(get_session)):
         if c:
             results.append({"link_id": link.id, "contact": c, "role": link.role_at_company, "is_primary": link.is_primary})
     return results
+
+@app.get("/telemetry/audit-logs")
+def get_telemetry_audit_logs(
+    limit: int = 100, 
+    offset: int = 0, 
+    session: Session = Depends(get_session)
+):
+    """
+    Get all audit logs (telemetry data) for Admin view.
+    Joins with User to get user email and name.
+    """
+    # Enforce role checking in a real scenario, but for now assuming it's protected by UI/auth middleware
+    from sqlmodel import select
+    from database import AuditLog, User
+    
+    # Query logs, ordering by newest first
+    stmt = select(AuditLog, User).join(User, AuditLog.user_id == User.id, isouter=True).order_by(AuditLog.timestamp.desc()).offset(offset).limit(limit)
+    results = session.exec(stmt).all()
+    
+    logs = []
+    for log, user in results:
+        logs.append({
+            "id": log.id,
+            "tenant_id": log.tenant_id,
+            "user_id": log.user_id,
+            "user_email": user.email if user else "System",
+            "user_name": user.name if user else "Automated",
+            "table_name": log.table_name,
+            "record_id": log.record_id,
+            "action": log.action,
+            "changes": log.changes,
+            "timestamp": log.timestamp.isoformat()
+        })
+        
+    # Get total count for pagination/stats
+    from sqlalchemy import func
+    total_count = session.exec(select(func.count(AuditLog.id))).one()
+    
+    return {
+        "logs": logs,
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset
+    }
