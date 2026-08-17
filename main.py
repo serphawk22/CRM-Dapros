@@ -2089,15 +2089,20 @@ def create_client(body: ClientCreateRequest, session: Session = Depends(get_sess
     if body.email:
         user = session.exec(select(User).where(User.email == body.email)).first()
         if not user:
-            user = User(
-                email=body.email,
-                password=_hash_password(body.password or "changeme"),
-                name=body.name or body.companyName or "Client",
-                role="Client",
-            )
-            session.add(user)
-            session.commit()
-            session.refresh(user)
+            try:
+                user = User(
+                    email=body.email,
+                    password=_hash_password(body.password or "changeme"),
+                    name=body.name or body.companyName or "Client",
+                    role="Client",
+                )
+                session.add(user)
+                session.commit()
+                session.refresh(user)
+            except Exception:
+                # Email already exists (race condition) — roll back and fetch existing user
+                session.rollback()
+                user = session.exec(select(User).where(User.email == body.email)).first()
 
     cp = ClientProfile(
         userId=user.id if user else None,
