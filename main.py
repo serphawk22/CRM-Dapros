@@ -146,8 +146,13 @@ def _add_tenant_filter(execute_state):
     if execute_state.execution_options.get("skip_tenant"):
         return
         
-    # Global tables that don't have tenant_id
-    global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
+    # Global tables that don't have tenant_id, or where we must never add a tenant filter
+    global_tables = [
+        "tenants", "client_statuses", "marketplace_services", "service_catalog",
+        "audit_logs",      # telemetry must always be cross-tenant for admin view
+        "users",           # users table is queried cross-tenant (e.g. login, notifications)
+        "notifications",   # user-scoped not tenant-scoped
+    ]
     
     if execute_state.is_select or execute_state.is_update or execute_state.is_delete:
         # We need to add a filter to the statement if it hits a table with tenant_id
@@ -170,7 +175,10 @@ def _auto_assign_tenant_id(session, flush_context, instances):
     if tenant_id is None:
         return
         
-    global_tables = ["tenants", "client_statuses", "marketplace_services", "service_catalog"]
+    global_tables = [
+        "tenants", "client_statuses", "marketplace_services", "service_catalog",
+        "audit_logs", "users", "notifications",
+    ]
     
     for obj in session.new:
         if hasattr(obj, "tenant_id") and getattr(obj, "tenant_id") is None:
