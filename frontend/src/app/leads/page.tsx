@@ -6,6 +6,7 @@ import { Search, Plus, Filter, MoreVertical, Building2, Globe, Mail, Phone, Uplo
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ViewSwitcher, ViewType } from "@/components/ViewSwitcher";
+import DemoLimits from "@/components/DemoLimits";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface Lead {
@@ -243,6 +244,11 @@ export default function LeadsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Demo Limits Banner */}
+      <div className="px-6 pt-4">
+        <DemoLimits type="clients" />
       </div>
 
       {/* Toolbar */}

@@ -55,7 +55,7 @@ const defaultSidebarSections = [
     id: "section-home",
     heading: null,
     items: [
-      { id: "item-dashboard", name: "Dashboard", icon: "LayoutDashboard", href: "/", roles: ["Admin", "Employee", "Client", "Intern", "SalesManager"] },
+      { id: "item-dashboard", name: "Dashboard", icon: "LayoutDashboard", href: "/", roles: ["Admin", "Employee", "Client", "Intern", "SalesManager", "Demo"] },
       { id: "item-work-queue", name: "My Work Queue", icon: "LayoutList", href: "/work-queue", roles: ["Admin"] },
     ],
   },
@@ -63,16 +63,16 @@ const defaultSidebarSections = [
     id: "section-crm",
     heading: "CRM",
     items: [
-      { id: "item-leads", name: "Leads", icon: "Radar", href: "/leads", roles: ["Admin", "SalesManager"] },
+      { id: "item-leads", name: "Leads", icon: "Radar", href: "/leads", roles: ["Admin", "SalesManager", "Demo"] },
       { id: "item-contacts", name: "Contacts", icon: "Users", href: "/contacts", roles: ["Admin", "SalesManager"] },
-      { id: "item-clients", name: "Clients", icon: "CheckCircle", href: "/clients", roles: ["Admin", "SalesManager"] },
+      { id: "item-clients", name: "Clients", icon: "CheckCircle", href: "/clients", roles: ["Admin", "SalesManager", "Demo"] },
     ],
   },
   {
     id: "section-projects",
     heading: "PROJECTS & ACTIVITIES",
     items: [
-      { id: "item-projects", name: "Projects", icon: "FolderOpen", href: "/projects", roles: ["Admin", "Employee", "Intern"] },
+      { id: "item-projects", name: "Projects", icon: "FolderOpen", href: "/projects", roles: ["Admin", "Employee", "Intern", "Demo"] },
       { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "SalesManager"] },
       { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "SalesManager"] },
     ],
@@ -89,7 +89,7 @@ const defaultSidebarSections = [
     id: "section-ai-agents",
     heading: "AI AGENTS",
     items: [
-      { id: "item-email-agent", name: "Email Agent", icon: "Mail", href: "/email-agent", roles: ["Admin"] },
+      { id: "item-email-agent", name: "Email Agent", icon: "Mail", href: "/email-agent", roles: ["Admin", "Demo"] },
     ],
   },
   {
@@ -118,7 +118,7 @@ const defaultSidebarSections = [
     items: [
       { id: "item-automations", name: "Automations", icon: "Zap", href: "/admin/automations", roles: ["Admin", "SalesManager"] },
       { id: "item-import", name: "Import Data", icon: "FileBarChart2", href: "/import", roles: ["Admin", "SalesManager"] },
-      { id: "item-telemetry", name: "Telemetry & Audit", icon: "ActivitySquare", href: "/admin/telemetry", roles: ["Admin"] },
+      { id: "item-telemetry", name: "Telemetry & Audit", icon: "ActivitySquare", href: "/admin/telemetry", roles: ["Admin", "SuperAdmin"] },
     ],
   },
 ];

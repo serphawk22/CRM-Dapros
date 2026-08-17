@@ -621,8 +621,24 @@ function SystemLogsTab() {
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function TelemetryDashboard() {
+  const { user } = useRole();
   const [activeTab, setActiveTab] = useState<"system" | "demo">("system");
   const [selectedDemoAccount, setSelectedDemoAccount] = useState<DemoAccount | null>(null);
+
+  // Block Demo users
+  if (user?.role === "Demo") {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 flex items-center justify-center p-6">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <Activity className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-xl font-black text-slate-800 dark:text-zinc-100 mb-2">Access Restricted</h2>
+          <p className="text-slate-500 dark:text-zinc-400 text-sm">The Telemetry & Audit dashboard is only available to Admin accounts.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 p-4 md:p-6 space-y-6">
