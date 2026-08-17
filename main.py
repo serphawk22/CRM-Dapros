@@ -397,6 +397,19 @@ def on_startup():
     except Exception as e:
         print("Migration error for projects:", e)
 
+    # Auto-migrate tenant limits
+    tenant_migrations = [
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS limit_projects INTEGER DEFAULT 5;",
+        "ALTER TABLE tenants ADD COLUMN IF NOT EXISTS usage_projects INTEGER DEFAULT 0;"
+    ]
+    for sql in tenant_migrations:
+        try:
+            with engine.connect() as conn:
+                conn.execute(text(sql))
+                conn.commit()
+        except Exception as e:
+            pass
+
     # Auto-migrate proposals new columns
     proposal_migrations = [
         "ALTER TABLE proposals ADD COLUMN IF NOT EXISTS lead_id INTEGER REFERENCES leads(id) ON DELETE SET NULL;",
