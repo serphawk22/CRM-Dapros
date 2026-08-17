@@ -390,7 +390,7 @@ export default function SignupPage() {
                     </>
                   )}
                 </span>
-              </button>
+              </motion.button>
 
               <Link href="/login" className="flex-1">
                 <motion.button
