@@ -11583,120 +11583,56 @@ def request_demo_upgrade(session: Session = Depends(get_session)):
 
 @app.get("/telemetry/demo-account/{user_id}")
 def get_demo_account_detail(user_id: int, session: Session = Depends(get_session)):
-    """
-    Return a rich summary of everything a Demo user has done:
-    clients, leads, radar analyses, emails, projects, and limits.
-    """
-    from database import (
-        User, Tenant, ClientProfile, Lead, RadarAnalysis,
-        SentEmail, AuditLog
-    )
+    """Return full summary of a Demo user's activity."""
+    from database import (User, Tenant, ClientProfile, Lead, RadarAnalysis, SentEmail, Contact)
     from sqlmodel import select
 
     user = session.get(User, user_id)
     if not user or user.role != "Demo":
         raise HTTPException(status_code=404, detail="Demo account not found")
 
-    tenant_id = user.tenant_id
+    tid = user.tenant_id
 
-    # Clients
-    clients = []
-    if tenant_id:
-        raw_clients = session.exec(
-            select(ClientProfile)
-            .where(ClientProfile.tenant_id == tenant_id)
-            .order_by(ClientProfile.createdAt.desc())
-        ).all()
-        clients = [
-            {
-                "id": c.id,
-                "company": c.companyName or c.projectName or "—",
-                "website": c.websiteUrl or "—",
-                "status": c.status or "—",
-                "created_at": c.createdAt.isoformat() if c.createdAt else None
-            } for c in raw_clients
-        ]
+    def q(model, order_col):
+        if not tid: return []
+        return session.exec(select(model).where(getattr(model, "tenant_id") == tid).order_by(order_col.desc())).all()
 
-    # Leads
-    leads = []
-    if tenant_id:
-        raw_leads = session.exec(
-            select(Lead)
-            .where(Lead.tenant_id == tenant_id)
-            .order_by(Lead.createdAt.desc())
-        ).all()
-        leads = [
-            {
-                "id": l.id,
-                "name": l.name or "—",
-                "email": l.email or "—",
-                "company": l.company or "—",
-                "status": l.status or "—",
-                "created_at": l.createdAt.isoformat() if l.createdAt else None
-            } for l in raw_leads
-        ]
+    raw_clients = q(ClientProfile, ClientProfile.createdAt)
+    raw_leads   = q(Lead, Lead.createdAt)
+    raw_radar   = q(RadarAnalysis, RadarAnalysis.run_date)
+    raw_emails  = q(SentEmail, SentEmail.sent_at)
+    raw_contacts = q(Contact, Contact.id)
 
-    # Radar Analyses
-    radar = []
-    if tenant_id:
-        raw_radar = session.exec(
-            select(RadarAnalysis)
-            .where(RadarAnalysis.tenant_id == tenant_id)
-            .order_by(RadarAnalysis.run_date.desc())
-        ).all()
-        radar = [
-            {
-                "id": r.id,
-                "target_name": r.target_name or "—",
-                "target_website": r.target_website or "—",
-                "competitor_count": r.competitor_count or 0,
-                "radius_km": r.radius_km or 0,
-                "run_date": r.run_date.isoformat() if r.run_date else None
-            } for r in raw_radar
-        ]
-
-    # Email Agents
-    emails = []
-    if tenant_id:
-        raw_emails = session.exec(
-            select(SentEmail)
-            .where(SentEmail.tenant_id == tenant_id)
-            .order_by(SentEmail.sent_at.desc())
-        ).all()
-        emails = [
-            {
-                "id": e.id,
-                "to": e.to_email or "—",
-                "subject": e.subject or "—",
-                "status": e.status or "—",
-                "sent_at": e.sent_at.isoformat() if e.sent_at else None
-            } for e in raw_emails
-        ]
-
-    # Limits
     limits = None
-    if tenant_id:
-        tenant = session.get(Tenant, tenant_id)
+    if tid:
+        tenant = session.get(Tenant, tid)
         if tenant:
             limits = {
-                "clients": {"usage": tenant.usage_clients, "limit": tenant.limit_clients},
-                "emails": {"usage": tenant.usage_emails, "limit": tenant.limit_emails},
+                "clients":  {"usage": tenant.usage_clients,  "limit": tenant.limit_clients},
+                "emails":   {"usage": tenant.usage_emails,   "limit": tenant.limit_emails},
                 "searches": {"usage": tenant.usage_searches, "limit": tenant.limit_searches},
-                "projects": {"usage": tenant.usage_projects, "limit": tenant.limit_projects}
+                "projects": {"usage": tenant.usage_projects, "limit": tenant.limit_projects},
             }
 
     return {
         "success": True,
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "created_at": user.createdAt.isoformat() if user.createdAt else None,
-            "tenant_id": tenant_id
-        },
-        "clients": clients,
-        "leads": leads,
-        "radar": radar,
-        "emails": emails,
-        "limits": limits
+        "user": {"id": user.id, "name": user.name, "email": user.email,
+                 "created_at": user.createdAt.isoformat() if user.createdAt else None, "tenant_id": tid},
+        "clients":  [{"id": c.id, "company": c.companyName or c.projectName or "—",
+                       "website": c.websiteUrl or "—", "status": c.status or "—",
+                       "created_at": c.createdAt.isoformat() if c.createdAt else None} for c in raw_clients],
+        "leads":    [{"id": l.id, "name": l.name or "—", "email": l.email or "—",
+                       "company": l.company or "—", "status": l.status or "—",
+                       "created_at": l.createdAt.isoformat() if l.createdAt else None} for l in raw_leads],
+        "contacts": [{"id": c.id, "name": (c.full_name or f"{c.first_name} {c.last_name or ''}").strip() or "—",
+                       "email": c.email or "—", "designation": c.designation or "—",
+                       "created_at": None} for c in raw_contacts],
+        "radar":    [{"id": r.id, "target_name": r.target_name or "—",
+                       "target_website": r.target_website or "—",
+                       "competitor_count": r.competitor_count or 0, "radius_km": r.radius_km or 0,
+                       "run_date": r.run_date.isoformat() if r.run_date else None} for r in raw_radar],
+        "emails":   [{"id": e.id, "to": e.to_email or "—", "subject": e.subject or "—",
+                       "status": e.status or "—",
+                       "sent_at": e.sent_at.isoformat() if e.sent_at else None} for e in raw_emails],
+        "limits": limits,
     }
