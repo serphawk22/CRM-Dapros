@@ -270,10 +270,24 @@ export function Sidebar({ role }: SidebarProps) {
           const savedSectionIds = new Set(savedSections.map((s: any) => s.id));
           const missingSections = defaultSidebarSections.filter(s => !savedSectionIds.has(s.id));
           
+          // Deep merge: add any missing items into existing sections
+          const mergedSections = savedSections.map((savedSec: any) => {
+            const defaultSec = defaultSidebarSections.find(s => s.id === savedSec.id);
+            if (!defaultSec) return savedSec;
+            
+            const savedItemIds = new Set(savedSec.items.map((i: any) => i.id));
+            const missingItems = defaultSec.items.filter(i => !savedItemIds.has(i.id));
+            
+            if (missingItems.length > 0) {
+              return { ...savedSec, items: [...savedSec.items, ...missingItems] };
+            }
+            return savedSec;
+          });
+          
           if (missingSections.length > 0) {
-            setSections([...savedSections, ...missingSections]);
+            setSections([...mergedSections, ...missingSections]);
           } else {
-            setSections(savedSections);
+            setSections(mergedSections);
           }
         }
       }
