@@ -11413,18 +11413,21 @@ def get_lead_contacts(lead_id: int, session: Session = Depends(get_session)):
 def get_telemetry_audit_logs(
     limit: int = 100, 
     offset: int = 0, 
+    user_id: Optional[int] = None,
     session: Session = Depends(get_session)
 ):
     """
     Get all audit logs (telemetry data) for Admin view.
     Joins with User to get user email and name.
     """
-    # Enforce role checking in a real scenario, but for now assuming it's protected by UI/auth middleware
     from sqlmodel import select
     from database import AuditLog, User
     
-    # Query logs, ordering by newest first
-    stmt = select(AuditLog, User).join(User, AuditLog.user_id == User.id, isouter=True).order_by(AuditLog.timestamp.desc()).offset(offset).limit(limit)
+    stmt = select(AuditLog, User).join(User, AuditLog.user_id == User.id, isouter=True)
+    if user_id:
+        stmt = stmt.where(AuditLog.user_id == user_id)
+        
+    stmt = stmt.order_by(AuditLog.timestamp.desc()).offset(offset).limit(limit)
     results = session.exec(stmt).all()
     
     logs = []
@@ -11442,13 +11445,54 @@ def get_telemetry_audit_logs(
             "timestamp": log.timestamp.isoformat()
         })
         
-    # Get total count for pagination/stats
     from sqlalchemy import func
-    total_count = session.exec(select(func.count(AuditLog.id))).one()
+    count_stmt = select(func.count(AuditLog.id))
+    if user_id:
+        count_stmt = count_stmt.where(AuditLog.user_id == user_id)
+    total_count = session.exec(count_stmt).one()
     
     return {
         "logs": logs,
         "total_count": total_count,
         "limit": limit,
         "offset": offset
+    }
+
+@app.post("/demo/signup")
+def create_demo_account(body: CreateUserRequest, session: Session = Depends(get_session)):
+    existing = session.exec(select(User).where(User.email == body.email)).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already exists")
+    user = User(
+        email=body.email,
+        password=_hash_password(body.password),
+        name=body.name,
+        role="Demo",
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    
+    # Create an initial demo tenant if needed, or associate with a demo tenant
+    # For now just returning the user
+    return {"success": True, "user": _user_dict(user)}
+
+@app.get("/telemetry/demo-accounts")
+def get_demo_accounts(session: Session = Depends(get_session)):
+    """Fetch all demo accounts for the Telemetry Dashboard."""
+    from database import User
+    from sqlmodel import select
+    demo_users = session.exec(select(User).where(User.role == "Demo").order_by(User.createdAt.desc())).all()
+    
+    return {
+        "success": True,
+        "accounts": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "name": u.name,
+                "created_at": u.createdAt.isoformat() if u.createdAt else None,
+                "tenant_id": u.tenant_id
+            } for u in demo_users
+        ]
     }
