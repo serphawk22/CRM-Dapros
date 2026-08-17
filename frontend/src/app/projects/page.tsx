@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
 import PageGuide from '@/components/PageGuide';
+import DemoLimits from '@/components/DemoLimits';
 
 export default function ProjectsPage() {
   const { role, user } = useRole();
@@ -118,13 +119,18 @@ export default function ProjectsPage() {
           <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Project Dashboard</h1>
           <p className="text-gray-500 font-medium">Create, track, and manage all your team initiatives.</p>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-2xl font-bold text-sm hover:bg-black shadow-lg shadow-gray-900/20 transition-all active:scale-95"
-        >
-          <Plus className="w-4 h-4" /> New Project
-        </button>
+        {role === "Admin" || role === "SuperAdmin" ? (
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-3 rounded-2xl font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all active:scale-95"
+          >
+            <Plus className="w-5 h-5" />
+            New Project
+          </button>
+        ) : null}
       </div>
+
+      <DemoLimits type="projects" />
 
       <PageGuide
         pageKey="projects"

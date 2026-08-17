@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import CompetitorTable from "./components/CompetitorTable";
 import { API_BASE_URL } from "@/config";
+import DemoLimits from "@/components/DemoLimits";
 
 const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyAJbAEbE5egi9y-adJ5G804u_vL64We_nc";
 const RADIUS_OPTIONS = [1, 3, 5, 10, 25];
@@ -200,6 +201,8 @@ export default function RadarAnalysisPage() {
           <p className="text-sm text-slate-500 dark:text-slate-500 dark:text-zinc-400">Google Maps competitor intelligence &amp; geo-market analysis</p>
         </div>
       </div>
+
+      <DemoLimits type="searches" />
 
       {/* Search Form */}
       <div className="bg-white dark:bg-white dark:bg-zinc-900 border border-slate-200 dark:border-gray-300 dark:border-zinc-700 rounded-2xl p-6 shadow-sm">

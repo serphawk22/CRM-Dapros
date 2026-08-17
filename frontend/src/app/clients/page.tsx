@@ -42,6 +42,7 @@ import PageGuide from '@/components/PageGuide';
 import dynamic from 'next/dynamic';
 import { ContextMenu } from '@/components/ContextMenu';
 import { ViewSwitcher, ViewType } from '@/components/ViewSwitcher';
+import DemoLimits from '@/components/DemoLimits';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const ClientMapView = dynamic(() => import('./ClientMapView'), {
@@ -513,6 +514,11 @@ export default function ClientsPage() {
               <Plus className="w-4 h-4" /> {t("clients.add_client")}
             </button>
           </div>
+        </div>
+
+        {/* Demo Limits */}
+        <div className="mt-4">
+          <DemoLimits type="clients" />
         </div>
 
         {/* Stats Row */}

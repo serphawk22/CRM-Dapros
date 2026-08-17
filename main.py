@@ -289,6 +289,10 @@ def check_tenant_limit(session: Session, limit_type: str):
         if tenant.usage_searches >= tenant.limit_searches:
             raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only perform {tenant.limit_searches} AI searches.")
         tenant.usage_searches += 1
+    elif limit_type == "projects":
+        if tenant.usage_projects >= tenant.limit_projects:
+            raise HTTPException(status_code=403, detail=f"Trial limit reached. You can only add up to {tenant.limit_projects} websites.")
+        tenant.usage_projects += 1
         
     session.add(tenant)
     session.commit()
@@ -11463,18 +11467,30 @@ def create_demo_account(body: CreateUserRequest, session: Session = Depends(get_
     existing = session.exec(select(User).where(User.email == body.email)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
+        
+    tenant = Tenant(
+        name=f"Demo Tenant {body.email}",
+        is_trial=True,
+        limit_clients=15,
+        limit_emails=5,
+        limit_searches=5,
+        limit_projects=5
+    )
+    session.add(tenant)
+    session.commit()
+    session.refresh(tenant)
+
     user = User(
         email=body.email,
         password=_hash_password(body.password),
         name=body.name,
         role="Demo",
+        tenant_id=tenant.id
     )
     session.add(user)
     session.commit()
     session.refresh(user)
     
-    # Create an initial demo tenant if needed, or associate with a demo tenant
-    # For now just returning the user
     return {"success": True, "user": _user_dict(user)}
 
 @app.get("/telemetry/demo-accounts")
@@ -11496,3 +11512,45 @@ def get_demo_accounts(session: Session = Depends(get_session)):
             } for u in demo_users
         ]
     }
+
+@app.get("/demo/limits")
+def get_demo_limits(session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if not tenant_id:
+        return {"success": False, "message": "No tenant ID"}
+    
+    tenant = session.get(Tenant, tenant_id)
+    if not tenant:
+        return {"success": False, "message": "Tenant not found"}
+        
+    return {
+        "success": True,
+        "limits": {
+            "clients": {"usage": tenant.usage_clients, "limit": tenant.limit_clients},
+            "emails": {"usage": tenant.usage_emails, "limit": tenant.limit_emails},
+            "searches": {"usage": tenant.usage_searches, "limit": tenant.limit_searches},
+            "projects": {"usage": tenant.usage_projects, "limit": tenant.limit_projects}
+        }
+    }
+
+@app.post("/demo/upgrade")
+def request_demo_upgrade(session: Session = Depends(get_session)):
+    from modules.api_tracker import current_salesperson_id
+    user_id = current_salesperson_id.get()
+    if not user_id:
+        return {"success": False, "message": "No user ID"}
+    
+    user = session.get(User, user_id)
+    
+    admin_users = session.exec(select(User).where(User.role.in_(["SuperAdmin", "Admin"]))).all()
+    for admin in admin_users:
+        n = Notification(
+            user_id=admin.id,
+            title="Account Upgrade Request",
+            message=f"Demo account '{user.name}' ({user.email}) has reached their limits and clicked the Upgrade button!",
+            type="info"
+        )
+        session.add(n)
+        
+    session.commit()
+    return {"success": True, "message": "Upgrade request sent to admin."}

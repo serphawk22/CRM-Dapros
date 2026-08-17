@@ -55,11 +55,13 @@ class Tenant(SQLModel, table=True):
     # Limits and Usage
     limit_clients: int = Field(default=15)
     limit_emails: int = Field(default=5)
-    limit_searches: int = Field(default=2)
+    limit_searches: int = Field(default=5)
+    limit_projects: int = Field(default=5)
     
     usage_clients: int = Field(default=0)
     usage_emails: int = Field(default=0)
     usage_searches: int = Field(default=0)
+    usage_projects: int = Field(default=0)
 
 class ClientStatus(SQLModel, table=True):
     """

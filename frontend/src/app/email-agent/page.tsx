@@ -7,7 +7,9 @@ import {
   CheckCircle, Building2, Briefcase, Target, AtSign, FileText, Copy, Check,
   TrendingUp, Zap, Package, UserPlus, Phone, Store, DollarSign, MessageCircle
 } from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 import { API_BASE_URL } from "@/config";
+import DemoLimits from "@/components/DemoLimits";
 import PageGuide from "@/components/PageGuide";
 
 interface SentEmail {
@@ -1150,6 +1152,10 @@ export default function EmailAgentPage() {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="mb-4 mt-2">
+          <DemoLimits type="emails" />
         </div>
 
         {/* Results Section Down Below */}
