@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
+import { API_BASE_URL } from "@/config";
 import { Lock, Mail, Loader2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -67,7 +68,7 @@ export default function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      const res = await fetch("http://localhost:8000/demo/signup", {
+      const res = await fetch(`${API_BASE_URL}/demo/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password })
