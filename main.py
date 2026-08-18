@@ -11630,7 +11630,7 @@ def get_demo_account_detail(user_id: int, session: Session = Depends(get_session
         if not tid: return []
         return session.exec(select(model).where(getattr(model, "tenant_id") == tid).order_by(order_col.desc())).all()
 
-    raw_clients = q(ClientProfile, ClientProfile.createdAt)
+    raw_clients = q(ClientProfile, ClientProfile.id)
     raw_leads   = q(Lead, Lead.createdAt)
     raw_radar   = q(RadarAnalysis, RadarAnalysis.run_date)
     raw_emails  = q(SentEmail, SentEmail.sent_at)
