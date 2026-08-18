@@ -2114,6 +2114,7 @@ def create_client(body: ClientCreateRequest, session: Session = Depends(get_sess
                 user = session.exec(select(User).where(User.email == body.email)).first()
 
     cp = ClientProfile(
+        tenant_id=current_tenant_id.get(),
         userId=user.id if user else None,
         companyName=body.companyName,
         phone=body.phone,
@@ -3348,6 +3349,7 @@ def generate_outbound_draft(client_id: int, session: Session = Depends(get_sessi
         to_email = user.email if user else "unknown@example.com"
         
         draft = SentEmail(
+            tenant_id=current_tenant_id.get(),
             client_id=client_id,
             to_email=to_email,
             subject=data.get("subject", "Proposal"),
@@ -8133,6 +8135,7 @@ async def radar_analyze(body: RadarAnalyzeRequest, session: Session = Depends(ge
 
         # Store radar analysis to DB
         radar = RadarAnalysis(
+            tenant_id=current_tenant_id.get(),
             client_id=body.client_id,
             target_name=body.target_name,
             target_place_id=body.place_id if hasattr(body, 'place_id') else None,
@@ -8521,6 +8524,7 @@ def create_lead(body: LeadCreateRequest, session: Session = Depends(get_session)
             if current_count >= tenant.limit_clients:
                 raise HTTPException(status_code=403, detail=f"Lead limit reached. Maximum allowed: {tenant.limit_clients}")
     lead = Lead(**body.dict())
+    lead.tenant_id = current_tenant_id.get()
     session.add(lead)
     session.commit()
     session.refresh(lead)
