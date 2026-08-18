@@ -596,7 +596,7 @@ export default function AdminClientDetailPage() {
   if (loading || pageLoading) return <PageSkeleton />;
 
   // Auth guard
-  if (role && role !== 'Admin' && role !== 'Employee' && role !== 'SalesManager') {
+  if (role && role !== 'Admin' && role !== 'Employee' && role !== 'SalesManager' && role !== 'Demo') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-zinc-950 ">
         <div className="text-center">

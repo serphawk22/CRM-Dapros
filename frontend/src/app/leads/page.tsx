@@ -65,7 +65,7 @@ export default function LeadsPage() {
 
   // Protect route
   useEffect(() => {
-    if (role && role !== 'Admin' && role !== 'Employee' && role !== 'Intern' && role !== 'SalesManager') {
+    if (role && role !== 'Admin' && role !== 'Employee' && role !== 'Intern' && role !== 'SalesManager' && role !== 'Demo') {
       router.replace('/');
     }
   }, [role, router]);
