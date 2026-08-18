@@ -2288,8 +2288,10 @@ async def import_sheet(body: SheetImportRequest, background_tasks: BackgroundTas
                 skipped.append({"reason": f"limit reached (max {tenant.limit_clients})", "company": company})
                 continue
             current_count += 1
+            tenant.usage_clients += 1
 
         cp = ClientProfile(
+            tenant_id=tenant_id,
             companyName=company,
             phone=phone,
             status="Active",
