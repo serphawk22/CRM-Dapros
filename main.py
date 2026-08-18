@@ -60,7 +60,7 @@ import re
 from datetime import datetime, timedelta, date
 from typing import Any, Dict, List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Form, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, Query, Form, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import func, or_
