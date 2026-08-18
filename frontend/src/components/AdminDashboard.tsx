@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/config";
 import { useRole } from "@/context/RoleContext";
+import { ShieldAlert, LockKeyhole } from "lucide-react";
 
 // Data comes from adminStats from the backend
 const itemVariants = {
@@ -16,17 +17,32 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100 } }
 };
 
-export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
+export function AdminDashboard({ adminStats, NAV_CARDS, language, isDemo }: any) {
   const { role, user } = useRole();
   const [users, setUsers] = useState<any[]>([]);
   const [myClients, setMyClients] = useState<any[]>([]);
   const [myLeads, setMyLeads] = useState<any[]>([]);
+  const [upgradeRequested, setUpgradeRequested] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const email = user?.email || "";
+      const res = await fetch(`${API_BASE_URL}/demo/request-upgrade`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+      if (res.ok) setUpgradeRequested(true);
+    } catch (e) {}
+    setUpgrading(false);
+  };
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/users`).then(r => r.json()).then(d => setUsers(d.users || []));
-    if (role === 'SalesManager' || role === 'Employee' || role === 'Admin') {
+    if (role === 'SalesManager' || role === 'Employee' || role === 'Admin' || role === 'Demo') {
       fetch(`${API_BASE_URL}/clients`).then(r => r.json()).then(d => {
-        // filter clients assigned to me or if I'm admin
         const list = d.clients || [];
         setMyClients(list);
       });
@@ -38,10 +54,39 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
 
   const salesTeam = users.filter(u => ['Admin', 'SalesManager', 'Employee'].includes(u.role));
   const devTeam = users.filter(u => ['ProjectMember', 'Intern'].includes(u.role));
-  const isSales = role === 'SalesManager' || role === 'Employee' || role === 'Admin';
+  const isSales = role === 'SalesManager' || role === 'Employee' || role === 'Admin' || role === 'Demo';
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto w-full">
+      {/* DEMO BANNER */}
+      {isDemo && (
+        <motion.div variants={itemVariants} className="bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-rose-500/20 border border-amber-500/30 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-500/20 rounded-lg">
+              <ShieldAlert className="w-6 h-6 text-amber-600 dark:text-amber-500" />
+            </div>
+            <div>
+              <h3 className="font-bold text-amber-800 dark:text-amber-500 text-sm tracking-wide uppercase">Demo Account — Sandbox</h3>
+              <p className="text-sm font-medium text-amber-700/80 dark:text-amber-500/80">You have limited access. Some features are restricted. Data may be cleared periodically.</p>
+            </div>
+          </div>
+          {!upgradeRequested ? (
+            <button
+              onClick={handleUpgrade}
+              disabled={upgrading}
+              className="shrink-0 px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold rounded-xl shadow-lg transition-all text-sm flex items-center gap-2"
+            >
+              {upgrading ? "Sending..." : "Request Full Access"}
+              {!upgrading && <LockKeyhole className="w-4 h-4" />}
+            </button>
+          ) : (
+            <div className="shrink-0 px-6 py-2.5 bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold rounded-xl text-sm">
+              ✓ Upgrade request sent to admin!
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* HEADER SECTION */}
       <motion.div variants={itemVariants} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
         <div>
@@ -99,9 +144,9 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
         </div>
       </motion.div>
 
-      {/* FINANCIAL & PIPELINE CHARTS */}
+      {/* FINANCIAL & PIPELINE CHARTS — hidden for Demo */}
+      {!isDemo && (
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* REVENUE CHART */}
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-sm overflow-hidden flex flex-col h-[400px]">
           <div className="p-5 border-b border-[var(--border)] flex justify-between items-center bg-[var(--sidebar-hover)]/30">
@@ -177,8 +222,10 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
           </div>
         </div>
       </motion.div>
+      )}
 
-      {/* TEAM ENGAGEMENT & ACTIVITY */}
+      {/* TEAM ENGAGEMENT & ACTIVITY — hidden for Demo */}
+      {!isDemo && (
       <motion.div variants={itemVariants} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* ENGAGEMENT CHART (Takes 2 columns) */}
@@ -256,6 +303,7 @@ export function AdminDashboard({ adminStats, NAV_CARDS, language }: any) {
           </div>
         </div>
       </motion.div>
+      )}
     </div>
   );
 }

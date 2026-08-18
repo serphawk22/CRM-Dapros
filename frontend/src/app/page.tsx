@@ -233,8 +233,8 @@ function Dashboard() {
     );
   }
 
-  const adminStats = isAdmin ? (stats as AdminStats) : null;
-  const clientStats = !isAdmin ? (stats as ClientStats) : null;
+  const adminStats = (isAdmin || role === "Demo") ? (stats as AdminStats) : null;
+  const clientStats = (!isAdmin && role !== "Demo") ? (stats as ClientStats) : null;
   const visibleNavCards = NAV_CARDS.filter(c => c.roles.includes(role));
 
   if (role === "Supplier") {
@@ -245,14 +245,11 @@ function Dashboard() {
   }
 
   return (
-    <motion.div initial="hidden" animate="show" variants={containerVariants} className={cn(isAdmin || role === 'ProjectMember' ? "space-y-6" : "")}>
+    <motion.div initial="hidden" animate="show" variants={containerVariants} className={cn(isAdmin || role === 'ProjectMember' || role === 'Demo' ? "space-y-6" : "")}>
       {role === "ProjectMember" && <DeveloperDashboard />}
       {role === "SalesManager" && <SalesManagerDashboard />}
       {isAdmin && adminStats && <AdminDashboard adminStats={adminStats} NAV_CARDS={NAV_CARDS} language={language} />}
-      {/* ── CLIENT VIEW — EDITORIAL CHAPTERS ────────────────────────── */}
-      {role === "Demo" && (
-        <DemoDashboard demoStats={stats} NAV_CARDS={visibleNavCards} language={language} />
-      )}
+      {role === "Demo" && <AdminDashboard adminStats={adminStats} NAV_CARDS={visibleNavCards} language={language} isDemo={true} />}
       {!isAdmin && role !== "Demo" && role !== "ProjectMember" && role !== "SalesManager" && role !== "Supplier" && (
         <ClientDashboard clientStats={clientStats} NAV_CARDS={visibleNavCards} language={language} />
       )}
