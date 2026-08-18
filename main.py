@@ -11566,9 +11566,21 @@ def create_demo_account(body: CreateUserRequest, session: Session = Depends(get_
 def diagnostic(session: Session = Depends(get_session)):
     clients = session.exec(select(ClientProfile).order_by(ClientProfile.id.desc()).limit(5)).all()
     leads = session.exec(select(Lead).order_by(Lead.id.desc()).limit(5)).all()
+    
+    # Test the EXACT telemetry query for tenant 10
+    tid = 10
+    def q(model, order_col):
+        if not tid: return []
+        return session.exec(select(model).where(getattr(model, "tenant_id") == tid).order_by(order_col.desc())).all()
+        
+    test_clients = q(ClientProfile, ClientProfile.id)
+    test_leads = q(Lead, Lead.created_at)
+    
     return {
-        "clients": [{"id": c.id, "tenant_id": c.tenant_id, "name": c.companyName} for c in clients],
-        "leads": [{"id": l.id, "tenant_id": l.tenant_id, "name": l.company_name} for l in leads]
+        "recent_clients": [{"id": c.id, "tenant_id": c.tenant_id, "name": c.companyName} for c in clients],
+        "test_query_clients_count": len(test_clients),
+        "test_query_clients": [{"id": c.id, "name": c.companyName} for c in test_clients],
+        "test_query_leads_count": len(test_leads)
     }
 
 @app.get("/telemetry/demo-accounts")
