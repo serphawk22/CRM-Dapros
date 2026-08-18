@@ -11562,6 +11562,15 @@ def create_demo_account(body: CreateUserRequest, session: Session = Depends(get_
     
     return {"success": True, "user": _user_dict(user)}
 
+@app.get("/dev/diagnostic")
+def diagnostic(session: Session = Depends(get_session)):
+    clients = session.exec(select(ClientProfile).order_by(ClientProfile.id.desc()).limit(5)).all()
+    leads = session.exec(select(Lead).order_by(Lead.id.desc()).limit(5)).all()
+    return {
+        "clients": [{"id": c.id, "tenant_id": c.tenant_id, "name": c.companyName} for c in clients],
+        "leads": [{"id": l.id, "tenant_id": l.tenant_id, "name": l.company_name} for l in leads]
+    }
+
 @app.get("/telemetry/demo-accounts")
 def get_demo_accounts(session: Session = Depends(get_session)):
     """Fetch all demo accounts for the Telemetry Dashboard."""
