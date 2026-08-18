@@ -627,11 +627,12 @@ class SmartResearchRequest(BaseModel):
     owner_name: Optional[str] = "Varshith"
 
 @app.post("/smart-research")
-async def smart_research(body: SmartResearchRequest):
+async def smart_research(body: SmartResearchRequest, session: Session = Depends(get_session)):
     """
     Takes a company name (and optional URL) and forwards the request to the N8N webhook.
     Returns the exact JSON response from N8N.
     """
+    check_tenant_limit(session, "emails")
     import os
     import httpx
 
@@ -4693,25 +4694,29 @@ def dashboard_stats(
         if not user:
             return {"error": "User not found"}
         
-        created_clients = session.exec(select(func.count(ClientProfile.id)).where(ClientProfile.assignedEmployeeId == user.id)).first() or 0
-        created_leads = session.exec(select(func.count(Lead.id)).where(Lead.owner_id == user.id)).first() or 0
-        email_activities = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.userId == user.id, ActivityLog.action.like("%email%"))).first() or 0
-        radar_analyses = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.userId == user.id, ActivityLog.action.like("%radar%"))).first() or 0
+        # Read usage from tenant record (the authoritative source)
+        tenant = session.get(Tenant, user.tenant_id) if user.tenant_id else None
         
-        limits = {
-            "clients_leads": 15,
-            "email_agent": 5,
-            "radar": 5
-        }
+        if tenant:
+            return {
+                "isDemo": True,
+                "usage": {
+                    "clients_leads": tenant.usage_clients,
+                    "email_agent": tenant.usage_emails,
+                    "radar": tenant.usage_searches
+                },
+                "limits": {
+                    "clients_leads": tenant.limit_clients,
+                    "email_agent": tenant.limit_emails,
+                    "radar": tenant.limit_searches
+                }
+            }
         
+        # Fallback if no tenant
         return {
             "isDemo": True,
-            "usage": {
-                "clients_leads": created_clients + created_leads,
-                "email_agent": email_activities,
-                "radar": radar_analyses
-            },
-            "limits": limits
+            "usage": {"clients_leads": 0, "email_agent": 0, "radar": 0},
+            "limits": {"clients_leads": 15, "email_agent": 5, "radar": 5}
         }
 
     if role in ["Client", "ProjectMember", "Intern"]:
@@ -8107,6 +8112,7 @@ async def radar_search(body: RadarSearchRequest):
 @app.post("/radar/analyze")
 async def radar_analyze(body: RadarAnalyzeRequest, session: Session = Depends(get_session)):
     """Run full competitor discovery around target business."""
+    check_tenant_limit(session, "searches")
     try:
         radius_m = body.radius_km * 1000
         competitors = await find_nearby_competitors(
