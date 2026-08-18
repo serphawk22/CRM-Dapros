@@ -19,6 +19,7 @@ import { AdminDashboard } from "@/components/AdminDashboard";
 import { DeveloperDashboard } from "@/components/DeveloperDashboard";
 import { SalesManagerDashboard } from "@/components/SalesManagerDashboard";
 import { ClientDashboard } from "@/components/ClientDashboard";
+import { DemoDashboard } from "@/components/DemoDashboard";
 import Link from "next/link";
 
 const containerVariants = {
@@ -249,7 +250,10 @@ function Dashboard() {
       {role === "SalesManager" && <SalesManagerDashboard />}
       {isAdmin && adminStats && <AdminDashboard adminStats={adminStats} NAV_CARDS={NAV_CARDS} language={language} />}
       {/* ── CLIENT VIEW — EDITORIAL CHAPTERS ────────────────────────── */}
-      {!isAdmin && role !== "ProjectMember" && role !== "SalesManager" && role !== "Supplier" && (
+      {role === "Demo" && (
+        <DemoDashboard demoStats={stats} NAV_CARDS={visibleNavCards} language={language} />
+      )}
+      {!isAdmin && role !== "Demo" && role !== "ProjectMember" && role !== "SalesManager" && role !== "Supplier" && (
         <ClientDashboard clientStats={clientStats} NAV_CARDS={visibleNavCards} language={language} />
       )}
 

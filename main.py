@@ -4687,6 +4687,33 @@ def dashboard_stats(
             "recent_activity": activities[:5]
         }
 
+
+    if role == "Demo":
+        user = session.exec(select(User).where(User.email == email)).first()
+        if not user:
+            return {"error": "User not found"}
+        
+        created_clients = session.exec(select(func.count(ClientProfile.id)).where(ClientProfile.assignedEmployeeId == user.id)).first() or 0
+        created_leads = session.exec(select(func.count(Lead.id)).where(Lead.owner_id == user.id)).first() or 0
+        email_activities = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.userId == user.id, ActivityLog.action.like("%email%"))).first() or 0
+        radar_analyses = session.exec(select(func.count(ActivityLog.id)).where(ActivityLog.userId == user.id, ActivityLog.action.like("%radar%"))).first() or 0
+        
+        limits = {
+            "clients_leads": 15,
+            "email_agent": 5,
+            "radar": 5
+        }
+        
+        return {
+            "isDemo": True,
+            "usage": {
+                "clients_leads": created_clients + created_leads,
+                "email_agent": email_activities,
+                "radar": radar_analyses
+            },
+            "limits": limits
+        }
+
     if role in ["Client", "ProjectMember", "Intern"]:
         user = session.exec(select(User).where(User.email == email)).first()
         if not user:
@@ -11636,3 +11663,27 @@ def get_demo_account_detail(user_id: int, session: Session = Depends(get_session
                        "sent_at": e.sent_at.isoformat() if e.sent_at else None} for e in raw_emails],
         "limits": limits,
     }
+
+
+@app.post("/demo/request-upgrade")
+def request_upgrade(
+    email: str = Body(embed=True),
+    session: Session = Depends(get_session)
+):
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    admin = session.exec(select(User).where(User.role == "Admin")).first()
+    if admin:
+        notification = Notification(
+            user_id=admin.id,
+            title="Demo Upgrade Request",
+            message=f"Demo user {user.name} ({user.email}) requested a full account upgrade.",
+            type="alert",
+            link="/users"
+        )
+        session.add(notification)
+        session.commit()
+    
+    return {"status": "success", "message": "Upgrade request sent to admin."}
