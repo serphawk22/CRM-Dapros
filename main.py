@@ -2058,6 +2058,7 @@ def list_clients(
     tenant_id = current_tenant_id.get()
     count_q = select(func.count()).select_from(ClientProfile)
     if tenant_id and tenant_id != 1:
+        q = q.where(ClientProfile.tenant_id == tenant_id)
         count_q = count_q.where(ClientProfile.tenant_id == tenant_id)
         
     if status and status != "All":
@@ -2075,7 +2076,7 @@ def list_clients(
         count_q = count_q.where(ClientProfile.assignedEmployeeId == assigned_employee_id)
 
     total = session.exec(count_q).one()
-    clients = session.exec(q.offset((page - 1) * per_page).limit(per_page)).all()
+    clients = session.exec(q.order_by(ClientProfile.id.desc()).offset((page - 1) * per_page).limit(per_page)).all()
     return {
         "clients": [_client_dict(c, session) for c in clients],
         "total": total,
@@ -8511,6 +8512,9 @@ def get_leads(owner_id: Optional[int] = None, session: Session = Depends(get_ses
     query = select(Lead)
     if owner_id is not None:
         query = query.where(Lead.owner_id == owner_id)
+    tenant_id = current_tenant_id.get()
+    if tenant_id and tenant_id != 1:
+        query = query.where(Lead.tenant_id == tenant_id)
     leads = session.exec(query.order_by(Lead.created_at.desc())).all()
     return {"leads": leads}
 
