@@ -11631,7 +11631,7 @@ def get_demo_account_detail(user_id: int, session: Session = Depends(get_session
         return session.exec(select(model).where(getattr(model, "tenant_id") == tid).order_by(order_col.desc())).all()
 
     raw_clients = q(ClientProfile, ClientProfile.id)
-    raw_leads   = q(Lead, Lead.createdAt)
+    raw_leads   = q(Lead, Lead.created_at)
     raw_radar   = q(RadarAnalysis, RadarAnalysis.run_date)
     raw_emails  = q(SentEmail, SentEmail.sent_at)
     raw_contacts = q(Contact, Contact.id)
@@ -11653,13 +11653,13 @@ def get_demo_account_detail(user_id: int, session: Session = Depends(get_session
                  "created_at": user.createdAt.isoformat() if user.createdAt else None, "tenant_id": tid},
         "clients":  [{"id": c.id, "company": c.companyName or c.projectName or "—",
                        "website": c.websiteUrl or "—", "status": c.status or "—",
-                       "created_at": c.createdAt.isoformat() if c.createdAt else None} for c in raw_clients],
-        "leads":    [{"id": l.id, "name": l.name or "—", "email": l.email or "—",
-                       "company": l.company or "—", "status": l.status or "—",
-                       "created_at": l.createdAt.isoformat() if l.createdAt else None} for l in raw_leads],
+                       "created_at": None} for c in raw_clients],
+        "leads":    [{"id": l.id, "name": l.company_name or "—", "email": l.email or "—",
+                       "company": l.company_name or "—", "status": l.status or "—",
+                       "created_at": l.created_at.isoformat() if l.created_at else None} for l in raw_leads],
         "contacts": [{"id": c.id, "name": (c.full_name or f"{c.first_name} {c.last_name or ''}").strip() or "—",
                        "email": c.email or "—", "designation": c.designation or "—",
-                       "created_at": None} for c in raw_contacts],
+                       "created_at": c.created_at.isoformat() if c.created_at else None} for c in raw_contacts],
         "radar":    [{"id": r.id, "target_name": r.target_name or "—",
                        "target_website": r.target_website or "—",
                        "competitor_count": r.competitor_count or 0, "radius_km": r.radius_km or 0,
