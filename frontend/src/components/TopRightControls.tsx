@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Settings, LogOut, User, Sun, Moon, ChevronDown } from "lucide-react";
 import { useRole, Role } from "@/context/RoleContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useLanguage } from "@/context/LanguageContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";

@@ -327,19 +327,25 @@ class APIIntelligenceMiddleware(BaseHTTPMiddleware):
             current_tenant_id.set(None)
 
 
-        # Try to infer user from JWT token if Authorization header exists
-        auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            try:
-                import jwt
-                from config import SECRET_KEY, ALGORITHM
-                payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-                user_id = payload.get("sub")
-                if user_id:
-                    current_salesperson_id.set(int(user_id))
-            except:
-                pass
+        # Try to infer user from X-User-ID header, query parameter, or JWT token
+        user_header = request.headers.get("X-User-ID")
+        if user_header and user_header.isdigit():
+            current_salesperson_id.set(int(user_header))
+        elif request.query_params.get("user_id") and request.query_params.get("user_id").isdigit():
+            current_salesperson_id.set(int(request.query_params.get("user_id")))
+        else:
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+                try:
+                    import jwt
+                    from config import SECRET_KEY, ALGORITHM
+                    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+                    user_id = payload.get("sub")
+                    if user_id:
+                        current_salesperson_id.set(int(user_id))
+                except:
+                    pass
         
         # Try to infer client_id from path parameters
         # Example paths: /clients/123/something or /projects/456 where we might need to lookup client
@@ -7455,26 +7461,25 @@ class SidebarPrefsRequest(BaseModel):
     sidebar_preferences: dict
 
 @app.get("/users/me/sidebar-preferences")
-async def get_sidebar_preferences(session: Session = Depends(get_session)):
-    # Fetch from current user (Assuming admin/salesperson via APIIntelligenceMiddleware)
+async def get_sidebar_preferences(user_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     from modules.api_tracker import current_salesperson_id
-    user_id = current_salesperson_id.get()
-    if not user_id:
+    uid = user_id or current_salesperson_id.get()
+    if not uid:
         return {"ok": False, "sidebar_preferences": {}}
     from database import User
-    user = session.get(User, user_id)
+    user = session.get(User, uid)
     if user and user.sidebar_preferences:
         return {"ok": True, "sidebar_preferences": user.sidebar_preferences}
     return {"ok": True, "sidebar_preferences": {}}
 
 @app.post("/users/me/sidebar-preferences")
-async def update_sidebar_preferences(req: SidebarPrefsRequest, session: Session = Depends(get_session)):
+async def update_sidebar_preferences(req: SidebarPrefsRequest, user_id: Optional[int] = Query(None), session: Session = Depends(get_session)):
     from modules.api_tracker import current_salesperson_id
-    user_id = current_salesperson_id.get()
-    if not user_id:
+    uid = user_id or current_salesperson_id.get()
+    if not uid:
         raise HTTPException(status_code=401, detail="Unauthorized")
     from database import User
-    user = session.get(User, user_id)
+    user = session.get(User, uid)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.sidebar_preferences = req.sidebar_preferences
@@ -8468,6 +8473,7 @@ class ContactCreateRequest(BaseModel):
     tags: Optional[List[str]] = []
     owner_id: Optional[int] = None
     create_new_lead: Optional[bool] = False
+    parent_contact_id: Optional[int] = None
 
 # ---- LEADS API ----
 @app.get("/leads")
@@ -8813,9 +8819,53 @@ def delete_account(account_id: int, session: Session = Depends(get_session)):
 
 # ---- CONTACTS API ----
 @app.get("/contacts")
-def get_contacts(session: Session = Depends(get_session)):
-    contacts = session.exec(select(Contact).order_by(Contact.created_at.desc())).all()
-    return {"contacts": contacts}
+def get_contacts(search: Optional[str] = Query(None), session: Session = Depends(get_session)):
+    query = select(Contact)
+    if search:
+        query = query.where(
+            or_(
+                Contact.full_name.ilike(f"%{search}%"),
+                Contact.email.ilike(f"%{search}%"),
+                Contact.first_name.ilike(f"%{search}%"),
+                Contact.last_name.ilike(f"%{search}%")
+            )
+        )
+    else:
+        query = query.where(Contact.parent_contact_id == None)
+        
+    query = query.order_by(Contact.created_at.desc())
+    contacts = session.exec(query).all()
+    
+    result = []
+    for c in contacts:
+        children_count = session.exec(select(func.count(Contact.id)).where(Contact.parent_contact_id == c.id)).one()
+        c_dict = c.dict()
+        c_dict["children_count"] = children_count
+        
+        if search:
+            path = []
+            curr = c
+            while curr.parent_contact_id:
+                parent = session.get(Contact, curr.parent_contact_id)
+                if not parent: break
+                path.insert(0, parent.full_name or "Unknown")
+                curr = parent
+            c_dict["hierarchy_path"] = " → ".join(path) if path else ""
+            
+        result.append(c_dict)
+        
+    return {"contacts": result}
+
+@app.get("/contacts/{contact_id}/children")
+def get_contact_children(contact_id: int, session: Session = Depends(get_session)):
+    children = session.exec(select(Contact).where(Contact.parent_contact_id == contact_id).order_by(Contact.created_at.desc())).all()
+    result = []
+    for c in children:
+        c_count = session.exec(select(func.count(Contact.id)).where(Contact.parent_contact_id == c.id)).one()
+        c_dict = c.dict()
+        c_dict["children_count"] = c_count
+        result.append(c_dict)
+    return {"children": result}
 
 @app.post("/contacts")
 def create_contact(body: ContactCreateRequest, session: Session = Depends(get_session)):
@@ -8838,6 +8888,11 @@ def create_contact(body: ContactCreateRequest, session: Session = Depends(get_se
         session.flush()
         contact.lead_id = lead.id
 
+    if body.parent_contact_id:
+        parent = session.get(Contact, body.parent_contact_id)
+        if not parent:
+            raise HTTPException(status_code=400, detail="Invalid parent contact.")
+
     session.add(contact)
     session.commit()
     session.refresh(contact)
@@ -8855,6 +8910,20 @@ def update_contact(contact_id: int, body: ContactCreateRequest, session: Session
     contact = session.get(Contact, contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
+        
+    # Check for circular hierarchy if parent_contact_id is changing
+    if body.parent_contact_id is not None and body.parent_contact_id != contact.parent_contact_id:
+        if body.parent_contact_id == contact.id:
+            raise HTTPException(status_code=400, detail="A contact cannot be its own parent.")
+        curr_parent_id = body.parent_contact_id
+        while curr_parent_id:
+            if curr_parent_id == contact.id:
+                raise HTTPException(status_code=400, detail="Circular hierarchy detected. Cannot move contact under its own descendant.")
+            parent_contact = session.get(Contact, curr_parent_id)
+            if not parent_contact:
+                raise HTTPException(status_code=400, detail="Invalid parent contact.")
+            curr_parent_id = parent_contact.parent_contact_id
+            
     for key, value in body.dict().items():
         setattr(contact, key, value)
     
@@ -8867,13 +8936,32 @@ def update_contact(contact_id: int, body: ContactCreateRequest, session: Session
     return contact
 
 @app.delete("/contacts/{contact_id}")
-def delete_contact(contact_id: int, session: Session = Depends(get_session)):
+def delete_contact(contact_id: int, action: Optional[str] = Query("cascade"), session: Session = Depends(get_session)):
     contact = session.get(Contact, contact_id)
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
-    session.delete(contact)
+        
+    children = session.exec(select(Contact).where(Contact.parent_contact_id == contact.id)).all()
+    
+    if action == "move_to_parent":
+        for child in children:
+            child.parent_contact_id = contact.parent_contact_id
+            session.add(child)
+        session.delete(contact)
+    else: # cascade
+        def delete_recursively(c_id):
+            sub_children = session.exec(select(Contact).where(Contact.parent_contact_id == c_id)).all()
+            for child in sub_children:
+                delete_recursively(child.id)
+            c = session.get(Contact, c_id)
+            if c: session.delete(c)
+        for child in children:
+            delete_recursively(child.id)
+        session.delete(contact)
+        
     session.commit()
     return {"ok": True}
+
 
 
 # ---- IMPORT SYSTEM ----

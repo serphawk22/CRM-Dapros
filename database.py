@@ -1059,6 +1059,7 @@ class Contact(SQLModel, table=True):
     notes: Optional[str] = Field(default=None, sa_column=Column(Text))
     tags: Optional[List[str]] = Field(default_factory=list, sa_column=Column(JSON))
     owner_id: Optional[int] = Field(default=None, foreign_key="users.id")
+    parent_contact_id: Optional[int] = Field(default=None, foreign_key="contacts.id")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     lead: Optional[Lead] = Relationship(back_populates="contacts")

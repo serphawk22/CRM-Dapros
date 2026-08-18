@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type Language = "en" | "es" | "de" | "fr" | "it";
+export type Language = "en" | "es";
 
 interface LanguageContextType {
   language: Language;
-  setLanguage: (lang: Language) => void;
+  activeLang?: Language;
+  setLanguage: (lang: Language | string) => void;
   t: (key: string) => string;
 }
 
@@ -15,16 +16,10 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 // Import translations
 import en from "@/translations/en.json";
 import es from "@/translations/es.json";
-import de from "@/translations/de.json";
-import fr from "@/translations/fr.json";
-import it from "@/translations/it.json";
 
 const translations = {
   en,
   es,
-  de,
-  fr,
-  it,
 };
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
@@ -34,16 +29,17 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Load saved language preference from localStorage
     const savedLanguage = localStorage.getItem("language") || localStorage.getItem("crm-language") as Language | null;
-    if (savedLanguage && ["en", "es", "de", "fr", "it"].includes(savedLanguage)) {
+    if (savedLanguage && ["en", "es"].includes(savedLanguage)) {
       setLanguageState(savedLanguage as Language);
     }
     setMounted(true);
   }, []);
 
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem("language", lang);
-    localStorage.setItem("crm-language", lang); // Keep both in sync
+  const setLanguage = (lang: Language | string) => {
+    const validLang = ["en", "es"].includes(lang) ? (lang as Language) : "en";
+    setLanguageState(validLang);
+    localStorage.setItem("language", validLang);
+    localStorage.setItem("crm-language", validLang); // Keep both in sync
   };
 
   const t = (key: string): string => {
@@ -66,7 +62,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, activeLang: language, setLanguage, t }}>
       {children}
     </LanguageContext.Provider>
   );

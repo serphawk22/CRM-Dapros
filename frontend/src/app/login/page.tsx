@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
 import { Lock, Mail, Loader2, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import LanguageSelector from "@/components/LanguageSelector";
 
 const FEATURES = [
   { icon: "🚀", title: "Growth Engine", desc: "Radar analysis & AI-powered outreach" },
@@ -201,6 +202,11 @@ export default function LoginPage() {
         className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 relative"
         style={{ background: "#ffffff" }}
       >
+        {/* Language selector in top right */}
+        <div className="absolute top-5 right-6 z-20">
+          <LanguageSelector />
+        </div>
+
         {/* Mobile logo (shows only on small screens) */}
         <div className="lg:hidden mb-8 flex flex-col items-center gap-3">
           <div
