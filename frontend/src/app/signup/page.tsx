@@ -1,13 +1,143 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
 import { API_BASE_URL } from "@/config";
-import { Lock, Mail, Loader2, Eye, EyeOff, ArrowRight } from "lucide-react";
+import { Lock, Mail, Loader2, Eye, EyeOff, ArrowRight, Globe, ChevronDown, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
+import "@/i18n/config";
+
+
+// ── Language options shown on the Sign Up page: English + Spanish ONLY ──────
+const SIGNUP_LANGUAGES = [
+  { code: "en", nativeName: "English", name: "English", flag: "🇺🇸" },
+  { code: "es", nativeName: "Español", name: "Spanish", flag: "🇪🇸" },
+] as const;
+
+function SignupLanguageSwitcher() {
+  const { i18n } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const currentCode = SIGNUP_LANGUAGES.find((l) => l.code === i18n.language)
+    ? i18n.language
+    : "en";
+
+  // Close on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const changeLanguage = (code: string) => {
+    setIsOpen(false);
+    i18n.changeLanguage(code);
+    localStorage.setItem("crm-language", code);
+    localStorage.setItem("language", code);
+
+    if (code === "en") {
+      sessionStorage.setItem("crm_gt_restore_en", "1");
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname}`;
+      document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${window.location.hostname}`;
+      window.location.reload();
+    } else {
+      document.cookie = `googtrans=/en/${code}; path=/;`;
+      document.cookie = `googtrans=/en/${code}; path=/; domain=${window.location.hostname}`;
+      document.cookie = `googtrans=/en/${code}; path=/; domain=.${window.location.hostname}`;
+      document.documentElement.classList.remove("notranslate");
+      document.documentElement.removeAttribute("translate");
+      const tryTrigger = (attempts = 0) => {
+        const sel = document.querySelector<HTMLSelectElement>(".goog-te-combo");
+        if (sel) { sel.value = code; sel.dispatchEvent(new Event("change")); }
+        else if (attempts < 25) setTimeout(() => tryTrigger(attempts + 1), 100);
+      };
+      tryTrigger();
+    }
+  };
+
+  const current = SIGNUP_LANGUAGES.find((l) => l.code === currentCode) ?? SIGNUP_LANGUAGES[0];
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setIsOpen((v) => !v)}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all border text-sm font-semibold ${
+          isOpen
+            ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+            : "hover:bg-slate-50 border-transparent text-slate-600 hover:border-slate-200"
+        }`}
+      >
+        <Globe className="w-4 h-4 text-slate-400" />
+        <span className="hidden sm:block">Language</span>
+        <div className="flex items-center gap-1.5 ml-1">
+          <span className="text-base leading-none">{current.flag}</span>
+          <span className="uppercase text-[10px] font-black tracking-wider text-slate-400">
+            {current.code}
+          </span>
+        </div>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+      </motion.button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Select Language
+              </p>
+            </div>
+            <div className="p-2 space-y-1">
+              {SIGNUP_LANGUAGES.map((lang) => {
+                const isActive = lang.code === currentCode;
+                return (
+                  <button
+                    key={lang.code}
+                    onClick={() => changeLanguage(lang.code)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all group text-left ${
+                      isActive
+                        ? "bg-indigo-50 text-indigo-700"
+                        : "hover:bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg leading-none">{lang.flag}</span>
+                      <div className="flex flex-col">
+                        <span className={`text-sm font-semibold leading-tight ${isActive ? "text-indigo-700" : "group-hover:text-indigo-600"}`}>
+                          {lang.nativeName}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">{lang.name}</span>
+                      </div>
+                    </div>
+                    {isActive && <Check className="w-4 h-4 text-indigo-600" />}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 const FEATURES = [
+
   { icon: "🚀", title: "Growth Engine", desc: "Radar analysis & AI-powered outreach" },
   { icon: "📊", title: "Smart Pipeline", desc: "Visual sales tracking in real-time" },
   { icon: "🤖", title: "AI Automations", desc: "Let AI handle repetitive workflows" },
@@ -213,6 +343,11 @@ export default function SignupPage() {
         className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 relative"
         style={{ background: "#ffffff" }}
       >
+        {/* Language selector in top right — English + Spanish only */}
+        <div className="absolute top-5 right-6 z-20">
+          <SignupLanguageSwitcher />
+        </div>
+
         {/* Mobile logo (shows only on small screens) */}
         <div className="lg:hidden mb-8 flex flex-col items-center gap-3">
           <div
