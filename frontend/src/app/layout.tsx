@@ -22,6 +22,7 @@ import SpaceAtmosphere from "@/components/SpaceAtmosphere";
 import TelemetryTracker from "@/components/TelemetryTracker";
 import Script from "next/script";
 import TopRightControls from "@/components/TopRightControls";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 function AdminMainContent({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar();
@@ -217,19 +218,21 @@ export default function RootLayout({
           src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
           strategy="afterInteractive"
         />
-        <ThemeProvider>
-          <I18nProvider>
-            <LanguageProvider>
-              <RoleProvider>
-                <TelemetryTracker />
-                <SpaceAtmosphere />
-                <AppContent>{children}</AppContent>
-                <OmniSearch />
-                <QuickAddFab />
-              </RoleProvider>
-            </LanguageProvider>
-          </I18nProvider>
-        </ThemeProvider>
+        <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID"}>
+          <ThemeProvider>
+            <I18nProvider>
+              <LanguageProvider>
+                <RoleProvider>
+                  <TelemetryTracker />
+                  <SpaceAtmosphere />
+                  <AppContent>{children}</AppContent>
+                  <OmniSearch />
+                  <QuickAddFab />
+                </RoleProvider>
+              </LanguageProvider>
+            </I18nProvider>
+          </ThemeProvider>
+        </GoogleOAuthProvider>
       </body>
     </html>
   );

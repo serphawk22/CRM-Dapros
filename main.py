@@ -1949,6 +1949,65 @@ def login(body: LoginRequest, session: Session = Depends(get_session)):
             result["client_id"] = cp.id
     return {"user": result}
 
+class GoogleAuthRequest(BaseModel):
+    access_token: str
+
+@app.post("/auth/google")
+def auth_google(body: GoogleAuthRequest, session: Session = Depends(get_session)):
+    import requests
+    resp = requests.get("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": f"Bearer {body.access_token}"})
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+    
+    user_info = resp.json()
+    email = user_info.get("email")
+    name = user_info.get("name")
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="No email found from Google")
+        
+    user = session.exec(select(User).where(User.email == email)).first()
+    is_new_user = False
+    
+    if not user:
+        is_new_user = True
+        tenant = Tenant(
+            name=f"Demo Tenant {email}",
+            is_trial=True,
+            limit_clients=15,
+            limit_emails=5,
+            limit_searches=5,
+            limit_projects=5
+        )
+        session.add(tenant)
+        session.commit()
+        session.refresh(tenant)
+
+        import os
+        user = User(
+            email=email,
+            password=_hash_password(os.urandom(16).hex()),
+            name=name,
+            role="Demo",
+            tenant_id=tenant.id
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    result = _user_dict(user)
+    result["tenant_id"] = user.tenant_id
+    if user.role == "Client":
+        cp = session.exec(select(ClientProfile).where(ClientProfile.userId == user.id)).first()
+        if cp:
+            result["client_id"] = cp.id
+
+    return {
+        "success": True,
+        "user": result,
+        "is_new_user": is_new_user
+    }
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Users
@@ -11564,24 +11623,45 @@ def create_demo_account(body: CreateUserRequest, session: Session = Depends(get_
 
 @app.get("/dev/diagnostic")
 def diagnostic(session: Session = Depends(get_session)):
-    clients = session.exec(select(ClientProfile).order_by(ClientProfile.id.desc()).limit(5)).all()
-    leads = session.exec(select(Lead).order_by(Lead.id.desc()).limit(5)).all()
-    
-    # Test the EXACT telemetry query for tenant 10
-    tid = 10
-    def q(model, order_col):
-        if not tid: return []
-        return session.exec(select(model).where(getattr(model, "tenant_id") == tid).order_by(order_col.desc())).all()
+    demo_users = session.exec(select(User).where(User.role == "Demo")).all()
+    results = {}
+    for user in demo_users:
+        tid = user.tenant_id
+        def q(model, order_col):
+            if not tid: return []
+            return session.exec(select(model).where(getattr(model, "tenant_id") == tid).order_by(order_col.desc())).all()
         
-    test_clients = q(ClientProfile, ClientProfile.id)
-    test_leads = q(Lead, Lead.created_at)
+        results[user.email] = {
+            "tenant_id": tid,
+            "clients_count": len(q(ClientProfile, ClientProfile.id)),
+            "leads_count": len(q(Lead, Lead.created_at)),
+            "usage_clients": session.get(Tenant, tid).usage_clients if tid and session.get(Tenant, tid) else 0
+        }
     
-    return {
-        "recent_clients": [{"id": c.id, "tenant_id": c.tenant_id, "name": c.companyName} for c in clients],
-        "test_query_clients_count": len(test_clients),
-        "test_query_clients": [{"id": c.id, "name": c.companyName} for c in test_clients],
-        "test_query_leads_count": len(test_leads)
-    }
+    return {"demo_payloads": results}
+
+class OnboardingRequest(BaseModel):
+    company: str
+    phone: Optional[str] = None
+
+@app.post("/onboarding")
+def complete_onboarding(body: OnboardingRequest, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    tenant = session.get(Tenant, tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+        
+    tenant.business_name = body.company
+    if body.phone:
+        tenant.phone = body.phone
+        
+    session.add(tenant)
+    session.commit()
+    
+    return {"success": True, "message": "Profile updated"}
 
 @app.get("/telemetry/demo-accounts")
 def get_demo_accounts(session: Session = Depends(get_session)):
