@@ -998,6 +998,23 @@ export default function ClientsPage() {
                           placeholder="https://docs.google.com/spreadsheets/d/.../pub?output=csv"
                           className="flex-1 px-4 py-3 bg-black/30 border border-white/10 rounded-xl text-white placeholder-slate-500 text-sm outline-none focus:border-slate-500 transition-all"
                         />
+                        <div className="relative flex items-center justify-center">
+                          <input 
+                            type="file" 
+                            accept=".csv,.xlsx,.xls,.pdf,.doc,.docx"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if (file) {
+                                  // Just a placeholder to show it accepted the file
+                                  setSheetUrl(`File selected: ${file.name}`);
+                               }
+                            }}
+                          />
+                          <button className="px-4 py-3 bg-slate-800 border border-white/10 rounded-xl text-white text-sm font-bold hover:bg-slate-700 transition-colors whitespace-nowrap">
+                            Upload File
+                          </button>
+                        </div>
                         <button
                           onClick={async () => {
                             if (!sheetUrl.trim()) return;

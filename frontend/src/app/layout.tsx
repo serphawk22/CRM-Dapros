@@ -199,25 +199,6 @@ export default function RootLayout({
             `,
           }}
         />
-        <div id="google_translate_element" style={{ display: "none" }} />
-        <Script
-          id="google-translate-init"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              function googleTranslateElementInit() {
-                new google.translate.TranslateElement(
-                  { pageLanguage: 'en', includedLanguages: 'es,fr,de,it', autoDisplay: false },
-                  'google_translate_element'
-                );
-              }
-            `,
-          }}
-        />
-        <Script
-          src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"
-          strategy="afterInteractive"
-        />
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID"}>
           <ThemeProvider>
             <I18nProvider>

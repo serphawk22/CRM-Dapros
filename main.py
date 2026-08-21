@@ -3628,6 +3628,7 @@ Provide a JSON response with exactly these keys:
         client_ai = get_openai_client()
         resp = client_ai.chat.completions.create(
             model="gpt-4o-mini",
+            temperature=0.0,
             messages=[
                 {"role": "system", "content": "You are an expert CRM sales analyst. Always respond with valid JSON only."},
                 {"role": "user", "content": prompt}
@@ -11804,3 +11805,38 @@ def request_upgrade(
         session.commit()
     
     return {"status": "success", "message": "Upgrade request sent to admin."}
+
+class EmailSettingsRequest(BaseModel):
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_pass: str
+    from_name: str
+    from_email: str
+
+@app.get("/settings/email")
+def get_email_settings(session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    settings = session.exec(select(EmailSettings).where(EmailSettings.tenant_id == tenant_id)).first()
+    return settings or {}
+
+@app.post("/settings/email")
+def save_email_settings(body: EmailSettingsRequest, session: Session = Depends(get_session)):
+    tenant_id = current_tenant_id.get()
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    settings = session.exec(select(EmailSettings).where(EmailSettings.tenant_id == tenant_id)).first()
+    if not settings:
+        settings = EmailSettings(tenant_id=tenant_id, **body.dict())
+        session.add(settings)
+    else:
+        for k, v in body.dict().items():
+            setattr(settings, k, v)
+        settings.updated_at = datetime.utcnow()
+        session.add(settings)
+    
+    session.commit()
+    return {"success": True}

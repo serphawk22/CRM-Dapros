@@ -63,6 +63,18 @@ class Tenant(SQLModel, table=True):
     usage_searches: int = Field(default=0)
     usage_projects: int = Field(default=0)
 
+class EmailSettings(SQLModel, table=True):
+    __tablename__ = "email_settings"
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tenant_id: int = Field(foreign_key="tenants.id", index=True, unique=True)
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_pass: str
+    from_name: str
+    from_email: str
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
 class ClientStatus(SQLModel, table=True):
     """
     Dynamic Status configuration for Clients

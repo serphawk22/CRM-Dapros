@@ -64,7 +64,7 @@ const defaultSidebarSections = [
     heading: "CRM",
     items: [
       { id: "item-leads", name: "Leads", icon: "Radar", href: "/leads", roles: ["Admin", "SalesManager", "Demo"] },
-      { id: "item-contacts", name: "Contacts", icon: "Users", href: "/contacts", roles: ["Admin", "SalesManager"] },
+      { id: "item-contacts", name: "Contacts", icon: "Users", href: "/contacts", roles: ["Admin", "SalesManager", "Demo"] },
       { id: "item-clients", name: "Clients", icon: "CheckCircle", href: "/clients", roles: ["Admin", "SalesManager", "Demo"] },
     ],
   },
@@ -73,16 +73,16 @@ const defaultSidebarSections = [
     heading: "PROJECTS & ACTIVITIES",
     items: [
       { id: "item-projects", name: "Projects", icon: "FolderOpen", href: "/projects", roles: ["Admin", "Employee", "Intern", "Demo"] },
-      { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "SalesManager"] },
-      { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "SalesManager"] },
+      { id: "item-meetings", name: "Meetings", icon: "Calendar", href: "/meetings", roles: ["Admin", "SalesManager", "Demo"] },
+      { id: "item-calls", name: "Calls", icon: "Phone", href: "/calls", roles: ["Admin", "SalesManager", "Demo"] },
     ],
   },
   {
     id: "section-teams",
     heading: "TEAMS",
     items: [
-      { id: "item-teams", name: "Team Directory", icon: "Users", href: "/teams", roles: ["Admin", "SalesManager"] },
-      { id: "item-leaderboard", name: "Leaderboard", icon: "Trophy", href: "/admin/leaderboard", roles: ["Admin", "SalesManager"] },
+      { id: "item-teams", name: "Team Directory", icon: "Users", href: "/teams", roles: ["Admin", "SalesManager", "Demo"] },
+      { id: "item-leaderboard", name: "Leaderboard", icon: "Trophy", href: "/admin/leaderboard", roles: ["Admin", "SalesManager", "Demo"] },
     ],
   },
   {

@@ -183,6 +183,8 @@ export default function OpportunitiesTab({ client, timeline, serviceRequests, re
       const data = await res.json();
       if (!res.ok) {
         setExtractError(data.detail || 'Failed to extract services');
+      } else if (data.ok === false) {
+        setExtractError(data.message || 'Failed to extract services');
       } else {
         setExtractResult({ count: data.services?.length || 0, marketplace: data.marketplace_entries_added || 0 });
         window.dispatchEvent(new CustomEvent('refresh-client-data'));
@@ -670,7 +672,7 @@ export default function OpportunitiesTab({ client, timeline, serviceRequests, re
                   <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-zinc-400 mb-3">Discovered Competitors</h4>
                   {radarData?.discovered_competitors?.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {radarData.discovered_competitors.map((comp: any, idx: number) => (
+                      {radarData?.discovered_competitors?.map((comp: any, idx: number) => (
                         <div key={idx} className="bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl p-4">
                           <a href={`/admin/clients/${comp.discovered_client_id}`} target="_blank" className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
                             {comp.discovered_client_name}

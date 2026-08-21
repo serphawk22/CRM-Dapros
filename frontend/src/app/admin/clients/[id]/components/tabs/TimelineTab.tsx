@@ -31,6 +31,11 @@ function groupByDate(events: any[], locale: string) {
   return groups;
 }
 
+function formatTechnicalWord(text: string) {
+  if (!text) return '';
+  return text.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
 export default function TimelineTab({ timeline, timelineFilter, onFilterChange }: TimelineTabProps) {
   const { t, language } = useLanguage();
 
@@ -120,7 +125,7 @@ export default function TimelineTab({ timeline, timelineFilter, onFilterChange }
                                 <span className="text-[9px] text-slate-400 dark:text-slate-600 dark:text-zinc-300">• {ev.user}</span>
                               )}
                             </div>
-                            <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100 dark:text-slate-200 truncate">{ev.title}</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-zinc-100 dark:text-slate-200 truncate">{formatTechnicalWord(ev.title)}</p>
                             {ev.detail && (
                               <p className="text-xs text-slate-500 dark:text-zinc-400 dark:text-slate-400 mt-0.5 line-clamp-2">{ev.detail}</p>
                             )}
