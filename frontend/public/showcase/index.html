@@ -21,7 +21,23 @@
     /* Hide scrollbar for clean sticky scroll if needed */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Suppress Google Translate native toolbar */
+    .goog-te-banner-frame, .goog-te-balloon-frame { display: none !important; }
+    .goog-te-gadget { display: none !important; }
+    body { top: 0 !important; }
+    .skiptranslate { display: none !important; }
+    #google_translate_element { display: none !important; }
   </style>
+  <script>
+    (function() {
+      if (sessionStorage.getItem('crm_gt_restore_en') === '1') {
+        sessionStorage.removeItem('crm_gt_restore_en');
+        document.documentElement.classList.add('notranslate');
+        document.documentElement.setAttribute('translate', 'no');
+      }
+    })();
+  </script>
   <script>
     tailwind.config = {
       theme: {
@@ -36,6 +52,17 @@
   </script>
 </head>
 <body class="bg-brand-light text-brand-dark font-sans antialiased overflow-x-hidden selection:bg-brand-dark selection:text-brand-light">
+
+  <div id="google_translate_element" style="display: none;"></div>
+  <script>
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement(
+        { pageLanguage: 'en', includedLanguages: 'es,fr,de,it', autoDisplay: false },
+        'google_translate_element'
+      );
+    }
+  </script>
+  <script src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
   <!-- Custom Cursor -->
   <div class="cursor-dot"></div>
@@ -52,7 +79,19 @@
         <a href="#tech" class="nav-link hover:opacity-70 transition-opacity">Tech Stack</a>
         <a href="#stats" class="nav-link hover:opacity-70 transition-opacity">Stats</a>
       </div>
-      <a href="/login" class="hidden lg:block nav-link border border-black/30 rounded-full px-6 py-2 hover:bg-black hover:text-white transition-colors text-sm font-semibold">Log In</a>
+      <div class="hidden lg:flex items-center gap-3">
+        <!-- Language Selector -->
+        <div class="flex items-center p-1 bg-white border border-gray-200 rounded-xl shadow-sm">
+          <button type="button" onclick="setAppLanguage('en')" id="btn-lang-en" class="flex items-center px-3 py-1.5 rounded-lg transition-all text-[11px] font-black tracking-widest cursor-pointer bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm whitespace-nowrap">
+            US EN
+          </button>
+          <button type="button" onclick="setAppLanguage('es')" id="btn-lang-es" class="flex items-center px-3 py-1.5 rounded-lg transition-all text-[11px] font-black tracking-widest cursor-pointer text-gray-500 hover:bg-gray-50 border border-transparent whitespace-nowrap">
+            ES ES
+          </button>
+        </div>
+
+        <a href="/login" class="nav-link border border-black/30 rounded-full px-6 py-2 hover:bg-black hover:text-white transition-colors text-sm font-semibold">Log In</a>
+      </div>
       
       <!-- Mobile Menu Toggle -->
       <button id="mobile-menu-btn" class="lg:hidden text-black flex flex-col justify-center gap-1.5 p-2 relative z-50 w-8 h-8">
@@ -70,6 +109,14 @@
      <a href="#roles" class="mobile-link opacity-0 translate-y-12 transition-all duration-500 delay-200 hover:text-gray-500">Roles</a>
      <a href="#tech" class="mobile-link opacity-0 translate-y-12 transition-all duration-500 delay-[250ms] hover:text-gray-500">Tech Stack</a>
      <a href="#stats" class="mobile-link opacity-0 translate-y-12 transition-all duration-500 delay-300 hover:text-gray-500">Stats</a>
+     <div class="flex items-center p-1 bg-white border border-gray-200 rounded-xl shadow-sm">
+       <button type="button" onclick="setAppLanguage('en')" id="mob-btn-lang-en" class="flex items-center px-4 py-2 rounded-lg transition-all text-xs font-black tracking-widest cursor-pointer bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm whitespace-nowrap">
+         US EN
+       </button>
+       <button type="button" onclick="setAppLanguage('es')" id="mob-btn-lang-es" class="flex items-center px-4 py-2 rounded-lg transition-all text-xs font-black tracking-widest cursor-pointer text-gray-500 hover:bg-gray-50 border border-transparent whitespace-nowrap">
+         ES ES
+       </button>
+     </div>
      <a href="/login" class="mobile-link opacity-0 translate-y-12 transition-all duration-500 delay-[350ms] hover:text-gray-500">Log In</a>
   </div>
 
@@ -916,6 +963,92 @@
                 chap2Video.play();
             }
         });
+    }
+
+    // ── Global Language Management for Showcase Landing Page ──
+    window.setAppLanguage = function(lang) {
+      if (lang === 'en') {
+        localStorage.setItem('crm-language', 'en');
+        localStorage.setItem('language', 'en');
+        sessionStorage.setItem('crm_gt_restore_en', '1');
+        document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname}`;
+        document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${window.location.hostname}`;
+        window.location.reload();
+        return;
+      }
+
+      localStorage.setItem('crm-language', lang);
+      localStorage.setItem('language', lang);
+      document.cookie = `googtrans=/en/${lang}; path=/;`;
+      document.cookie = `googtrans=/en/${lang}; path=/; domain=${window.location.hostname}`;
+      document.cookie = `googtrans=/en/${lang}; path=/; domain=.${window.location.hostname}`;
+      document.documentElement.classList.remove('notranslate');
+      document.documentElement.removeAttribute('translate');
+
+      updateLanguageUI(lang);
+
+      const triggerGT = (attempts = 0) => {
+        const select = document.querySelector('.goog-te-combo');
+        if (select) {
+          select.value = lang;
+          select.dispatchEvent(new Event('change'));
+        } else if (attempts < 25) {
+          setTimeout(() => triggerGT(attempts + 1), 100);
+        }
+      };
+      triggerGT();
+    };
+
+    function updateLanguageUI(lang) {
+      const isSpanish = lang === 'es';
+      const btnEn = document.getElementById('btn-lang-en');
+      const btnEs = document.getElementById('btn-lang-es');
+      const mobBtnEn = document.getElementById('mob-btn-lang-en');
+      const mobBtnEs = document.getElementById('mob-btn-lang-es');
+
+      const activeClassList = ['bg-indigo-50', 'text-indigo-700', 'border-indigo-100', 'shadow-sm'];
+      const inactiveClassList = ['text-gray-500', 'hover:bg-gray-50', 'border-transparent'];
+      const baseClassList = ['flex', 'items-center', 'px-3', 'py-1.5', 'rounded-lg', 'transition-all', 'text-[11px]', 'font-black', 'tracking-widest', 'cursor-pointer', 'border', 'whitespace-nowrap'];
+      const mobBaseClassList = ['flex', 'items-center', 'px-4', 'py-2', 'rounded-lg', 'transition-all', 'text-xs', 'font-black', 'tracking-widest', 'cursor-pointer', 'border', 'whitespace-nowrap'];
+
+      if (btnEn && btnEs) {
+        btnEn.className = isSpanish 
+          ? [...baseClassList, ...inactiveClassList].join(' ')
+          : [...baseClassList, ...activeClassList].join(' ');
+        
+        btnEs.className = isSpanish 
+          ? [...baseClassList, ...activeClassList].join(' ')
+          : [...baseClassList, ...inactiveClassList].join(' ');
+      }
+
+      if (mobBtnEn && mobBtnEs) {
+        mobBtnEn.className = isSpanish 
+          ? [...mobBaseClassList, ...inactiveClassList].join(' ')
+          : [...mobBaseClassList, ...activeClassList].join(' ');
+        
+        mobBtnEs.className = isSpanish 
+          ? [...mobBaseClassList, ...activeClassList].join(' ')
+          : [...mobBaseClassList, ...inactiveClassList].join(' ');
+      }
+    }
+
+    // Restore saved language on load
+    const savedLang = localStorage.getItem('crm-language') || localStorage.getItem('language');
+    if (savedLang === 'es') {
+      updateLanguageUI('es');
+      const restoreGT = (attempts = 0) => {
+        const select = document.querySelector('.goog-te-combo');
+        if (select) {
+          select.value = 'es';
+          select.dispatchEvent(new Event('change'));
+        } else if (attempts < 25) {
+          setTimeout(() => restoreGT(attempts + 1), 150);
+        }
+      };
+      restoreGT();
+    } else {
+      updateLanguageUI('en');
     }
 
   </script>

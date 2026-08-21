@@ -7,16 +7,10 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 // Add new languages by dropping a folder under /locales and importing below.
 import enCommon from '@/locales/en/common.json';
 import esCommon from '@/locales/es/common.json';
-import frCommon from '@/locales/fr/common.json';
-import deCommon from '@/locales/de/common.json';
-import itCommon from '@/locales/it/common.json';
 
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', name: 'English',  nativeName: 'English',  flag: '🇺🇸', dir: 'ltr' },
   { code: 'es', name: 'Spanish',  nativeName: 'Español',  flag: '🇪🇸', dir: 'ltr' },
-  { code: 'fr', name: 'French',   nativeName: 'Français', flag: '🇫🇷', dir: 'ltr' },
-  { code: 'de', name: 'German',   nativeName: 'Deutsch',  flag: '🇩🇪', dir: 'ltr' },
-  { code: 'it', name: 'Italian',  nativeName: 'Italiano', flag: '🇮🇹', dir: 'ltr' },
   // Future: { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷', dir: 'ltr' },
   // Future: { code: 'ar', name: 'Arabic',     nativeName: 'عربي',      flag: '🇸🇦', dir: 'rtl' },
   // Future: { code: 'ja', name: 'Japanese',   nativeName: '日本語',    flag: '🇯🇵', dir: 'ltr' },
@@ -28,9 +22,6 @@ export type SupportedLocale = (typeof SUPPORTED_LANGUAGES)[number]['code'];
 const resources = {
   en: { common: enCommon },
   es: { common: esCommon },
-  fr: { common: frCommon },
-  de: { common: deCommon },
-  it: { common: itCommon },
 };
 
 if (!i18n.isInitialized) {
@@ -41,7 +32,7 @@ if (!i18n.isInitialized) {
       resources,
       defaultNS: 'common',
       fallbackLng: 'en',
-      supportedLngs: ['en', 'es', 'fr', 'de', 'it'],
+      supportedLngs: ['en', 'es'],
       interpolation: {
         escapeValue: false, // React already escapes values
       },
@@ -64,7 +55,7 @@ export function formatDate(date: Date | string, locale: string, options?: Intl.D
   const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) return '—';
   const localeMap: Record<string, string> = {
-    en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+    en: 'en-US', es: 'es-ES',
   };
   return d.toLocaleDateString(localeMap[locale] || 'en-US', options || {
     year: 'numeric', month: 'long', day: 'numeric',
@@ -77,7 +68,7 @@ export function formatDateShort(date: Date | string, locale: string): string {
 
 export function formatCurrency(amount: number, locale: string, currency = 'USD'): string {
   const localeMap: Record<string, string> = {
-    en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+    en: 'en-US', es: 'es-ES',
   };
   return new Intl.NumberFormat(localeMap[locale] || 'en-US', {
     style: 'currency', currency,
@@ -95,7 +86,7 @@ export function formatRelativeTime(date: Date | string, locale: string): string 
   const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) return '—';
   const localeMap: Record<string, string> = {
-    en: 'en-US', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', it: 'it-IT',
+    en: 'en-US', es: 'es-ES',
   };
   const rtf = new Intl.RelativeTimeFormat(localeMap[locale] || 'en-US', { numeric: 'auto' });
   const diff = d.getTime() - Date.now();

@@ -3,32 +3,159 @@ import { API_BASE_URL } from "@/config";
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Filter, Users as UsersIcon, Mail, Phone, Globe, Linkedin, MoreVertical, Tag } from "lucide-react";
+import { Search, Plus, Filter, Users as UsersIcon, Mail, Phone, Globe, Linkedin, MoreVertical, Tag, ChevronDown, ChevronRight, CornerDownRight, Trash, Edit, AlertCircle } from "lucide-react";
+
+const ContactRow = ({ contact, depth = 0, onAddSubContact, onEdit, onDelete, onAddNote }: any) => {
+  const [expanded, setExpanded] = useState(false);
+  const [children, setChildren] = useState<any[]>([]);
+  const [loadingChildren, setLoadingChildren] = useState(false);
+
+  // Search results are flat but show path
+  const isSearchResult = !!contact.hierarchy_path;
+
+  const toggleExpand = async () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+    if (children.length === 0 && contact.children_count > 0 && !isSearchResult) {
+      setLoadingChildren(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/contacts/${contact.id}/children`);
+        if (res.ok) {
+          const data = await res.json();
+          setChildren(data.children || []);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingChildren(false);
+      }
+    }
+  };
+
+  return (
+    <>
+      <tr className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-100 dark:border-slate-800/50">
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-2" style={{ paddingLeft: `${depth * 24}px` }}>
+            {!isSearchResult && contact.children_count > 0 ? (
+              <button onClick={toggleExpand} className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500">
+                {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+            ) : (
+              <div className="w-6" /> // spacer
+            )}
+            {depth > 0 && <CornerDownRight className="w-4 h-4 text-slate-300 dark:text-slate-600" />}
+            <div className="flex flex-col">
+              <span className="font-semibold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+                {contact.full_name || "Unknown"}
+                {contact.children_count > 0 && !isSearchResult && (
+                  <span className="text-xs bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md text-slate-500">
+                    {contact.children_count} Sub-Contacts
+                  </span>
+                )}
+              </span>
+              <span className="text-[13px] text-slate-500 mt-0.5">{contact.designation || "No title"}</span>
+              {isSearchResult && contact.hierarchy_path && (
+                <span className="text-xs text-blue-500 mt-1 flex items-center gap-1">
+                   {contact.hierarchy_path}
+                </span>
+              )}
+            </div>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex flex-col gap-1">
+            {contact.email && (
+              <div className="flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-300">
+                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                <span>{contact.email}</span>
+              </div>
+            )}
+            {contact.mobile_number && (
+              <div className="flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-300">
+                <Phone className="w-3.5 h-3.5 text-slate-400" />
+                <span>{contact.mobile_number}</span>
+              </div>
+            )}
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          {contact.linkedin_url && (
+            <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700">
+              <Linkedin className="w-4 h-4" />
+            </a>
+          )}
+        </td>
+        <td className="px-6 py-4 text-right">
+          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => onAddSubContact(contact)} title="Add Sub-Contact" className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 text-slate-400 hover:text-blue-600 transition-colors">
+              <Plus className="w-4 h-4" />
+            </button>
+            <button onClick={() => onEdit(contact)} title="Edit" className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+              <Edit className="w-4 h-4" />
+            </button>
+            <button onClick={() => onDelete(contact)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-600 transition-colors">
+              <Trash className="w-4 h-4" />
+            </button>
+          </div>
+        </td>
+      </tr>
+      {expanded && !isSearchResult && children.map(child => (
+        <ContactRow 
+          key={child.id} 
+          contact={child} 
+          depth={depth + 1} 
+          onAddSubContact={onAddSubContact}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onAddNote={onAddNote}
+        />
+      ))}
+      {expanded && loadingChildren && (
+        <tr>
+           <td colSpan={4} className="px-6 py-2 text-left text-xs text-slate-400" style={{ paddingLeft: `${(depth+1) * 24 + 32}px` }}>Loading...</td>
+        </tr>
+      )}
+    </>
+  );
+};
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<any[]>([]);
+  const [allFlatContacts, setAllFlatContacts] = useState<any[]>([]); // For Move Contact dropdown
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [contactToDelete, setContactToDelete] = useState<any>(null);
+  
   const [leads, setLeads] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const emptyForm = {
+    id: null,
     first_name: "", last_name: "", email: "", mobile_number: "", designation: "", department: "",
-    assignment_type: "none", // none, client, lead, create_lead
-    client_id: "", lead_id: ""
+    assignment_type: "none",
+    client_id: "", lead_id: "", parent_contact_id: null
   };
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<any>(emptyForm);
 
   useEffect(() => {
     fetchContacts();
+    fetchAllContactsFlat();
     fetch(`${API_BASE_URL}/leads`).then(r => r.json()).then(data => setLeads(data.leads || []));
     fetch(`${API_BASE_URL}/clients`).then(r => r.json()).then(data => setClients(data.clients || []));
   }, []);
 
-  const fetchContacts = async () => {
+  const fetchContacts = async (query = "") => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/contacts`);
+      const q = query ? `?search=${encodeURIComponent(query)}` : "";
+      const res = await fetch(`${API_BASE_URL}/contacts${q}`);
       if (res.ok) {
         const data = await res.json();
         setContacts(Array.isArray(data) ? data : data.contacts || []);
@@ -40,6 +167,25 @@ export default function ContactsPage() {
     }
   };
 
+  const fetchAllContactsFlat = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/contacts?search=`); // fetch all via search logic
+      if (res.ok) {
+        const data = await res.json();
+        setAllFlatContacts(Array.isArray(data) ? data : data.contacts || []);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchContacts(searchQuery);
+    }, 300);
+    return () => clearTimeout(delayDebounceFn);
+  }, [searchQuery]);
+
   const handleAddNote = async (contact: any) => {
     const note = prompt("Enter note for this contact:");
     if (note) {
@@ -50,10 +196,53 @@ export default function ContactsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ notes: newNotes })
         });
-        fetchContacts();
+        fetchContacts(searchQuery);
       } catch (err) {
         console.error(err);
       }
+    }
+  };
+
+  const handleAddSubContact = (parentContact: any) => {
+    setForm({ ...emptyForm, parent_contact_id: parentContact.id });
+    setShowModal(true);
+  };
+
+  const handleEdit = (contact: any) => {
+    setForm({
+      id: contact.id,
+      first_name: contact.first_name || "",
+      last_name: contact.last_name || "",
+      email: contact.email || "",
+      mobile_number: contact.mobile_number || "",
+      designation: contact.designation || "",
+      department: contact.department || "",
+      assignment_type: contact.client_id ? "client" : contact.lead_id ? "lead" : "none",
+      client_id: contact.client_id || "",
+      lead_id: contact.lead_id || "",
+      parent_contact_id: contact.parent_contact_id || null
+    });
+    setShowModal(true);
+  };
+
+  const handleDeletePrompt = (contact: any) => {
+    setContactToDelete(contact);
+    setShowDeleteModal(true);
+  };
+
+  const executeDelete = async (action: 'cascade' | 'move_to_parent') => {
+    if (!contactToDelete) return;
+    try {
+      await fetch(`${API_BASE_URL}/contacts/${contactToDelete.id}?action=${action}`, {
+        method: "DELETE"
+      });
+      setShowDeleteModal(false);
+      setContactToDelete(null);
+      fetchContacts(searchQuery);
+      fetchAllContactsFlat();
+    } catch (e) {
+      console.error(e);
+      alert("Error deleting contact");
     }
   };
 
@@ -65,7 +254,17 @@ export default function ContactsPage() {
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage individual decision makers and stakeholders</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search contacts..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 w-64"
+            />
+          </div>
+          <button onClick={() => { setForm(emptyForm); setShowModal(true); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors">
             <Plus className="w-4 h-4" />
             Add Contact
           </button>
@@ -84,7 +283,7 @@ export default function ContactsPage() {
             </div>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No contacts found</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-              We couldn't find any contacts. Try adjusting your search or add a new contact.
+              We couldn't find any contacts matching your criteria.
             </p>
           </div>
         ) : (
@@ -97,67 +296,93 @@ export default function ContactsPage() {
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+            <tbody>
               {contacts.map((contact, idx) => (
-                <tr key={contact.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-slate-900 dark:text-white text-sm">
-                        {contact.full_name || "Unknown"}
-                      </span>
-                      <span className="text-[13px] text-slate-500 mt-0.5">{contact.designation || "No title"}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
-                      {contact.email && (
-                        <div className="flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-300">
-                          <Mail className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{contact.email}</span>
-                        </div>
-                      )}
-                      {contact.mobile_number && (
-                        <div className="flex items-center gap-1.5 text-[13px] text-slate-600 dark:text-slate-300">
-                          <Phone className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{contact.mobile_number}</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    {contact.linkedin_url && (
-                      <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700">
-                        <Linkedin className="w-4 h-4" />
-                      </a>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => handleAddNote(contact)} title="Add Note" className="p-1.5 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 text-slate-400 hover:text-yellow-600 transition-colors">
-                        <Tag className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+                <ContactRow 
+                  key={contact.id} 
+                  contact={contact} 
+                  onAddSubContact={handleAddSubContact}
+                  onEdit={handleEdit}
+                  onDelete={handleDeletePrompt}
+                  onAddNote={handleAddNote}
+                />
               ))}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Add Contact Modal */}
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && contactToDelete && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-black rounded-2xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center gap-3 mb-4 text-red-600">
+                <AlertCircle className="w-6 h-6" />
+                <h2 className="text-xl font-bold">Delete Contact?</h2>
+              </div>
+              <p className="text-slate-600 dark:text-slate-300 mb-6">
+                Are you sure you want to delete <strong>{contactToDelete.full_name}</strong>?
+                {contactToDelete.children_count > 0 && (
+                  <span className="block mt-2 text-amber-600 dark:text-amber-500">
+                    This contact has {contactToDelete.children_count} sub-contact(s). What would you like to do with them?
+                  </span>
+                )}
+              </p>
+              <div className="flex flex-col gap-3">
+                {contactToDelete.children_count > 0 && (
+                  <button onClick={() => executeDelete('move_to_parent')} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm">
+                    Delete and Move Sub-Contacts to Parent
+                  </button>
+                )}
+                <button onClick={() => executeDelete('cascade')} className="w-full px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm">
+                  {contactToDelete.children_count > 0 ? "Delete Contact AND all Sub-Contacts" : "Delete Contact"}
+                </button>
+                <button onClick={() => setShowDeleteModal(false)} className="w-full px-4 py-2.5 rounded-xl font-semibold text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 text-sm">
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add / Edit Contact Modal */}
       <AnimatePresence>
         {showModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowModal(false); }}>
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 16 }}
               className="bg-white dark:bg-black rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Add New Contact</h2>
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-black z-10">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                  {form.id ? "Edit Contact" : "Add New Contact"}
+                </h2>
                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white"><UsersIcon className="w-5 h-5"/></button>
               </div>
               <div className="p-6 space-y-4">
+                
+                {/* Parent Contact Dropdown for Hierarchy */}
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">Parent Contact</label>
+                  <select 
+                    value={form.parent_contact_id || ""} 
+                    onChange={e => setForm({...form, parent_contact_id: e.target.value ? parseInt(e.target.value) : null})} 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  >
+                    <option value="">None (Root Level)</option>
+                    {allFlatContacts.map(c => {
+                      if (c.id === form.id) return null; // Can't be own parent
+                      return (
+                        <option key={c.id} value={c.id}>{c.full_name} {c.hierarchy_path ? `(${c.hierarchy_path})` : ''}</option>
+                      )
+                    })}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5 block">First Name *</label>
@@ -220,7 +445,7 @@ export default function ContactsPage() {
                   )}
                 </div>
               </div>
-              <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 rounded-b-2xl">
+              <div className="p-6 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-3 rounded-b-2xl sticky bottom-0">
                 <button onClick={() => setShowModal(false)} className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
                 <button onClick={async () => {
                   if (!form.first_name.trim()) return;
@@ -232,16 +457,26 @@ export default function ContactsPage() {
                     mobile_number: form.mobile_number,
                     designation: form.designation,
                     department: form.department,
+                    parent_contact_id: form.parent_contact_id
                   };
                   if (form.assignment_type === 'create_lead') payload.create_new_lead = true;
                   if (form.assignment_type === 'lead' && form.lead_id) payload.lead_id = parseInt(form.lead_id);
                   if (form.assignment_type === 'client' && form.client_id) payload.client_id = parseInt(form.client_id);
                   
                   try {
-                    await fetch(`${API_BASE_URL}/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                    const method = form.id ? "PUT" : "POST";
+                    const url = form.id ? `${API_BASE_URL}/contacts/${form.id}` : `${API_BASE_URL}/contacts`;
+                    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+                    if (!res.ok) {
+                      const err = await res.json();
+                      alert(err.detail || "Error saving contact.");
+                      setSaving(false);
+                      return;
+                    }
                     setShowModal(false);
                     setForm(emptyForm);
-                    fetchContacts();
+                    fetchContacts(searchQuery);
+                    fetchAllContactsFlat();
                   } catch (e) { console.error(e); } finally { setSaving(false); }
                 }} disabled={saving || !form.first_name} className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50">
                   {saving ? 'Saving...' : 'Save Contact'}

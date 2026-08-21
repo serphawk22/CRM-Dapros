@@ -46,9 +46,15 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         if (saved && isInternalApi) {
           try {
             const parsed = JSON.parse(saved);
+            config = config || {};
+            if (parsed.id) {
+              config.headers = {
+                ...config.headers,
+                'X-User-ID': String(parsed.id)
+              };
+            }
             // Skip sending tenant ID if the user is a SuperAdmin, giving them global access
             if (parsed.tenant_id && parsed.role !== 'SuperAdmin') {
-              config = config || {};
               config.headers = {
                 ...config.headers,
                 'X-Tenant-ID': String(parsed.tenant_id)

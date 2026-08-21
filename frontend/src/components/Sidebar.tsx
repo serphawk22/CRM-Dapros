@@ -7,7 +7,8 @@ import {
   LayoutDashboard, Bell, Users, FolderOpen, CheckSquare, CheckCircle, Radar, Mail,
   Zap, LayoutList, Globe, BarChart2, Activity, FileText, FileEdit, ShoppingBag, Settings,
   Moon, Sun, ChevronDown, ChevronRight, Search, PanelLeftClose, PanelLeftOpen, Calendar,
-  Phone, Package, ShoppingCart, Truck, HeadphonesIcon, BookOpen, FileBarChart2, Edit2, GripVertical, Check
+  Phone, Package, ShoppingCart, Truck, HeadphonesIcon, BookOpen, FileBarChart2, Edit2, GripVertical, Check,
+  Trophy, Star
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole, Role } from "@/context/RoleContext";
@@ -41,14 +42,12 @@ const iconMap: Record<string, any> = {
   LayoutDashboard, Bell, Users, FolderOpen, CheckSquare, CheckCircle, Radar, Mail,
   Zap, LayoutList, Globe, BarChart2, Activity, FileText, FileEdit, ShoppingBag, Settings,
   Moon, Sun, ChevronDown, ChevronRight, Search, PanelLeftClose, PanelLeftOpen, Calendar,
-  Phone, Package, ShoppingCart, Truck, HeadphonesIcon, BookOpen, FileBarChart2
+  Phone, Package, ShoppingCart, Truck, HeadphonesIcon, BookOpen, FileBarChart2, Trophy, Star
 };
 
 interface SidebarProps {
   role: Role;
 }
-
-const NOTIFICATION_COUNT = 3;
 
 const defaultSidebarSections = [
   {
@@ -124,7 +123,7 @@ const defaultSidebarSections = [
 ];
 
 // --- Sortable Section Component ---
-function SortableSection({ section, role, pathname, collapsed, isEditMode, onRenameSection, unreadCount }: any) {
+function SortableSection({ section, role, pathname, collapsed, isEditMode, onRenameSection, unreadCount, favourites, onToggleFavourite, searchQuery }: any) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: section.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -142,7 +141,10 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
     setIsEditing(false);
   };
 
-  const visibleItems = section.items.filter((item: any) => role === 'SuperAdmin' || item.roles.includes(role));
+  const visibleItems = section.items
+    .filter((item: any) => role === 'SuperAdmin' || item.roles.includes(role))
+    .filter((item: any) => !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
   if (visibleItems.length === 0) return null;
 
   return (
@@ -190,6 +192,7 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
         {visibleItems.map((item: any) => {
           const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
           const IconComp = iconMap[item.icon] || LayoutDashboard;
+          const isFav = favourites?.includes(item.id);
           return (
             <Link
               key={item.href}
@@ -223,6 +226,32 @@ function SortableSection({ section, role, pathname, collapsed, isEditMode, onRen
                   {item.id === "item-notifications" ? unreadCount : item.badge}
                 </span>
               )}
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onToggleFavourite(item.id);
+                  }}
+                  title={isFav ? "Remove from favourites" : "Add to favourites"}
+                  className={cn(
+                    "p-0.5 rounded transition-all shrink-0 hover:scale-110",
+                    isFav 
+                      ? "opacity-100" 
+                      : "opacity-0 group-hover:opacity-40 hover:!opacity-100"
+                  )}
+                >
+                  <Star 
+                    className={cn(
+                      "w-3.5 h-3.5 transition-colors",
+                      isFav 
+                        ? "fill-amber-400 text-amber-400" 
+                        : "text-slate-400 dark:text-slate-500 hover:text-amber-400"
+                    )} 
+                  />
+                </button>
+              )}
             </Link>
           );
         })}
@@ -239,8 +268,63 @@ export function Sidebar({ role }: SidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   
   const [sections, setSections] = useState<any[]>(defaultSidebarSections);
+  const [favourites, setFavourites] = useState<string[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchSidebarPrefs = useCallback(async () => {
+    const localFavKey = `crm_favourites_${user?.id || 'default'}`;
+    try {
+      const cachedFavs = localStorage.getItem(localFavKey);
+      if (cachedFavs) {
+        setFavourites(JSON.parse(cachedFavs));
+      }
+    } catch {}
+
+    if (!user?.id) return;
+
+    try {
+      const url = `${API_BASE_URL}/users/me/sidebar-preferences?user_id=${user.id}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ok && data.sidebar_preferences) {
+          if (data.sidebar_preferences.sections) {
+            const savedSections = data.sidebar_preferences.sections;
+            const savedSectionIds = new Set(savedSections.map((s: any) => s.id));
+            const missingSections = defaultSidebarSections.filter(s => !savedSectionIds.has(s.id));
+            
+            const mergedSections = savedSections.map((savedSec: any) => {
+              const defaultSec = defaultSidebarSections.find(s => s.id === savedSec.id);
+              if (!defaultSec) return savedSec;
+              
+              const savedItemIds = new Set(savedSec.items.map((i: any) => i.id));
+              const missingItems = defaultSec.items.filter(i => !savedItemIds.has(i.id));
+              
+              if (missingItems.length > 0) {
+                return { ...savedSec, items: [...savedSec.items, ...missingItems] };
+              }
+              return savedSec;
+            });
+            
+            if (missingSections.length > 0) {
+              setSections([...mergedSections, ...missingSections]);
+            } else {
+              setSections(mergedSections);
+            }
+          }
+          if (Array.isArray(data.sidebar_preferences.favourites)) {
+            setFavourites(data.sidebar_preferences.favourites);
+            try {
+              localStorage.setItem(localFavKey, JSON.stringify(data.sidebar_preferences.favourites));
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load sidebar preferences from server, using local fallback.", e);
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     fetchSidebarPrefs();
@@ -256,65 +340,41 @@ export function Sidebar({ role }: SidebarProps) {
     fetchNotifs();
     const interval = setInterval(fetchNotifs, 30000);
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user?.id, fetchSidebarPrefs]);
 
-  const fetchSidebarPrefs = async () => {
+  const saveSidebarPrefs = async (newSections: any[], newFavourites?: string[]) => {
+    const favsToSave = newFavourites !== undefined ? newFavourites : favourites;
+    const localFavKey = `crm_favourites_${user?.id || 'default'}`;
     try {
-      const res = await fetch(`${API_BASE_URL}/users/me/sidebar-preferences`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.ok && data.sidebar_preferences?.sections) {
-          const savedSections = data.sidebar_preferences.sections;
-          
-          // Merge in any new default sections that the user doesn't have yet
-          const savedSectionIds = new Set(savedSections.map((s: any) => s.id));
-          const missingSections = defaultSidebarSections.filter(s => !savedSectionIds.has(s.id));
-          
-          // Deep merge: update existing items with latest roles/icons and add missing items
-          const mergedSections = savedSections.map((savedSec: any) => {
-            const updatedSavedItems = savedSec.items.map((savedItem: any) => {
-              let defaultItemRef = null;
-              for (const ds of defaultSidebarSections) {
-                const found = ds.items.find(i => i.id === savedItem.id);
-                if (found) { defaultItemRef = found; break; }
-              }
-              if (defaultItemRef) {
-                return { ...savedItem, roles: defaultItemRef.roles, icon: defaultItemRef.icon, href: defaultItemRef.href, name: defaultItemRef.name };
-              }
-              return savedItem;
-            });
+      localStorage.setItem(localFavKey, JSON.stringify(favsToSave));
+    } catch {}
 
-            const defaultSec = defaultSidebarSections.find(s => s.id === savedSec.id);
-            if (!defaultSec) return { ...savedSec, items: updatedSavedItems };
-            
-            const savedItemIds = new Set(updatedSavedItems.map((i: any) => i.id));
-            const missingItems = defaultSec.items.filter(i => !savedItemIds.has(i.id));
-            
-            return { ...savedSec, items: [...updatedSavedItems, ...missingItems] };
-          });
-          
-          if (missingSections.length > 0) {
-            setSections([...mergedSections, ...missingSections]);
-          } else {
-            setSections(mergedSections);
-          }
-        }
-      }
+    if (!user?.id) return;
+
+    try {
+      const url = `${API_BASE_URL}/users/me/sidebar-preferences?user_id=${user.id}`;
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          sidebar_preferences: { 
+            sections: newSections,
+            favourites: favsToSave 
+          } 
+        }),
+      });
     } catch (e) {
-      console.error("Failed to load sidebar prefs", e);
+      console.warn("Could not save sidebar preferences to server:", e);
     }
   };
 
-  const saveSidebarPrefs = async (newSections: any[]) => {
-    try {
-      await fetch(`${API_BASE_URL}/users/me/sidebar-preferences`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sidebar_preferences: { sections: newSections } }),
-      });
-    } catch (e) {
-      console.error("Failed to save sidebar prefs", e);
-    }
+  const handleToggleFavourite = (itemId: string) => {
+    setFavourites((prev) => {
+      const exists = prev.includes(itemId);
+      const updated = exists ? prev.filter((id) => id !== itemId) : [...prev, itemId];
+      saveSidebarPrefs(sections, updated);
+      return updated;
+    });
   };
 
   const handleRenameSection = (sectionId: string, newName: string) => {
@@ -338,6 +398,27 @@ export function Sidebar({ role }: SidebarProps) {
       saveSidebarPrefs(updated);
     }
   };
+
+  // Collect map of all items across sections and defaults
+  const allItemsMap = new Map<string, any>();
+  sections.forEach(sec => {
+    sec.items?.forEach((item: any) => {
+      allItemsMap.set(item.id, item);
+    });
+  });
+  defaultSidebarSections.forEach(sec => {
+    sec.items?.forEach((item: any) => {
+      if (!allItemsMap.has(item.id)) {
+        allItemsMap.set(item.id, item);
+      }
+    });
+  });
+
+  const favouriteItems = favourites
+    .map(id => allItemsMap.get(id))
+    .filter(Boolean)
+    .filter(item => role === 'SuperAdmin' || item.roles?.includes(role))
+    .filter(item => !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
   // ── Language Toggle ──
   const { i18n } = useTranslation();
@@ -504,6 +585,82 @@ export function Sidebar({ role }: SidebarProps) {
 
         {/* ── MAIN NAVIGATION ── */}
         <nav className={cn("flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 flex flex-col gap-0.5 pb-2", collapsed ? "px-2" : "px-3")}>
+          
+          {/* ── FAVOURITES SECTION ── */}
+          {favouriteItems.length > 0 && (
+            <div className="flex flex-col mb-1 pb-2 border-b border-slate-100 dark:border-slate-800/80">
+              {!collapsed && (
+                <div className="flex items-center justify-between px-2 pt-1 pb-1">
+                  <span 
+                    className="text-[9px] font-bold tracking-[0.1em] uppercase flex items-center gap-1.5"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                    <span>FAVOURITES</span>
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-medium px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-slate-800">
+                    {favouriteItems.length}
+                  </span>
+                </div>
+              )}
+              <div className="flex flex-col gap-[1px]">
+                {favouriteItems.map((item: any) => {
+                  const isActive = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+                  const IconComp = iconMap[item.icon] || LayoutDashboard;
+                  return (
+                    <Link
+                      key={`fav-${item.id}-${item.href}`}
+                      href={item.href}
+                      className={cn(
+                        "relative group flex items-center gap-2 rounded-[8px] transition-all duration-150 select-none shrink-0",
+                        collapsed ? "w-9 h-9 justify-center mx-auto" : "py-[4px] px-2 h-[28px]",
+                        !isActive && "hover:bg-gray-50 dark:hover:bg-slate-800/50"
+                      )}
+                      style={isActive ? { background: "rgba(37,99,235,0.08)", color: "#2563eb" } : { color: "var(--sidebar-text)" }}
+                    >
+                      {isActive && !collapsed && (
+                        <motion.span layoutId="sidebar-fav-active-indicator" className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-[18px] rounded-full bg-blue-600" />
+                      )}
+                      <IconComp className={cn("w-[16px] h-[16px] shrink-0 transition-colors", isActive ? "text-blue-600" : "group-hover:text-blue-500")} />
+                      <AnimatePresence>
+                        {!collapsed && (
+                          <motion.span
+                            initial={{ opacity: 0, x: -6 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -6 }}
+                            transition={{ duration: 0.14 }}
+                            className={cn("flex-1 text-[13px] font-medium truncate", isActive && "font-semibold")}
+                          >
+                            {item.name}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                      {(item.id === "item-notifications" ? unreadCount : item.badge) > 0 && !collapsed && (
+                        <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center">
+                          {item.id === "item-notifications" ? unreadCount : item.badge}
+                        </span>
+                      )}
+                      {!collapsed && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleToggleFavourite(item.id);
+                          }}
+                          title="Remove from favourites"
+                          className="p-0.5 rounded transition-all shrink-0 hover:scale-110 opacity-100"
+                        >
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400 transition-colors" />
+                        </button>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sections.map(s => s.id)} strategy={verticalListSortingStrategy}>
               {sections.map((section) => (
@@ -516,6 +673,9 @@ export function Sidebar({ role }: SidebarProps) {
                   collapsed={collapsed} 
                   isEditMode={isEditMode}
                   onRenameSection={handleRenameSection}
+                  favourites={favourites}
+                  onToggleFavourite={handleToggleFavourite}
+                  searchQuery={searchQuery}
                 />
               ))}
             </SortableContext>
