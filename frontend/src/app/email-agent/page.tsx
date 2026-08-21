@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot, Send, Sparkles, Mail, Clock, User, Globe, ChevronDown, ChevronUp,
   CheckCircle, Building2, Briefcase, Target, AtSign, FileText, Copy, Check,
-  TrendingUp, Zap, Package, UserPlus, Phone, Store, DollarSign, MessageCircle
+  TrendingUp, Zap, Package, UserPlus, Phone, Store, DollarSign, MessageCircle, Settings
 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { API_BASE_URL } from "@/config";
@@ -779,7 +779,37 @@ export default function EmailAgentPage() {
   const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
   const [emailTotals, setEmailTotals] = useState({ totalSent: 0, autoCount: 0, manualCount: 0 });
   const [emailsLoading, setEmailsLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [emailSettings, setEmailSettings] = useState({ smtp_host: '', smtp_port: 587, smtp_user: '', smtp_pass: '', from_name: '', from_email: '' });
+  const [savingSettings, setSavingSettings] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (showSettings) {
+      fetch(`${API_BASE_URL}/settings/email`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.smtp_host) setEmailSettings(data);
+        });
+    }
+  }, [showSettings]);
+
+  const saveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    try {
+      await fetch(`${API_BASE_URL}/settings/email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailSettings)
+      });
+      setShowSettings(false);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -920,7 +950,7 @@ export default function EmailAgentPage() {
           { id: `msg-${Date.now()}`, role: "ai", type: "text", content: `Error: Something went wrong. Please try again.` }
         ];
       });
-      setChatStep("company_name");
+      setChatStep("website_url");
     }
   };
 
@@ -1062,7 +1092,10 @@ export default function EmailAgentPage() {
               <p className="text-slate-500 dark:text-zinc-400 text-xs font-medium">Research • Match • Draft</p>
             </div>
           </div>
-          <div className="flex gap-4 hidden sm:flex">
+          <div className="flex gap-4 hidden sm:flex items-center">
+            <button onClick={() => setShowSettings(true)} className="flex items-center gap-2 px-3 py-2 bg-slate-200 dark:bg-zinc-800 rounded-xl hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors text-sm font-bold text-slate-700 dark:text-zinc-300">
+              <Settings size={16} /> <span className="hidden md:inline">Settings</span>
+            </button>
             {[
               { label: "Total Sent", value: totalSent },
               { label: "Auto", value: autoCount },
@@ -1291,6 +1324,54 @@ export default function EmailAgentPage() {
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-zinc-900 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-slate-200 dark:border-zinc-800"
+            >
+              <h2 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">Email Configuration</h2>
+              <form onSubmit={saveSettings} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">SMTP Host</label>
+                  <input required value={emailSettings.smtp_host} onChange={e => setEmailSettings({...emailSettings, smtp_host: e.target.value})} className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" placeholder="smtp.gmail.com" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">SMTP Port</label>
+                  <input required type="number" value={emailSettings.smtp_port} onChange={e => setEmailSettings({...emailSettings, smtp_port: parseInt(e.target.value)})} className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">Username / Email</label>
+                  <input required value={emailSettings.smtp_user} onChange={e => setEmailSettings({...emailSettings, smtp_user: e.target.value})} className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" placeholder="you@domain.com" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">App Password</label>
+                  <input required type="password" value={emailSettings.smtp_pass} onChange={e => setEmailSettings({...emailSettings, smtp_pass: e.target.value})} className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">From Name</label>
+                    <input required value={emailSettings.from_name} onChange={e => setEmailSettings({...emailSettings, from_name: e.target.value})} className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" placeholder="John Doe" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-1">From Email</label>
+                    <input required type="email" value={emailSettings.from_email} onChange={e => setEmailSettings({...emailSettings, from_email: e.target.value})} className="w-full bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" placeholder="john@domain.com" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <button type="button" onClick={() => setShowSettings(false)} className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">Cancel</button>
+                  <button type="submit" disabled={savingSettings} className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors">{savingSettings ? 'Saving...' : 'Save Settings'}</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

@@ -34,6 +34,7 @@ const TABS = [
   { key: 'opportunities',  label: 'Opportunities',   icon: Target          },
   { key: 'files',          label: 'Files',           icon: FolderOpen      },
   { key: 'health',         label: 'Health',          icon: HeartPulse      },
+  { key: 'conversations',  label: 'Conversations',   icon: MessageSquare   },
 ];
 
 // ─── Loading Skeleton ────────────────────────────────────────────────────────
