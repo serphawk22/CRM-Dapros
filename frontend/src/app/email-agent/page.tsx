@@ -1324,7 +1324,6 @@ export default function EmailAgentPage() {
           )}
         </div>
       </div>
-    </div>
 
       <AnimatePresence>
         {showSettings && (
